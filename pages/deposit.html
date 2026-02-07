@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Deposit - ELITESTOCKOPTIONS</title>
+  <link rel="icon" type="image/png" href="../public/logo.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#4f46e5',
+            secondary: '#7c3aed',
+            accent: '#06b6d4'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .gradient-bg { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); }
+    .sidebar-link { transition: all 0.3s; }
+    .sidebar-link:hover, .sidebar-link.active { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; }
+    .mobile-sidebar { transform: translateX(-100%); transition: transform 0.3s ease; }
+    .mobile-sidebar.open { transform: translateX(0); }
+    .overlay { opacity: 0; visibility: hidden; transition: all 0.3s; }
+    .overlay.active { opacity: 1; visibility: visible; }
+    @media (max-width: 1024px) {
+      .main-content { margin-left: 0 !important; }
+    }
+    #qrcode img { margin: 0 auto; }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <!-- Mobile Overlay -->
+  <div id="overlay" class="overlay fixed inset-0 bg-black/50 z-40 lg:hidden" onclick="closeSidebar()"></div>
+
+  <!-- Mobile Sidebar -->
+  <aside id="mobileSidebar" class="mobile-sidebar fixed inset-y-0 left-0 w-64 bg-white shadow-xl z-50 lg:hidden overflow-y-auto">
+    <div class="p-4 border-b flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 gradient-bg rounded-xl flex items-center justify-center">
+          <i class="fas fa-chart-line text-white"></i>
+        </div>
+        <span class="font-bold text-lg">ELITESTOCK</span>
+      </div>
+      <button onclick="closeSidebar()" class="p-2 text-gray-500 hover:text-gray-700">
+        <i class="fas fa-times text-xl"></i>
+      </button>
+    </div>
+    <nav class="py-4">
+      <a href="dashboard.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-home w-5"></i><span>Dashboard</span>
+      </a>
+      <a href="deposit.html" class="sidebar-link active flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl">
+        <i class="fas fa-arrow-down w-5"></i><span>Deposit</span>
+      </a>
+      <a href="withdrawal.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-arrow-up w-5"></i><span>Withdraw</span>
+      </a>
+      <a href="settings.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-cog w-5"></i><span>Settings</span>
+      </a>
+    </nav>
+    <div class="p-4 border-t">
+      <button onclick="logout()" class="flex items-center space-x-3 px-4 py-3 w-full rounded-xl text-red-600 hover:bg-red-50">
+        <i class="fas fa-sign-out-alt w-5"></i><span>Logout</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Desktop Sidebar -->
+  <aside class="w-64 bg-white shadow-xl hidden lg:flex flex-col fixed inset-y-0 left-0 z-30">
+    <div class="p-6 border-b">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 gradient-bg rounded-xl flex items-center justify-center">
+          <i class="fas fa-chart-line text-white"></i>
+        </div>
+        <span class="font-bold text-lg">ELITESTOCK</span>
+      </div>
+    </div>
+    <nav class="flex-1 overflow-y-auto py-4">
+      <a href="dashboard.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-home w-5"></i><span>Dashboard</span>
+      </a>
+      <a href="deposit.html" class="sidebar-link active flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl">
+        <i class="fas fa-arrow-down w-5"></i><span>Deposit</span>
+      </a>
+      <a href="withdrawal.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-arrow-up w-5"></i><span>Withdraw</span>
+      </a>
+      <a href="settings.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-cog w-5"></i><span>Settings</span>
+      </a>
+    </nav>
+    <div class="p-4 border-t">
+      <button onclick="logout()" class="flex items-center space-x-3 px-4 py-3 w-full rounded-xl text-red-600 hover:bg-red-50">
+        <i class="fas fa-sign-out-alt w-5"></i><span>Logout</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content lg:ml-64 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white shadow-sm sticky top-0 z-20">
+      <div class="flex items-center justify-between px-4 py-4">
+        <div class="flex items-center">
+          <button onclick="openSidebar()" class="lg:hidden p-2 mr-3 text-gray-600 hover:text-gray-900">
+            <i class="fas fa-bars text-xl"></i>
+          </button>
+          <div>
+            <h1 class="text-xl lg:text-2xl font-bold text-gray-900">Deposit</h1>
+            <p class="text-gray-500 text-sm hidden sm:block">Add funds to your account</p>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="p-4 lg:p-6">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Deposit Form -->
+        <div class="bg-white rounded-2xl shadow-sm p-4 lg:p-6">
+          <h2 class="text-lg font-bold text-gray-900 mb-6">Make a Deposit</h2>
+          <form id="depositForm" class="space-y-4 lg:space-y-6">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Select Cryptocurrency</label>
+              <select id="crypto" required class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary">
+                <option value="">Choose crypto...</option>
+                <option value="btc">Bitcoin (BTC)</option>
+                <option value="eth">Ethereum (ETH)</option>
+                <option value="usdt">Tether (USDT)</option>
+                <option value="bnb">BNB</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Amount (USD)</label>
+              <input type="number" id="amount" required min="10" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary" placeholder="Min $10">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Transaction Hash</label>
+              <input type="text" id="txHash" required class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary" placeholder="Enter transaction hash">
+              <p class="text-xs text-gray-500 mt-1">Enter the transaction ID after sending payment</p>
+            </div>
+            <button type="submit" class="gradient-bg w-full py-3 text-white rounded-xl font-semibold">
+              <i class="fas fa-paper-plane mr-2"></i>Submit Deposit
+            </button>
+          </form>
+        </div>
+
+        <!-- Wallet Info -->
+        <div class="bg-white rounded-2xl shadow-sm p-4 lg:p-6">
+          <h2 class="text-lg font-bold text-gray-900 mb-6">Deposit Address</h2>
+          <div id="walletInfo" class="text-center py-8 text-gray-500">
+            <i class="fas fa-wallet text-4xl mb-4 text-gray-300"></i>
+            <p>Select a cryptocurrency to see deposit address</p>
+          </div>
+          <div id="walletDisplay" class="hidden">
+            <div class="flex justify-center mb-4">
+              <div id="qrcode" class="p-4 bg-white rounded-xl border"></div>
+            </div>
+            <div class="bg-gray-50 rounded-xl p-4">
+              <p class="text-sm text-gray-500 mb-1">Wallet Address</p>
+              <div class="flex items-center gap-2">
+                <code id="walletAddress" class="flex-1 text-xs sm:text-sm font-mono bg-white p-2 rounded border break-all"></code>
+                <button onclick="copyAddress()" class="p-2 text-primary hover:bg-primary/10 rounded-lg flex-shrink-0">
+                  <i class="fas fa-copy"></i>
+                </button>
+              </div>
+            </div>
+            <div class="mt-4 p-4 bg-amber-50 rounded-xl">
+              <p class="text-sm text-amber-800">
+                <i class="fas fa-exclamation-triangle mr-2"></i>
+                Send only the selected cryptocurrency to this address. Sending other coins may result in permanent loss.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    let currentUser = JSON.parse(localStorage.getItem('elitestockoptions_user'));
+    if (!currentUser) window.location.href = 'login.html';
+
+    function openSidebar() {
+      document.getElementById('mobileSidebar').classList.add('open');
+      document.getElementById('overlay').classList.add('active');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeSidebar() {
+      document.getElementById('mobileSidebar').classList.remove('open');
+      document.getElementById('overlay').classList.remove('active');
+      document.body.style.overflow = '';
+    }
+
+    const walletAddresses = {
+      btc: 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh',
+      eth: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
+      usdt: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
+      bnb: 'bnb1grpf0955h0ykzq3ar5nmum7y6gdfl6lxfn46h2'
+    };
+
+    document.getElementById('crypto').addEventListener('change', function() {
+      const crypto = this.value;
+      if (!crypto) {
+        document.getElementById('walletInfo').classList.remove('hidden');
+        document.getElementById('walletDisplay').classList.add('hidden');
+        return;
+      }
+
+      const address = walletAddresses[crypto];
+      document.getElementById('walletInfo').classList.add('hidden');
+      document.getElementById('walletDisplay').classList.remove('hidden');
+      document.getElementById('walletAddress').textContent = address;
+      
+      document.getElementById('qrcode').innerHTML = '';
+      new QRCode(document.getElementById('qrcode'), {
+        text: address,
+        width: 128,
+        height: 128
+      });
+    });
+
+    function copyAddress() {
+      const address = document.getElementById('walletAddress').textContent;
+      navigator.clipboard.writeText(address);
+      alert('Address copied!');
+    }
+
+    document.getElementById('depositForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      const deposit = {
+        id: Date.now().toString(),
+        userId: currentUser.id,
+        cryptoSymbol: document.getElementById('crypto').value.toUpperCase(),
+        amount: parseFloat(document.getElementById('amount').value),
+        txHash: document.getElementById('txHash').value,
+        status: 'pending',
+        createdAt: new Date().toISOString()
+      };
+
+      let deposits = JSON.parse(localStorage.getItem('eso_deposits') || '[]');
+      deposits.push(deposit);
+      localStorage.setItem('eso_deposits', JSON.stringify(deposits));
+
+      let transactions = JSON.parse(localStorage.getItem('eso_transactions') || '[]');
+      transactions.unshift({
+        id: Date.now().toString(),
+        userId: currentUser.id,
+        type: 'deposit',
+        amount: deposit.amount,
+        description: `Deposit ${deposit.cryptoSymbol} - Pending`,
+        date: new Date().toISOString(),
+        status: 'pending'
+      });
+      localStorage.setItem('eso_transactions', JSON.stringify(transactions));
+
+      alert('Deposit submitted! Waiting for admin approval.');
+      this.reset();
+      document.getElementById('walletInfo').classList.remove('hidden');
+      document.getElementById('walletDisplay').classList.add('hidden');
+    });
+
+    function logout() {
+      localStorage.removeItem('elitestockoptions_user');
+      window.location.href = '../index.html';
+    }
+
+    window.addEventListener('resize', function() {
+      if (window.innerWidth >= 1024) closeSidebar();
+    });
+  </script>
+</body>
+</html>

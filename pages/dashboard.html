@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Dashboard - ELITESTOCKOPTIONS</title>
+  <link rel="icon" type="image/png" href="../public/logo.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#4f46e5',
+            secondary: '#7c3aed',
+            accent: '#06b6d4'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .gradient-bg { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); }
+    .sidebar-link { transition: all 0.3s; }
+    .sidebar-link:hover, .sidebar-link.active { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; }
+    .kyc-banner { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); }
+    .mobile-sidebar { transform: translateX(-100%); transition: transform 0.3s ease; }
+    .mobile-sidebar.open { transform: translateX(0); }
+    .overlay { opacity: 0; visibility: hidden; transition: all 0.3s; }
+    .overlay.active { opacity: 1; visibility: visible; }
+    @media (max-width: 1024px) {
+      .main-content { margin-left: 0 !important; }
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <!-- Mobile Overlay -->
+  <div id="overlay" class="overlay fixed inset-0 bg-black/50 z-40 lg:hidden" onclick="closeSidebar()"></div>
+
+  <!-- Mobile Sidebar -->
+  <aside id="mobileSidebar" class="mobile-sidebar fixed inset-y-0 left-0 w-64 bg-white shadow-xl z-50 lg:hidden">
+    <div class="p-4 border-b flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 gradient-bg rounded-xl flex items-center justify-center">
+          <i class="fas fa-chart-line text-white"></i>
+        </div>
+        <span class="font-bold text-lg">ELITESTOCK</span>
+      </div>
+      <button onclick="closeSidebar()" class="p-2 text-gray-500 hover:text-gray-700">
+        <i class="fas fa-times text-xl"></i>
+      </button>
+    </div>
+    <nav class="flex-1 overflow-y-auto py-4">
+      <a href="dashboard.html" class="sidebar-link active flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl">
+        <i class="fas fa-home w-5"></i><span>Dashboard</span>
+      </a>
+      <a href="markets.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-chart-bar w-5"></i><span>Markets</span>
+      </a>
+      <a href="my-trades.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-exchange-alt w-5"></i><span>My Trades</span>
+      </a>
+      <a href="deposit.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-arrow-down w-5"></i><span>Deposit</span>
+      </a>
+      <a href="withdrawal.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-arrow-up w-5"></i><span>Withdraw</span>
+      </a>
+      <a href="transactions.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-list w-5"></i><span>Transactions</span>
+      </a>
+      <a href="copy-trader.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-copy w-5"></i><span>Copy Trader</span>
+      </a>
+      <a href="settings.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-cog w-5"></i><span>Settings</span>
+      </a>
+    </nav>
+    <div class="p-4 border-t">
+      <button onclick="logout()" class="flex items-center space-x-3 px-4 py-3 w-full rounded-xl text-red-600 hover:bg-red-50">
+        <i class="fas fa-sign-out-alt w-5"></i><span>Logout</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Desktop Sidebar -->
+  <aside class="w-64 bg-white shadow-xl hidden lg:flex flex-col fixed inset-y-0 left-0 z-30">
+    <div class="p-6 border-b">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 gradient-bg rounded-xl flex items-center justify-center">
+          <i class="fas fa-chart-line text-white"></i>
+        </div>
+        <span class="font-bold text-lg">ELITESTOCK</span>
+      </div>
+    </div>
+    <nav class="flex-1 overflow-y-auto py-4">
+      <a href="dashboard.html" class="sidebar-link active flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl">
+        <i class="fas fa-home w-5"></i><span>Dashboard</span>
+      </a>
+      <a href="markets.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-chart-bar w-5"></i><span>Markets</span>
+      </a>
+      <a href="my-trades.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-exchange-alt w-5"></i><span>My Trades</span>
+      </a>
+      <a href="deposit.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-arrow-down w-5"></i><span>Deposit</span>
+      </a>
+      <a href="withdrawal.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-arrow-up w-5"></i><span>Withdraw</span>
+      </a>
+      <a href="transactions.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-list w-5"></i><span>Transactions</span>
+      </a>
+      <a href="copy-trader.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-copy w-5"></i><span>Copy Trader</span>
+      </a>
+      <a href="settings.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-cog w-5"></i><span>Settings</span>
+      </a>
+    </nav>
+    <div class="p-4 border-t">
+      <button onclick="logout()" class="flex items-center space-x-3 px-4 py-3 w-full rounded-xl text-red-600 hover:bg-red-50">
+        <i class="fas fa-sign-out-alt w-5"></i><span>Logout</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content lg:ml-64 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white shadow-sm sticky top-0 z-20">
+      <div class="flex items-center justify-between px-4 py-4">
+        <div class="flex items-center">
+          <button onclick="openSidebar()" class="lg:hidden p-2 mr-3 text-gray-600 hover:text-gray-900">
+            <i class="fas fa-bars text-xl"></i>
+          </button>
+          <div>
+            <h1 class="text-xl lg:text-2xl font-bold text-gray-900">Dashboard</h1>
+            <p class="text-gray-500 text-sm hidden sm:block">Welcome back, <span id="userName">Trader</span></p>
+          </div>
+        </div>
+        <div class="flex items-center space-x-3">
+          <img src="" alt="Avatar" class="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-secondary" id="userAvatar">
+        </div>
+      </div>
+    </header>
+
+    <div class="p-4 lg:p-6">
+      <!-- KYC Banner -->
+      <div id="kycBanner" class="kyc-banner rounded-2xl p-4 mb-6 hidden">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div class="flex items-center space-x-3">
+            <i class="fas fa-exclamation-triangle text-amber-600 text-xl"></i>
+            <div>
+              <p class="font-semibold text-amber-800">Complete Your KYC Verification</p>
+              <p class="text-sm text-amber-700">Verify your identity to unlock all features</p>
+            </div>
+          </div>
+          <a href="settings.html#kyc" class="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-center whitespace-nowrap">Verify Now</a>
+        </div>
+      </div>
+
+      <!-- Balance Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6 mb-6 lg:mb-8">
+        <div class="bg-white rounded-2xl p-4 lg:p-6 shadow-sm border border-gray-100">
+          <div class="flex items-center justify-between mb-4">
+            <div class="w-10 h-10 lg:w-12 lg:h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+              <i class="fas fa-wallet text-blue-600 text-lg lg:text-xl"></i>
+            </div>
+            <span class="text-xs font-medium text-gray-400">Total Balance</span>
+          </div>
+          <p class="text-xl lg:text-2xl font-bold text-gray-900" id="totalBalance">$0.00</p>
+        </div>
+        <div class="bg-white rounded-2xl p-4 lg:p-6 shadow-sm border border-gray-100">
+          <div class="flex items-center justify-between mb-4">
+            <div class="w-10 h-10 lg:w-12 lg:h-12 bg-green-100 rounded-xl flex items-center justify-center">
+              <i class="fas fa-coins text-green-600 text-lg lg:text-xl"></i>
+            </div>
+            <span class="text-xs font-medium text-gray-400">Available Cash</span>
+          </div>
+          <p class="text-xl lg:text-2xl font-bold text-green-600" id="availableCash">$0.00</p>
+        </div>
+        <div class="bg-white rounded-2xl p-4 lg:p-6 shadow-sm border border-gray-100 sm:col-span-2 lg:col-span-1">
+          <div class="flex items-center justify-between mb-4">
+            <div class="w-10 h-10 lg:w-12 lg:h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+              <i class="fas fa-chart-line text-purple-600 text-lg lg:text-xl"></i>
+            </div>
+            <span class="text-xs font-medium text-gray-400">Profits</span>
+          </div>
+          <p class="text-xl lg:text-2xl font-bold text-purple-600" id="profitsBalance">$0.00</p>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 lg:p-6 mb-6 lg:mb-8">
+        <h2 class="text-lg font-bold text-gray-900 mb-4">Quick Actions</h2>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:gap-4">
+          <a href="deposit.html" class="flex flex-col items-center p-3 lg:p-4 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors">
+            <i class="fas fa-arrow-down text-blue-600 text-xl lg:text-2xl mb-2"></i>
+            <span class="text-sm font-medium text-gray-700">Deposit</span>
+          </a>
+          <a href="withdrawal.html" class="flex flex-col items-center p-3 lg:p-4 bg-green-50 rounded-xl hover:bg-green-100 transition-colors">
+            <i class="fas fa-arrow-up text-green-600 text-xl lg:text-2xl mb-2"></i>
+            <span class="text-sm font-medium text-gray-700">Withdraw</span>
+          </a>
+          <a href="markets.html" class="flex flex-col items-center p-3 lg:p-4 bg-purple-50 rounded-xl hover:bg-purple-100 transition-colors">
+            <i class="fas fa-chart-bar text-purple-600 text-xl lg:text-2xl mb-2"></i>
+            <span class="text-sm font-medium text-gray-700">Trade</span>
+          </a>
+          <a href="copy-trader.html" class="flex flex-col items-center p-3 lg:p-4 bg-amber-50 rounded-xl hover:bg-amber-100 transition-colors">
+            <i class="fas fa-copy text-amber-600 text-xl lg:text-2xl mb-2"></i>
+            <span class="text-sm font-medium text-gray-700">Copy Trader</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Recent Activity -->
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 lg:p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-bold text-gray-900">Recent Activity</h2>
+          <a href="transactions.html" class="text-primary text-sm hover:underline">View All</a>
+        </div>
+        <div id="recentActivity" class="space-y-3">
+          <p class="text-gray-500 text-center py-4">No recent activity</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    let currentUser = JSON.parse(localStorage.getItem('elitestockoptions_user'));
+    
+    if (!currentUser) {
+      window.location.href = 'login.html';
+    }
+
+    function openSidebar() {
+      document.getElementById('mobileSidebar').classList.add('open');
+      document.getElementById('overlay').classList.add('active');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeSidebar() {
+      document.getElementById('mobileSidebar').classList.remove('open');
+      document.getElementById('overlay').classList.remove('active');
+      document.body.style.overflow = '';
+    }
+
+    function initDashboard() {
+      // Sync from eso_users
+      const allUsers = JSON.parse(localStorage.getItem('eso_users') || '[]');
+      const serverUser = allUsers.find(u => u.id === currentUser.id);
+      if (serverUser) {
+        currentUser.balance = serverUser.balance || 0;
+        currentUser.availableCash = serverUser.availableCash || 0;
+        currentUser.profitsBalance = serverUser.profitsBalance || 0;
+        currentUser.kycStatus = serverUser.kycStatus || 'pending';
+        localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+      }
+
+      document.getElementById('userName').textContent = currentUser.fullName || 'Trader';
+      document.getElementById('totalBalance').textContent = '$' + (currentUser.balance || 0).toFixed(2);
+      document.getElementById('availableCash').textContent = '$' + (currentUser.availableCash || 0).toFixed(2);
+      document.getElementById('profitsBalance').textContent = '$' + (currentUser.profitsBalance || 0).toFixed(2);
+      
+      const avatarUrl = currentUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.fullName || currentUser.email}&backgroundColor=b6e3f4`;
+      document.getElementById('userAvatar').src = avatarUrl;
+
+      // Show KYC banner if not verified
+      if (currentUser.kycStatus !== 'verified') {
+        document.getElementById('kycBanner').classList.remove('hidden');
+      }
+
+      loadRecentActivity();
+    }
+
+    function loadRecentActivity() {
+      const transactions = JSON.parse(localStorage.getItem('eso_transactions') || '[]')
+        .filter(t => t.userId === currentUser.id)
+        .slice(0, 5);
+      
+      const container = document.getElementById('recentActivity');
+      if (transactions.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-center py-4">No recent activity</p>';
+        return;
+      }
+
+      container.innerHTML = transactions.map(t => `
+        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-8 h-8 rounded-lg ${t.type === 'deposit' ? 'bg-green-100 text-green-600' : t.type === 'withdrawal' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'} flex items-center justify-center flex-shrink-0">
+              <i class="fas fa-${t.type === 'deposit' ? 'arrow-down' : t.type === 'withdrawal' ? 'arrow-up' : 'exchange-alt'} text-sm"></i>
+            </div>
+            <div class="min-w-0">
+              <p class="text-sm font-medium truncate">${t.description}</p>
+              <p class="text-xs text-gray-500">${new Date(t.date).toLocaleDateString()}</p>
+            </div>
+          </div>
+          <span class="font-medium ${t.amount >= 0 ? 'text-green-600' : 'text-red-600'} whitespace-nowrap ml-2">${t.amount >= 0 ? '+' : ''}$${Math.abs(t.amount).toFixed(2)}</span>
+        </div>
+      `).join('');
+    }
+
+    function logout() {
+      localStorage.removeItem('elitestockoptions_user');
+      window.location.href = '../index.html';
+    }
+
+    // Close sidebar on window resize to desktop
+    window.addEventListener('resize', function() {
+      if (window.innerWidth >= 1024) {
+        closeSidebar();
+      }
+    });
+
+    initDashboard();
+  </script>
+</body>
+</html>

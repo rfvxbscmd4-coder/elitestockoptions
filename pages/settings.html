@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Settings - ELITESTOCKOPTIONS</title>
+  <link rel="icon" type="image/png" href="../public/logo.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#4f46e5',
+            secondary: '#7c3aed',
+            accent: '#06b6d4'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .gradient-bg { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); }
+    .sidebar-link { transition: all 0.3s; }
+    .sidebar-link:hover, .sidebar-link.active { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; }
+    .tab-btn { transition: all 0.3s; }
+    .tab-btn.active { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; }
+    .kyc-status-pending { background: #fef3c7; color: #92400e; }
+    .kyc-status-verified { background: #d1fae5; color: #065f46; }
+    .mobile-sidebar { transform: translateX(-100%); transition: transform 0.3s ease; }
+    .mobile-sidebar.open { transform: translateX(0); }
+    .overlay { opacity: 0; visibility: hidden; transition: all 0.3s; }
+    .overlay.active { opacity: 1; visibility: visible; }
+    @media (max-width: 1024px) {
+      .main-content { margin-left: 0 !important; }
+    }
+    .tab-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .tab-scroll::-webkit-scrollbar { display: none; }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <!-- Mobile Overlay -->
+  <div id="overlay" class="overlay fixed inset-0 bg-black/50 z-40 lg:hidden" onclick="closeSidebar()"></div>
+
+  <!-- Mobile Sidebar -->
+  <aside id="mobileSidebar" class="mobile-sidebar fixed inset-y-0 left-0 w-64 bg-white shadow-xl z-50 lg:hidden overflow-y-auto">
+    <div class="p-4 border-b flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 gradient-bg rounded-xl flex items-center justify-center">
+          <i class="fas fa-chart-line text-white"></i>
+        </div>
+        <span class="font-bold text-lg">ELITESTOCK</span>
+      </div>
+      <button onclick="closeSidebar()" class="p-2 text-gray-500 hover:text-gray-700">
+        <i class="fas fa-times text-xl"></i>
+      </button>
+    </div>
+    <nav class="py-4">
+      <a href="dashboard.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-home w-5"></i><span>Dashboard</span>
+      </a>
+      <a href="markets.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-chart-bar w-5"></i><span>Markets</span>
+      </a>
+      <a href="settings.html" class="sidebar-link active flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl">
+        <i class="fas fa-cog w-5"></i><span>Settings</span>
+      </a>
+    </nav>
+    <div class="p-4 border-t">
+      <button onclick="logout()" class="flex items-center space-x-3 px-4 py-3 w-full rounded-xl text-red-600 hover:bg-red-50">
+        <i class="fas fa-sign-out-alt w-5"></i><span>Logout</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Desktop Sidebar -->
+  <aside class="w-64 bg-white shadow-xl hidden lg:flex flex-col fixed inset-y-0 left-0 z-30">
+    <div class="p-6 border-b">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 gradient-bg rounded-xl flex items-center justify-center">
+          <i class="fas fa-chart-line text-white"></i>
+        </div>
+        <span class="font-bold text-lg">ELITESTOCK</span>
+      </div>
+    </div>
+    <nav class="flex-1 overflow-y-auto py-4">
+      <a href="dashboard.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-home w-5"></i><span>Dashboard</span>
+      </a>
+      <a href="markets.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-chart-bar w-5"></i><span>Markets</span>
+      </a>
+      <a href="settings.html" class="sidebar-link active flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl">
+        <i class="fas fa-cog w-5"></i><span>Settings</span>
+      </a>
+    </nav>
+    <div class="p-4 border-t">
+      <button onclick="logout()" class="flex items-center space-x-3 px-4 py-3 w-full rounded-xl text-red-600 hover:bg-red-50">
+        <i class="fas fa-sign-out-alt w-5"></i><span>Logout</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content lg:ml-64 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white shadow-sm sticky top-0 z-20">
+      <div class="flex items-center justify-between px-4 py-4">
+        <div class="flex items-center">
+          <button onclick="openSidebar()" class="lg:hidden p-2 mr-3 text-gray-600 hover:text-gray-900">
+            <i class="fas fa-bars text-xl"></i>
+          </button>
+          <div>
+            <h1 class="text-xl lg:text-2xl font-bold text-gray-900">Settings</h1>
+            <p class="text-gray-500 text-sm hidden sm:block">Manage your account</p>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="p-4 lg:p-6">
+      <!-- Tabs -->
+      <div class="tab-scroll flex space-x-2 mb-6 pb-1">
+        <button onclick="switchTab('profile')" id="tab-profile" class="tab-btn active px-4 lg:px-6 py-2 rounded-xl font-medium whitespace-nowrap">Profile</button>
+        <button onclick="switchTab('security')" id="tab-security" class="tab-btn px-4 lg:px-6 py-2 rounded-xl font-medium text-gray-600 hover:bg-gray-100 whitespace-nowrap">Security</button>
+        <button onclick="switchTab('kyc')" id="tab-kyc" class="tab-btn px-4 lg:px-6 py-2 rounded-xl font-medium text-gray-600 hover:bg-gray-100 whitespace-nowrap">KYC</button>
+      </div>
+
+      <!-- Profile Tab -->
+      <div id="content-profile" class="bg-white rounded-2xl shadow-sm p-4 lg:p-6">
+        <h2 class="text-lg font-bold text-gray-900 mb-6">Profile Information</h2>
+        <form id="profileForm" class="space-y-6 max-w-2xl">
+          <div class="flex flex-col sm:flex-row items-start sm:items-center space-y-4 sm:space-y-0 sm:space-x-6 mb-6">
+            <img src="" alt="Profile" class="w-20 h-20 lg:w-24 lg:h-24 rounded-full object-cover bg-gradient-to-br from-primary to-secondary" id="profileAvatarImg">
+            <div>
+              <input type="file" id="profilePhotoInput" accept="image/*" class="hidden" onchange="handleProfilePhotoChange(event)">
+              <button type="button" onclick="document.getElementById('profilePhotoInput').click()" class="px-4 py-2 bg-gray-100 rounded-lg text-gray-700 hover:bg-gray-200 text-sm lg:text-base">
+                <i class="fas fa-camera mr-2"></i>Change Photo
+              </button>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-6">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
+              <input type="text" id="profileName" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+              <input type="email" id="profileEmail" class="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50" readonly>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Phone</label>
+              <input type="tel" id="profilePhone" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Country</label>
+              <select id="profileCountry" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary">
+                <option value="US">United States</option>
+                <option value="UK">United Kingdom</option>
+                <option value="CA">Canada</option>
+                <option value="AU">Australia</option>
+                <option value="OTHER">Other</option>
+              </select>
+            </div>
+          </div>
+          <button type="submit" class="gradient-bg text-white px-6 py-3 rounded-xl font-semibold w-full sm:w-auto">
+            <i class="fas fa-save mr-2"></i>Save Changes
+          </button>
+        </form>
+      </div>
+
+      <!-- Security Tab -->
+      <div id="content-security" class="hidden bg-white rounded-2xl shadow-sm p-4 lg:p-6">
+        <h2 class="text-lg font-bold text-gray-900 mb-6">Security Settings</h2>
+        <div class="max-w-2xl">
+          <div class="p-4 border border-gray-200 rounded-xl mb-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 class="font-semibold text-gray-900">Change Password</h3>
+                <p class="text-sm text-gray-500">Update your account password</p>
+              </div>
+              <button onclick="document.getElementById('passwordForm').classList.toggle('hidden')" class="text-primary font-medium text-left sm:text-right">Change</button>
+            </div>
+            <form id="passwordForm" class="hidden mt-4 space-y-4">
+              <input type="password" id="currentPassword" placeholder="Current Password" class="w-full px-4 py-3 border border-gray-200 rounded-xl" required>
+              <input type="password" id="newPassword" placeholder="New Password" class="w-full px-4 py-3 border border-gray-200 rounded-xl" required>
+              <input type="password" id="confirmPassword" placeholder="Confirm New Password" class="w-full px-4 py-3 border border-gray-200 rounded-xl" required>
+              <button type="submit" class="gradient-bg text-white px-4 py-2 rounded-lg w-full sm:w-auto">Update Password</button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- KYC Tab -->
+      <div id="content-kyc" class="hidden bg-white rounded-2xl shadow-sm p-4 lg:p-6">
+        <h2 class="text-lg font-bold text-gray-900 mb-6">KYC Verification</h2>
+        <div id="kycStatusBanner" class="mb-6 p-4 rounded-xl kyc-status-pending">
+          <p class="font-semibold">Status: <span id="kycStatusText">Pending</span></p>
+          <p class="text-sm" id="kycStatusDesc">Your documents are under review</p>
+        </div>
+        <form id="kycForm" class="space-y-6 max-w-2xl">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-6">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">First Name</label>
+              <input type="text" id="kycFirstName" required class="w-full px-4 py-3 border border-gray-200 rounded-xl">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Last Name</label>
+              <input type="text" id="kycLastName" required class="w-full px-4 py-3 border border-gray-200 rounded-xl">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Date of Birth</label>
+              <input type="date" id="kycDob" required class="w-full px-4 py-3 border border-gray-200 rounded-xl">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">ID Type</label>
+              <select id="kycIdType" required class="w-full px-4 py-3 border border-gray-200 rounded-xl">
+                <option value="">Select ID Type</option>
+                <option value="passport">Passport</option>
+                <option value="drivers_license">Driver's License</option>
+                <option value="national_id">National ID</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">ID Number</label>
+            <input type="text" id="kycIdNumber" required class="w-full px-4 py-3 border border-gray-200 rounded-xl">
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-6">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Front of ID</label>
+              <input type="file" id="kycFrontInput" accept="image/*" class="hidden" onchange="handleKycFileChange(event, 'front')">
+              <div onclick="document.getElementById('kycFrontInput').click()" class="border-2 border-dashed border-gray-300 rounded-xl p-4 lg:p-6 text-center hover:border-primary cursor-pointer" id="kycFrontPreview">
+                <i class="fas fa-cloud-upload-alt text-2xl lg:text-3xl text-gray-400 mb-2" id="kycFrontIcon"></i>
+                <img src="" alt="ID Front" class="hidden w-full h-24 lg:h-32 object-contain rounded-lg" id="kycFrontImg">
+                <p class="text-sm text-gray-500" id="kycFrontText">Click to upload</p>
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Back of ID</label>
+              <input type="file" id="kycBackInput" accept="image/*" class="hidden" onchange="handleKycFileChange(event, 'back')">
+              <div onclick="document.getElementById('kycBackInput').click()" class="border-2 border-dashed border-gray-300 rounded-xl p-4 lg:p-6 text-center hover:border-primary cursor-pointer" id="kycBackPreview">
+                <i class="fas fa-cloud-upload-alt text-2xl lg:text-3xl text-gray-400 mb-2" id="kycBackIcon"></i>
+                <img src="" alt="ID Back" class="hidden w-full h-24 lg:h-32 object-contain rounded-lg" id="kycBackImg">
+                <p class="text-sm text-gray-500" id="kycBackText">Click to upload</p>
+              </div>
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Selfie with ID</label>
+            <input type="file" id="kycSelfieInput" accept="image/*" class="hidden" onchange="handleKycFileChange(event, 'selfie')">
+            <div onclick="document.getElementById('kycSelfieInput').click()" class="border-2 border-dashed border-gray-300 rounded-xl p-4 lg:p-6 text-center hover:border-primary cursor-pointer" id="kycSelfiePreview">
+              <i class="fas fa-camera text-2xl lg:text-3xl text-gray-400 mb-2" id="kycSelfieIcon"></i>
+              <img src="" alt="Selfie" class="hidden w-full h-24 lg:h-32 object-contain rounded-lg" id="kycSelfieImg">
+              <p class="text-sm text-gray-500" id="kycSelfieText">Click to upload selfie</p>
+            </div>
+          </div>
+          <button type="submit" class="gradient-bg text-white px-6 py-3 rounded-xl font-semibold w-full sm:w-auto">
+            <i class="fas fa-paper-plane mr-2"></i>Submit for Verification
+          </button>
+        </form>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    let currentUser = JSON.parse(localStorage.getItem('elitestockoptions_user'));
+    if (!currentUser) window.location.href = 'login.html';
+
+    let kycFiles = { front: null, back: null, selfie: null };
+
+    function openSidebar() {
+      document.getElementById('mobileSidebar').classList.add('open');
+      document.getElementById('overlay').classList.add('active');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeSidebar() {
+      document.getElementById('mobileSidebar').classList.remove('open');
+      document.getElementById('overlay').classList.remove('active');
+      document.body.style.overflow = '';
+    }
+
+    function initSettings() {
+      const avatarUrl = currentUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.fullName || currentUser.email}&backgroundColor=b6e3f4`;
+      document.getElementById('profileAvatarImg').src = currentUser.profilePhoto || avatarUrl;
+      document.getElementById('profileName').value = currentUser.fullName || '';
+      document.getElementById('profileEmail').value = currentUser.email || '';
+      document.getElementById('profilePhone').value = currentUser.phone || '';
+      document.getElementById('profileCountry').value = currentUser.country || 'US';
+      
+      if (currentUser.kycData) {
+        document.getElementById('kycFirstName').value = currentUser.kycData.firstName || '';
+        document.getElementById('kycLastName').value = currentUser.kycData.lastName || '';
+        document.getElementById('kycDob').value = currentUser.kycData.dob || '';
+        document.getElementById('kycIdType').value = currentUser.kycData.idType || '';
+        document.getElementById('kycIdNumber').value = currentUser.kycData.idNumber || '';
+        
+        if (currentUser.kycDocuments?.front) showKycPreview('front', currentUser.kycDocuments.front);
+        if (currentUser.kycDocuments?.back) showKycPreview('back', currentUser.kycDocuments.back);
+        if (currentUser.kycDocuments?.selfie) showKycPreview('selfie', currentUser.kycDocuments.selfie);
+      }
+      
+      updateKycStatus();
+    }
+
+    function updateKycStatus() {
+      const status = currentUser.kycStatus || 'pending';
+      const banner = document.getElementById('kycStatusBanner');
+      document.getElementById('kycStatusText').textContent = status.charAt(0).toUpperCase() + status.slice(1);
+      
+      banner.className = 'mb-6 p-4 rounded-xl ';
+      if (status === 'verified') {
+        banner.classList.add('kyc-status-verified');
+        document.getElementById('kycStatusDesc').textContent = 'Your identity has been verified';
+        document.getElementById('kycForm').classList.add('hidden');
+      } else {
+        banner.classList.add('kyc-status-pending');
+        document.getElementById('kycStatusDesc').textContent = 'Your documents are under review';
+      }
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+        btn.classList.add('text-gray-600');
+      });
+      document.getElementById('tab-' + tab).classList.add('active');
+      document.getElementById('tab-' + tab).classList.remove('text-gray-600');
+      
+      document.querySelectorAll('[id^="content-"]').forEach(content => content.classList.add('hidden'));
+      document.getElementById('content-' + tab).classList.remove('hidden');
+    }
+
+    function handleProfilePhotoChange(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      if (file.size > 2 * 1024 * 1024) { alert('Max 2MB'); return; }
+      
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        currentUser.profilePhoto = e.target.result;
+        localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+        document.getElementById('profileAvatarImg').src = e.target.result;
+        
+        let users = JSON.parse(localStorage.getItem('eso_users') || '[]');
+        const idx = users.findIndex(u => u.id === currentUser.id);
+        if (idx >= 0) { users[idx].profilePhoto = e.target.result; localStorage.setItem('eso_users', JSON.stringify(users)); }
+        alert('Photo updated!');
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function handleKycFileChange(event, type) {
+      const file = event.target.files[0];
+      if (!file) return;
+      if (file.size > 5 * 1024 * 1024) { alert('Max 5MB'); return; }
+      
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        kycFiles[type] = e.target.result;
+        showKycPreview(type, e.target.result);
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function showKycPreview(type, imageData) {
+      document.getElementById(`kyc${type.charAt(0).toUpperCase() + type.slice(1)}Icon`).classList.add('hidden');
+      document.getElementById(`kyc${type.charAt(0).toUpperCase() + type.slice(1)}Text`).textContent = 'Click to change';
+      const img = document.getElementById(`kyc${type.charAt(0).toUpperCase() + type.slice(1)}Img`);
+      img.src = imageData;
+      img.classList.remove('hidden');
+    }
+
+    document.getElementById('profileForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      currentUser.fullName = document.getElementById('profileName').value;
+      currentUser.phone = document.getElementById('profilePhone').value;
+      currentUser.country = document.getElementById('profileCountry').value;
+      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+      
+      let users = JSON.parse(localStorage.getItem('eso_users') || '[]');
+      const idx = users.findIndex(u => u.id === currentUser.id);
+      if (idx >= 0) { users[idx] = { ...users[idx], ...currentUser }; localStorage.setItem('eso_users', JSON.stringify(users)); }
+      alert('Profile updated!');
+    });
+
+    document.getElementById('passwordForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const currentPwd = document.getElementById('currentPassword').value;
+      const newPwd = document.getElementById('newPassword').value;
+      const confirmPwd = document.getElementById('confirmPassword').value;
+      
+      if (currentPwd !== currentUser.password) { alert('Current password incorrect'); return; }
+      if (newPwd.length < 6) { alert('Min 6 characters'); return; }
+      if (newPwd !== confirmPwd) { alert('Passwords do not match'); return; }
+      
+      currentUser.password = newPwd;
+      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+      
+      let users = JSON.parse(localStorage.getItem('eso_users') || '[]');
+      const idx = users.findIndex(u => u.id === currentUser.id);
+      if (idx >= 0) { users[idx].password = newPwd; localStorage.setItem('eso_users', JSON.stringify(users)); }
+      
+      alert('Password updated!');
+      document.getElementById('passwordForm').reset();
+      document.getElementById('passwordForm').classList.add('hidden');
+    });
+
+    document.getElementById('kycForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      currentUser.kycStatus = 'pending';
+      currentUser.kycSubmittedAt = new Date().toISOString();
+      currentUser.kycData = {
+        firstName: document.getElementById('kycFirstName').value,
+        lastName: document.getElementById('kycLastName').value,
+        dob: document.getElementById('kycDob').value,
+        idType: document.getElementById('kycIdType').value,
+        idNumber: document.getElementById('kycIdNumber').value
+      };
+      currentUser.kycDocuments = {
+        front: kycFiles.front || currentUser.kycDocuments?.front,
+        back: kycFiles.back || currentUser.kycDocuments?.back,
+        selfie: kycFiles.selfie || currentUser.kycDocuments?.selfie
+      };
+      
+      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+      
+      let users = JSON.parse(localStorage.getItem('eso_users') || '[]');
+      const idx = users.findIndex(u => u.id === currentUser.id);
+      if (idx >= 0) { users[idx] = { ...users[idx], ...currentUser }; localStorage.setItem('eso_users', JSON.stringify(users)); }
+      
+      updateKycStatus();
+      alert('KYC submitted!');
+    });
+
+    function logout() {
+      localStorage.removeItem('elitestockoptions_user');
+      window.location.href = '../index.html';
+    }
+
+    window.addEventListener('resize', function() {
+      if (window.innerWidth >= 1024) closeSidebar();
+    });
+
+    initSettings();
+  </script>
+</body>
+</html>

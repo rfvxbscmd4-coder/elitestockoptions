@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Sign Up - ELITESTOCKOPTIONS</title>
+  <link rel="icon" type="image/png" href="../public/logo.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#4f46e5',
+            secondary: '#7c3aed',
+            accent: '#06b6d4'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .gradient-bg { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #06b6d4 100%); }
+    .glass-card { background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); }
+    .input-field { transition: all 0.3s; }
+    .input-field:focus { transform: translateY(-2px); box-shadow: 0 10px 25px -5px rgba(79,70,229,0.3); }
+    .btn-primary { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); transition: all 0.3s; }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 30px -5px rgba(79,70,229,0.5); }
+    .floating-shape { animation: float 6s ease-in-out infinite; }
+    @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-20px); } }
+  </style>
+</head>
+<body class="min-h-screen bg-gray-50 flex flex-col lg:flex-row">
+  <!-- Left Side - Branding -->
+  <div class="hidden lg:flex lg:w-1/2 gradient-bg items-center justify-center relative overflow-hidden">
+    <div class="absolute inset-0 overflow-hidden">
+      <div class="floating-shape absolute top-10 left-10 w-32 h-32 bg-white/10 rounded-full blur-xl"></div>
+      <div class="floating-shape absolute bottom-20 right-20 w-48 h-48 bg-white/10 rounded-full blur-xl" style="animation-delay: -2s;"></div>
+    </div>
+    <div class="relative z-10 text-center text-white px-12">
+      <div class="mb-8">
+        <div class="w-24 h-24 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
+          <i class="fas fa-chart-line text-white text-4xl"></i>
+        </div>
+        <h1 class="text-4xl font-bold mb-4">ELITESTOCKOPTIONS</h1>
+        <p class="text-xl text-white/80">Professional Trading Platform</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Side - Form -->
+  <div class="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8">
+    <div class="w-full max-w-md">
+      <!-- Mobile Logo -->
+      <div class="lg:hidden text-center mb-6">
+        <div class="w-16 h-16 gradient-bg rounded-2xl flex items-center justify-center mx-auto mb-3">
+          <i class="fas fa-chart-line text-white text-2xl"></i>
+        </div>
+        <h1 class="text-2xl font-bold text-gray-900">ELITESTOCKOPTIONS</h1>
+      </div>
+
+      <div class="glass-card rounded-2xl shadow-xl p-5 sm:p-8">
+        <div class="text-center mb-6">
+          <h2 class="text-xl sm:text-2xl font-bold text-gray-900">Create Your Account</h2>
+          <p class="text-gray-500 mt-2 text-sm sm:text-base">Start your trading journey today</p>
+        </div>
+
+        <form id="register-form" class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+            <div class="relative">
+              <i class="fas fa-user absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+              <input type="text" id="fullName" required 
+                class="input-field w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 text-sm sm:text-base"
+                placeholder="John Doe">
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+            <div class="relative">
+              <i class="fas fa-envelope absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+              <input type="email" id="email" required 
+                class="input-field w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 text-sm sm:text-base"
+                placeholder="you@example.com">
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+            <div class="flex">
+              <select id="countryCode" class="input-field w-24 sm:w-28 pl-2 sm:pl-3 pr-1 sm:pr-2 py-3 border border-gray-200 rounded-l-xl focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 bg-white text-xs sm:text-sm">
+                <option value="+1" selected>+1 🇺🇸</option>
+                <option value="+44">+44 🇬🇧</option>
+                <option value="+1">+1 🇨🇦</option>
+                <option value="+61">+61 🇦🇺</option>
+                <option value="+49">+49 🇩🇪</option>
+                <option value="+33">+33 🇫🇷</option>
+                <option value="+81">+81 🇯🇵</option>
+                <option value="+65">+65 🇸🇬</option>
+                <option value="+234">+234 🇳🇬</option>
+                <option value="+27">+27 🇿🇦</option>
+                <option value="+91">+91 🇮🇳</option>
+                <option value="+86">+86 🇨🇳</option>
+                <option value="+7">+7 🇷🇺</option>
+                <option value="+55">+55 🇧🇷</option>
+                <option value="+52">+52 🇲🇽</option>
+                <option value="+82">+82 🇰🇷</option>
+                <option value="+971">+971 🇦🇪</option>
+                <option value="+966">+966 🇸🇦</option>
+                <option value="+20">+20 🇪🇬</option>
+                <option value="+90">+90 🇹🇷</option>
+              </select>
+              <input type="tel" id="phone" required 
+                class="input-field flex-1 pl-3 sm:pl-4 pr-4 py-3 border border-l-0 border-gray-200 rounded-r-xl focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 text-sm sm:text-base"
+                placeholder="Enter your phone number">
+            </div>
+            <p class="text-xs text-gray-500 mt-1">Select your country code and enter your number.</p>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Country</label>
+            <div class="relative">
+              <i class="fas fa-globe absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+              <select id="country" required 
+                class="input-field w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 bg-white text-sm sm:text-base">
+                <option value="">Select your country</option>
+                <option value="US">United States</option>
+                <option value="UK">United Kingdom</option>
+                <option value="CA">Canada</option>
+                <option value="AU">Australia</option>
+                <option value="DE">Germany</option>
+                <option value="FR">France</option>
+                <option value="JP">Japan</option>
+                <option value="SG">Singapore</option>
+                <option value="OTHER">Other</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <div class="relative">
+              <i class="fas fa-lock absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+              <input type="password" id="password" required 
+                class="input-field w-full pl-10 pr-12 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 text-sm sm:text-base"
+                placeholder="Create a strong password">
+              <button type="button" onclick="togglePassword('password')" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <i class="fas fa-eye"></i>
+              </button>
+            </div>
+            <p class="text-xs text-gray-500 mt-1">Min 8 characters</p>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+            <div class="relative">
+              <i class="fas fa-lock absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+              <input type="password" id="confirmPassword" required 
+                class="input-field w-full pl-10 pr-12 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 text-sm sm:text-base"
+                placeholder="Confirm your password">
+              <button type="button" onclick="togglePassword('confirmPassword')" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <i class="fas fa-eye"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="flex items-start">
+            <input type="checkbox" id="terms" required class="mt-1 w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary">
+            <label for="terms" class="ml-2 text-sm text-gray-600">
+              I agree to the <a href="#" class="text-primary hover:underline">Terms of Service</a>
+            </label>
+          </div>
+
+          <button type="submit" class="btn-primary w-full py-3 text-white rounded-xl font-semibold text-base sm:text-lg">
+            <i class="fas fa-user-plus mr-2"></i>Create Account
+          </button>
+        </form>
+
+        <p class="text-center mt-6 text-gray-600 text-sm sm:text-base">
+          Already have an account? 
+          <a href="login.html" class="text-primary font-semibold hover:underline">Sign In</a>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function togglePassword(fieldId) {
+      const field = document.getElementById(fieldId);
+      const icon = field.nextElementSibling.querySelector('i');
+      if (field.type === 'password') {
+        field.type = 'text';
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+      } else {
+        field.type = 'password';
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+      }
+    }
+
+    document.getElementById('register-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      const password = document.getElementById('password').value;
+      const confirmPassword = document.getElementById('confirmPassword').value;
+      
+      if (password !== confirmPassword) {
+        alert('Passwords do not match!');
+        return;
+      }
+      
+      if (password.length < 8) {
+        alert('Password must be at least 8 characters long!');
+        return;
+      }
+      
+      const countryCode = document.getElementById('countryCode').value;
+      const phoneNumber = document.getElementById('phone').value.trim();
+      const fullPhone = countryCode + ' ' + phoneNumber;
+      
+      const userData = {
+        id: Date.now().toString(),
+        fullName: document.getElementById('fullName').value,
+        email: document.getElementById('email').value,
+        phone: fullPhone,
+        countryCode: countryCode,
+        phoneNumber: phoneNumber,
+        country: document.getElementById('country').value,
+        password: password,
+        plan: 'Bronze',
+        balance: 0,
+        availableCash: 0,
+        profitsBalance: 0,
+        kycStatus: 'pending',
+        createdAt: new Date().toISOString()
+      };
+      
+      let users = JSON.parse(localStorage.getItem('eso_users') || '[]');
+      
+      if (users.find(u => u.email === userData.email)) {
+        alert('An account with this email already exists!');
+        return;
+      }
+      
+      users.push(userData);
+      localStorage.setItem('eso_users', JSON.stringify(users));
+      localStorage.setItem('elitestockoptions_user', JSON.stringify(userData));
+      
+      alert('Account created successfully!');
+      window.location.href = 'dashboard.html';
+    });
+  </script>
+</body>
+</html>

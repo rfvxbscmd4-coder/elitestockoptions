@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Admin Panel - ELITESTOCKOPTIONS</title>
+  <link rel="icon" type="image/png" href="../public/logo.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#4f46e5',
+            secondary: '#7c3aed',
+            accent: '#06b6d4'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .gradient-bg { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); }
+    .sidebar-link { transition: all 0.3s; }
+    .sidebar-link:hover, .sidebar-link.active { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; }
+    .status-pending { background: #fef3c7; color: #92400e; }
+    .status-approved { background: #d1fae5; color: #065f46; }
+    .status-rejected { background: #fee2e2; color: #991b1b; }
+    .modal-overlay { background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); }
+    .mobile-sidebar { transform: translateX(-100%); transition: transform 0.3s ease; }
+    .mobile-sidebar.open { transform: translateX(0); }
+    .overlay { opacity: 0; visibility: hidden; transition: all 0.3s; }
+    .overlay.active { opacity: 1; visibility: visible; }
+    @media (max-width: 1024px) {
+      .main-content { margin-left: 0 !important; }
+    }
+    .table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <!-- Mobile Overlay -->
+  <div id="overlay" class="overlay fixed inset-0 bg-black/50 z-40 lg:hidden" onclick="closeSidebar()"></div>
+
+  <!-- Mobile Sidebar -->
+  <aside id="mobileSidebar" class="mobile-sidebar fixed inset-y-0 left-0 w-64 bg-white shadow-xl z-50 lg:hidden overflow-y-auto">
+    <div class="p-4 border-b flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 gradient-bg rounded-xl flex items-center justify-center">
+          <i class="fas fa-shield-alt text-white"></i>
+        </div>
+        <span class="font-bold text-lg">ADMIN</span>
+      </div>
+      <button onclick="closeSidebar()" class="p-2 text-gray-500 hover:text-gray-700">
+        <i class="fas fa-times text-xl"></i>
+      </button>
+    </div>
+    <nav class="py-4">
+      <button onclick="switchTab('dashboard'); closeSidebar();" class="sidebar-link active w-full flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl">
+        <i class="fas fa-chart-line w-5"></i><span>Dashboard</span>
+      </button>
+      <button onclick="switchTab('users'); closeSidebar();" class="sidebar-link w-full flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-users w-5"></i><span>All Users</span>
+      </button>
+      <button onclick="switchTab('deposits'); closeSidebar();" class="sidebar-link w-full flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-arrow-down w-5"></i><span>Deposits</span>
+      </button>
+      <button onclick="switchTab('withdrawals'); closeSidebar();" class="sidebar-link w-full flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-arrow-up w-5"></i><span>Withdrawals</span>
+      </button>
+      <button onclick="switchTab('kyc'); closeSidebar();" class="sidebar-link w-full flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-id-card w-5"></i><span>KYC Verification</span>
+      </button>
+      <button onclick="switchTab('wallets'); closeSidebar();" class="sidebar-link w-full flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-wallet w-5"></i><span>Wallet Addresses</span>
+      </button>
+    </nav>
+    <div class="p-4 border-t">
+      <button onclick="logout()" class="flex items-center space-x-3 px-4 py-3 w-full rounded-xl text-red-600 hover:bg-red-50">
+        <i class="fas fa-sign-out-alt w-5"></i><span>Logout</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Desktop Sidebar -->
+  <aside class="w-64 bg-white shadow-xl hidden lg:flex flex-col fixed inset-y-0 left-0 z-30">
+    <div class="p-6 border-b">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 gradient-bg rounded-xl flex items-center justify-center">
+          <i class="fas fa-shield-alt text-white"></i>
+        </div>
+        <span class="font-bold text-lg">ADMIN</span>
+      </div>
+    </div>
+    <nav class="flex-1 overflow-y-auto py-4">
+      <button onclick="switchTab('dashboard')" id="nav-dashboard" class="sidebar-link active w-full flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl">
+        <i class="fas fa-chart-line w-5"></i><span>Dashboard</span>
+      </button>
+      <button onclick="switchTab('users')" id="nav-users" class="sidebar-link w-full flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-users w-5"></i><span>All Users</span>
+      </button>
+      <button onclick="switchTab('deposits')" id="nav-deposits" class="sidebar-link w-full flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-arrow-down w-5"></i><span>Deposits</span>
+      </button>
+      <button onclick="switchTab('withdrawals')" id="nav-withdrawals" class="sidebar-link w-full flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-arrow-up w-5"></i><span>Withdrawals</span>
+      </button>
+      <button onclick="switchTab('kyc')" id="nav-kyc" class="sidebar-link w-full flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-id-card w-5"></i><span>KYC Verification</span>
+      </button>
+      <button onclick="switchTab('wallets')" id="nav-wallets" class="sidebar-link w-full flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+        <i class="fas fa-wallet w-5"></i><span>Wallet Addresses</span>
+      </button>
+    </nav>
+    <div class="p-4 border-t">
+      <button onclick="logout()" class="flex items-center space-x-3 px-4 py-3 w-full rounded-xl text-red-600 hover:bg-red-50">
+        <i class="fas fa-sign-out-alt w-5"></i><span>Logout</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content lg:ml-64 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white shadow-sm sticky top-0 z-20">
+      <div class="flex items-center justify-between px-4 py-4">
+        <div class="flex items-center">
+          <button onclick="openSidebar()" class="lg:hidden p-2 mr-3 text-gray-600 hover:text-gray-900">
+            <i class="fas fa-bars text-xl"></i>
+          </button>
+          <h1 class="text-xl lg:text-2xl font-bold text-gray-900" id="pageTitle">Admin Dashboard</h1>
+        </div>
+        <div class="w-10 h-10 gradient-bg rounded-full flex items-center justify-center text-white font-bold">A</div>
+      </div>
+    </header>
+
+    <div class="p-4 lg:p-6">
+      <!-- Dashboard Tab -->
+      <div id="tab-dashboard" class="tab-content">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-6 lg:mb-8">
+          <div class="bg-white rounded-2xl p-4 lg:p-6 shadow-sm">
+            <div class="flex items-center justify-between mb-4">
+              <div class="w-10 h-10 lg:w-12 lg:h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                <i class="fas fa-users text-blue-600 text-lg lg:text-xl"></i>
+              </div>
+              <span class="text-xs font-medium text-gray-400">Total Users</span>
+            </div>
+            <p class="text-xl lg:text-2xl font-bold text-gray-900" id="totalUsers">0</p>
+          </div>
+          <div class="bg-white rounded-2xl p-4 lg:p-6 shadow-sm">
+            <div class="flex items-center justify-between mb-4">
+              <div class="w-10 h-10 lg:w-12 lg:h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                <i class="fas fa-arrow-down text-green-600 text-lg lg:text-xl"></i>
+              </div>
+              <span class="text-xs font-medium text-gray-400">Pending Deposits</span>
+            </div>
+            <p class="text-xl lg:text-2xl font-bold text-gray-900" id="pendingDeposits">0</p>
+          </div>
+          <div class="bg-white rounded-2xl p-4 lg:p-6 shadow-sm">
+            <div class="flex items-center justify-between mb-4">
+              <div class="w-10 h-10 lg:w-12 lg:h-12 bg-amber-100 rounded-xl flex items-center justify-center">
+                <i class="fas fa-id-card text-amber-600 text-lg lg:text-xl"></i>
+              </div>
+              <span class="text-xs font-medium text-gray-400">Pending KYC</span>
+            </div>
+            <p class="text-xl lg:text-2xl font-bold text-gray-900" id="pendingKyc">0</p>
+          </div>
+          <div class="bg-white rounded-2xl p-4 lg:p-6 shadow-sm col-span-2 lg:col-span-1">
+            <div class="flex items-center justify-between mb-4">
+              <div class="w-10 h-10 lg:w-12 lg:h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                <i class="fas fa-exchange-alt text-purple-600 text-lg lg:text-xl"></i>
+              </div>
+              <span class="text-xs font-medium text-gray-400">Open Trades</span>
+            </div>
+            <p class="text-xl lg:text-2xl font-bold text-gray-900" id="openTrades">0</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Users Tab -->
+      <div id="tab-users" class="tab-content hidden">
+        <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+          <div class="p-4 border-b flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <h2 class="font-bold text-gray-900">All Users</h2>
+            <input type="text" id="searchUsers" placeholder="Search users..." class="px-4 py-2 border border-gray-200 rounded-lg text-sm w-full sm:w-auto" onkeyup="filterUsers()">
+          </div>
+          <div class="table-container">
+            <table class="w-full min-w-[800px]">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">User</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Email</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Phone</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Password</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Plan</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Balance</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">KYC</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="usersTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Deposits Tab -->
+      <div id="tab-deposits" class="tab-content hidden">
+        <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+          <div class="p-4 border-b"><h2 class="font-bold text-gray-900">Deposit Requests</h2></div>
+          <div class="table-container">
+            <table class="w-full min-w-[600px]">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Date</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">User</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Amount</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="depositsTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Withdrawals Tab -->
+      <div id="tab-withdrawals" class="tab-content hidden">
+        <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+          <div class="p-4 border-b"><h2 class="font-bold text-gray-900">Withdrawal Requests</h2></div>
+          <div class="table-container">
+            <table class="w-full min-w-[600px]">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Date</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">User</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Amount</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="withdrawalsTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- KYC Tab -->
+      <div id="tab-kyc" class="tab-content hidden">
+        <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+          <div class="p-4 border-b"><h2 class="font-bold text-gray-900">KYC Verification Requests</h2></div>
+          <div class="table-container">
+            <table class="w-full min-w-[700px]">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Date</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">User</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Name</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">ID Type</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Docs</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="kycTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Wallets Tab -->
+      <div id="tab-wallets" class="tab-content hidden">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="bg-white rounded-2xl shadow-sm p-4 lg:p-6">
+            <h2 class="font-bold text-gray-900 mb-4">Add/Edit Wallet Address</h2>
+            <form id="walletForm" class="space-y-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Cryptocurrency</label>
+                <select id="walletCrypto" required class="w-full px-4 py-3 border border-gray-200 rounded-xl">
+                  <option value="btc">Bitcoin (BTC)</option>
+                  <option value="eth">Ethereum (ETH)</option>
+                  <option value="usdt">Tether (USDT - ERC20)</option>
+                  <option value="usdt_trc">Tether (USDT - TRC20)</option>
+                  <option value="bnb">BNB (BEP20)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Wallet Address</label>
+                <input type="text" id="walletAddress" required class="w-full px-4 py-3 border border-gray-200 rounded-xl" placeholder="Enter wallet address">
+              </div>
+              <button type="submit" class="gradient-bg w-full py-3 text-white rounded-xl font-semibold">Save Wallet</button>
+            </form>
+          </div>
+          <div class="bg-white rounded-2xl shadow-sm p-4 lg:p-6">
+            <h2 class="font-bold text-gray-900 mb-4">Current Wallet Addresses</h2>
+            <div id="walletsList" class="space-y-3"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- KYC Documents Modal -->
+  <div id="kycDocsModal" class="fixed inset-0 modal-overlay z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between p-4 border-b">
+        <h3 class="text-xl font-bold text-gray-900">KYC Documents</h3>
+        <button onclick="closeKycDocsModal()" class="p-2 hover:bg-gray-100 rounded-lg"><i class="fas fa-times"></i></button>
+      </div>
+      <div id="kycDocsContent" class="p-4 space-y-6"></div>
+    </div>
+  </div>
+
+  <script>
+    const ADMIN_KEY = 'elitestockoptions_admin';
+    
+    function checkAuth() {
+      const admin = JSON.parse(localStorage.getItem(ADMIN_KEY));
+      if (!admin || !admin.isLoggedIn) {
+        const password = prompt('Enter admin password:');
+        if (password === 'admin123') {
+          localStorage.setItem(ADMIN_KEY, JSON.stringify({ isLoggedIn: true, loginTime: new Date().toISOString() }));
+        } else {
+          alert('Invalid password');
+          window.location.href = '../index.html';
+        }
+      }
+    }
+
+    function openSidebar() {
+      document.getElementById('mobileSidebar').classList.add('open');
+      document.getElementById('overlay').classList.add('active');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeSidebar() {
+      document.getElementById('mobileSidebar').classList.remove('open');
+      document.getElementById('overlay').classList.remove('active');
+      document.body.style.overflow = '';
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll('.sidebar-link').forEach(el => {
+        el.classList.remove('active');
+        el.classList.add('text-gray-600');
+      });
+      document.getElementById('nav-' + tab)?.classList.add('active');
+      document.getElementById('nav-' + tab)?.classList.remove('text-gray-600');
+
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.getElementById('tab-' + tab)?.classList.remove('hidden');
+
+      const titles = { dashboard: 'Admin Dashboard', users: 'All Users', deposits: 'Deposit Requests', withdrawals: 'Withdrawal Requests', kyc: 'KYC Verification', wallets: 'Wallet Addresses' };
+      document.getElementById('pageTitle').textContent = titles[tab] || 'Admin Panel';
+
+      loadTabData(tab);
+    }
+
+    function loadTabData(tab) {
+      switch(tab) {
+        case 'dashboard': loadDashboard(); break;
+        case 'users': loadUsers(); break;
+        case 'deposits': loadDeposits(); break;
+        case 'withdrawals': loadWithdrawals(); break;
+        case 'kyc': loadKyc(); break;
+        case 'wallets': loadWallets(); break;
+      }
+    }
+
+    function getUsers() { return JSON.parse(localStorage.getItem('eso_users') || '[]'); }
+
+    function loadDashboard() {
+      const users = getUsers();
+      const deposits = JSON.parse(localStorage.getItem('eso_deposits') || '[]');
+      const trades = JSON.parse(localStorage.getItem('eso_trades') || '[]');
+
+      document.getElementById('totalUsers').textContent = users.length;
+      document.getElementById('pendingDeposits').textContent = deposits.filter(d => d.status === 'pending').length;
+      document.getElementById('pendingKyc').textContent = users.filter(u => u.kycStatus === 'pending').length;
+      document.getElementById('openTrades').textContent = trades.filter(t => t.status === 'open').length;
+    }
+
+    function loadUsers() {
+      const users = getUsers();
+      const tbody = document.getElementById('usersTable');
+      
+      if (users.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-8 text-center text-gray-500">No users found</td></tr>';
+        return;
+      }
+
+      const kycColors = { pending: 'bg-amber-100 text-amber-800', verified: 'bg-green-100 text-green-800', rejected: 'bg-red-100 text-red-800' };
+
+      tbody.innerHTML = users.map(u => `
+        <tr class="hover:bg-gray-50">
+          <td class="px-4 py-3 font-medium text-gray-900">${u.fullName || 'N/A'}</td>
+          <td class="px-4 py-3 text-sm">${u.email}</td>
+          <td class="px-4 py-3 text-sm">${u.phone || 'N/A'}</td>
+          <td class="px-4 py-3 text-sm font-mono text-gray-500">
+            <div class="flex items-center gap-2">
+              <span class="password-mask" id="pwd-${u.id}">••••••••</span>
+              <button onclick="togglePasswordVisibility('${u.id}', '${u.password || ''}')" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-eye" id="eye-${u.id}"></i>
+              </button>
+            </div>
+          </td>
+          <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">${u.plan || 'Bronze'}</span></td>
+          <td class="px-4 py-3 font-medium">$${(u.balance || 0).toFixed(2)}</td>
+          <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-medium ${kycColors[u.kycStatus] || kycColors.pending}">${u.kycStatus || 'pending'}</span></td>
+          <td class="px-4 py-3">
+            <button onclick="deleteUser('${u.id}')" class="text-red-600 hover:text-red-800"><i class="fas fa-trash"></i></button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function togglePasswordVisibility(userId, password) {
+      const pwdSpan = document.getElementById(`pwd-${userId}`);
+      const eyeIcon = document.getElementById(`eye-${userId}`);
+      
+      if (pwdSpan.classList.contains('password-mask')) {
+        pwdSpan.textContent = password || 'N/A';
+        pwdSpan.classList.remove('password-mask');
+        eyeIcon.classList.remove('fa-eye');
+        eyeIcon.classList.add('fa-eye-slash');
+      } else {
+        pwdSpan.textContent = '••••••••';
+        pwdSpan.classList.add('password-mask');
+        eyeIcon.classList.remove('fa-eye-slash');
+        eyeIcon.classList.add('fa-eye');
+      }
+    }
+
+    function filterUsers() {
+      const search = document.getElementById('searchUsers').value.toLowerCase();
+      const rows = document.querySelectorAll('#usersTable tr');
+      rows.forEach(row => {
+        row.style.display = row.textContent.toLowerCase().includes(search) ? '' : 'none';
+      });
+    }
+
+    function deleteUser(userId) {
+      if (!confirm('Delete this user?')) return;
+      let users = getUsers().filter(u => u.id !== userId);
+      localStorage.setItem('eso_users', JSON.stringify(users));
+      loadUsers();
+    }
+
+    function loadDeposits() {
+      const deposits = JSON.parse(localStorage.getItem('eso_deposits') || '[]').sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      const tbody = document.getElementById('depositsTable');
+      
+      if (deposits.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">No deposits found</td></tr>';
+        return;
+      }
+
+      const statusColors = { pending: 'bg-amber-100 text-amber-800', approved: 'bg-green-100 text-green-800', rejected: 'bg-red-100 text-red-800' };
+
+      tbody.innerHTML = deposits.map(d => {
+        const user = getUsers().find(u => u.id === d.userId);
+        return `
+        <tr class="hover:bg-gray-50">
+          <td class="px-4 py-3 text-sm">${new Date(d.createdAt).toLocaleDateString()}</td>
+          <td class="px-4 py-3 text-sm">${user?.email || 'Unknown'}</td>
+          <td class="px-4 py-3 font-medium">$${d.amount.toFixed(2)}</td>
+          <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-medium ${statusColors[d.status]}">${d.status}</span></td>
+          <td class="px-4 py-3">
+            ${d.status === 'pending' ? `
+              <button onclick="approveDeposit('${d.id}')" class="text-green-600 hover:text-green-800 mr-2"><i class="fas fa-check"></i></button>
+              <button onclick="rejectDeposit('${d.id}')" class="text-red-600 hover:text-red-800"><i class="fas fa-times"></i></button>
+            ` : '<span class="text-gray-400">-</span>'}
+          </td>
+        </tr>
+      `}).join('');
+    }
+
+    function approveDeposit(depositId) {
+      let deposits = JSON.parse(localStorage.getItem('eso_deposits') || '[]');
+      const deposit = deposits.find(d => d.id === depositId);
+      if (!deposit) return;
+
+      deposit.status = 'approved';
+      deposit.approvedAt = new Date().toISOString();
+      localStorage.setItem('eso_deposits', JSON.stringify(deposits));
+
+      let users = getUsers();
+      const user = users.find(u => u.id === deposit.userId);
+      if (user) {
+        user.balance = (user.balance || 0) + deposit.amount;
+        user.availableCash = (user.availableCash || 0) + deposit.amount;
+        localStorage.setItem('eso_users', JSON.stringify(users));
+      }
+
+      alert('Deposit approved!');
+      loadDeposits();
+      loadDashboard();
+    }
+
+    function rejectDeposit(depositId) {
+      let deposits = JSON.parse(localStorage.getItem('eso_deposits') || '[]');
+      const deposit = deposits.find(d => d.id === depositId);
+      if (deposit) {
+        deposit.status = 'rejected';
+        localStorage.setItem('eso_deposits', JSON.stringify(deposits));
+      }
+      alert('Deposit rejected!');
+      loadDeposits();
+    }
+
+    function loadWithdrawals() {
+      const withdrawals = JSON.parse(localStorage.getItem('eso_withdrawals') || '[]').sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      const tbody = document.getElementById('withdrawalsTable');
+      
+      if (withdrawals.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">No withdrawals found</td></tr>';
+        return;
+      }
+
+      const statusColors = { pending: 'bg-amber-100 text-amber-800', approved: 'bg-green-100 text-green-800', rejected: 'bg-red-100 text-red-800' };
+
+      tbody.innerHTML = withdrawals.map(w => {
+        const user = getUsers().find(u => u.id === w.userId);
+        return `
+        <tr class="hover:bg-gray-50">
+          <td class="px-4 py-3 text-sm">${new Date(w.createdAt).toLocaleDateString()}</td>
+          <td class="px-4 py-3 text-sm">${user?.email || 'Unknown'}</td>
+          <td class="px-4 py-3 font-medium">$${w.amount.toFixed(2)}</td>
+          <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-medium ${statusColors[w.status]}">${w.status}</span></td>
+          <td class="px-4 py-3">
+            ${w.status === 'pending' ? `
+              <button onclick="approveWithdrawal('${w.id}')" class="text-green-600 hover:text-green-800 mr-2"><i class="fas fa-check"></i></button>
+              <button onclick="rejectWithdrawal('${w.id}')" class="text-red-600 hover:text-red-800"><i class="fas fa-times"></i></button>
+            ` : '<span class="text-gray-400">-</span>'}
+          </td>
+        </tr>
+      `}).join('');
+    }
+
+    function approveWithdrawal(withdrawalId) {
+      let withdrawals = JSON.parse(localStorage.getItem('eso_withdrawals') || '[]');
+      const withdrawal = withdrawals.find(w => w.id === withdrawalId);
+      if (!withdrawal) return;
+
+      withdrawal.status = 'approved';
+      withdrawal.approvedAt = new Date().toISOString();
+      localStorage.setItem('eso_withdrawals', JSON.stringify(withdrawals));
+      alert('Withdrawal approved!');
+      loadWithdrawals();
+    }
+
+    function rejectWithdrawal(withdrawalId) {
+      let withdrawals = JSON.parse(localStorage.getItem('eso_withdrawals') || '[]');
+      const withdrawal = withdrawals.find(w => w.id === withdrawalId);
+      if (withdrawal) {
+        withdrawal.status = 'rejected';
+        localStorage.setItem('eso_withdrawals', JSON.stringify(withdrawals));
+        
+        let users = getUsers();
+        const user = users.find(u => u.id === withdrawal.userId);
+        if (user) {
+          user.balance = (user.balance || 0) + withdrawal.amount;
+          user.availableCash = (user.availableCash || 0) + withdrawal.amount;
+          localStorage.setItem('eso_users', JSON.stringify(users));
+        }
+      }
+      alert('Withdrawal rejected! Funds returned.');
+      loadWithdrawals();
+    }
+
+    function loadKyc() {
+      const users = getUsers().filter(u => u.kycData);
+      const tbody = document.getElementById('kycTable');
+      
+      if (users.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">No KYC submissions found</td></tr>';
+        return;
+      }
+
+      const statusColors = { pending: 'bg-amber-100 text-amber-800', verified: 'bg-green-100 text-green-800', rejected: 'bg-red-100 text-red-800' };
+
+      tbody.innerHTML = users.map(u => `
+        <tr class="hover:bg-gray-50">
+          <td class="px-4 py-3 text-sm">${new Date(u.kycSubmittedAt || u.createdAt).toLocaleDateString()}</td>
+          <td class="px-4 py-3 text-sm">${u.email}</td>
+          <td class="px-4 py-3">${u.kycData?.firstName} ${u.kycData?.lastName}</td>
+          <td class="px-4 py-3 capitalize">${u.kycData?.idType?.replace('_', ' ') || 'N/A'}</td>
+          <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-medium ${statusColors[u.kycStatus] || statusColors.pending}">${u.kycStatus || 'pending'}</span></td>
+          <td class="px-4 py-3">
+            <button onclick="viewKycDocs('${u.id}')" class="text-blue-600 hover:text-blue-800" title="View Documents"><i class="fas fa-images"></i></button>
+          </td>
+          <td class="px-4 py-3">
+            ${u.kycStatus === 'pending' ? `
+              <button onclick="approveKyc('${u.id}')" class="text-green-600 hover:text-green-800 mr-2"><i class="fas fa-check"></i></button>
+              <button onclick="rejectKyc('${u.id}')" class="text-red-600 hover:text-red-800"><i class="fas fa-times"></i></button>
+            ` : '<span class="text-gray-400">-</span>'}
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function viewKycDocs(userId) {
+      const user = getUsers().find(u => u.id === userId);
+      if (!user || !user.kycDocuments) {
+        alert('No KYC documents found');
+        return;
+      }
+      
+      const docs = user.kycDocuments;
+      const content = document.getElementById('kycDocsContent');
+      
+      content.innerHTML = `
+        <div class="mb-4">
+          <h4 class="font-semibold text-gray-900">User: ${user.fullName || user.email}</h4>
+          <p class="text-sm text-gray-500">ID Type: ${user.kycData?.idType?.replace('_', ' ') || 'N/A'}</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          ${docs.front ? `
+            <div>
+              <p class="text-sm font-medium text-gray-700 mb-2">ID Front</p>
+              <img src="${docs.front}" alt="ID Front" class="w-full rounded-xl border cursor-pointer" onclick="window.open('${docs.front}', '_blank')">
+            </div>
+          ` : '<div class="text-gray-400">No front image</div>'}
+          ${docs.back ? `
+            <div>
+              <p class="text-sm font-medium text-gray-700 mb-2">ID Back</p>
+              <img src="${docs.back}" alt="ID Back" class="w-full rounded-xl border cursor-pointer" onclick="window.open('${docs.back}', '_blank')">
+            </div>
+          ` : '<div class="text-gray-400">No back image</div>'}
+          ${docs.selfie ? `
+            <div>
+              <p class="text-sm font-medium text-gray-700 mb-2">Selfie</p>
+              <img src="${docs.selfie}" alt="Selfie" class="w-full rounded-xl border cursor-pointer" onclick="window.open('${docs.selfie}', '_blank')">
+            </div>
+          ` : '<div class="text-gray-400">No selfie</div>'}
+        </div>
+      `;
+      
+      document.getElementById('kycDocsModal').classList.remove('hidden');
+      document.getElementById('kycDocsModal').classList.add('flex');
+    }
+
+    function closeKycDocsModal() {
+      document.getElementById('kycDocsModal').classList.add('hidden');
+      document.getElementById('kycDocsModal').classList.remove('flex');
+    }
+
+    function approveKyc(userId) {
+      let users = getUsers();
+      const user = users.find(u => u.id === userId);
+      if (user) {
+        user.kycStatus = 'verified';
+        user.kycVerifiedAt = new Date().toISOString();
+        localStorage.setItem('eso_users', JSON.stringify(users));
+        alert('KYC approved!');
+        loadKyc();
+      }
+    }
+
+    function rejectKyc(userId) {
+      let users = getUsers();
+      const user = users.find(u => u.id === userId);
+      if (user) {
+        user.kycStatus = 'rejected';
+        localStorage.setItem('eso_users', JSON.stringify(users));
+        alert('KYC rejected!');
+        loadKyc();
+      }
+    }
+
+    function loadWallets() {
+      const wallets = JSON.parse(localStorage.getItem('eso_adminWallets') || '[]');
+      const container = document.getElementById('walletsList');
+      
+      const cryptoNames = { btc: 'Bitcoin', eth: 'Ethereum', usdt: 'Tether (ERC20)', usdt_trc: 'Tether (TRC20)', bnb: 'BNB' };
+      
+      if (wallets.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-center py-4">No wallet addresses configured</p>';
+        return;
+      }
+
+      container.innerHTML = wallets.map(w => `
+        <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+          <div class="min-w-0">
+            <p class="font-medium text-gray-900">${cryptoNames[w.cryptoId] || w.cryptoId}</p>
+            <p class="text-sm text-gray-500 font-mono truncate">${w.address}</p>
+          </div>
+          <button onclick="deleteWallet('${w.cryptoId}')" class="text-red-600 hover:text-red-800 flex-shrink-0 ml-2"><i class="fas fa-trash"></i></button>
+        </div>
+      `).join('');
+    }
+
+    document.getElementById('walletForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const wallet = {
+        cryptoId: document.getElementById('walletCrypto').value,
+        address: document.getElementById('walletAddress').value
+      };
+
+      let wallets = JSON.parse(localStorage.getItem('eso_adminWallets') || '[]');
+      const existingIndex = wallets.findIndex(w => w.cryptoId === wallet.cryptoId);
+      
+      if (existingIndex >= 0) wallets[existingIndex] = wallet;
+      else wallets.push(wallet);
+      
+      localStorage.setItem('eso_adminWallets', JSON.stringify(wallets));
+      alert('Wallet saved!');
+      document.getElementById('walletForm').reset();
+      loadWallets();
+    });
+
+    function deleteWallet(cryptoId) {
+      let wallets = JSON.parse(localStorage.getItem('eso_adminWallets') || '[]');
+      wallets = wallets.filter(w => w.cryptoId !== cryptoId);
+      localStorage.setItem('eso_adminWallets', JSON.stringify(wallets));
+      loadWallets();
+    }
+
+    function logout() {
+      localStorage.removeItem(ADMIN_KEY);
+      window.location.href = '../index.html';
+    }
+
+    window.addEventListener('resize', function() {
+      if (window.innerWidth >= 1024) closeSidebar();
+    });
+
+    checkAuth();
+    loadDashboard();
+  </script>
+</body>
+</html>
