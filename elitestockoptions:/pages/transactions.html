@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>All Transactions - ELITESTOCKOPTIONS</title>
+  <link rel="icon" type="image/png" href="../public/logo.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#4f46e5',
+            secondary: '#7c3aed',
+            accent: '#06b6d4'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .gradient-bg { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); }
+    .sidebar-link { transition: all 0.3s ease; }
+    .sidebar-link:hover, .sidebar-link.active {
+      background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+      color: white;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <div class="flex h-screen">
+    <!-- Sidebar -->
+    <aside class="w-64 bg-white shadow-xl hidden lg:flex flex-col">
+      <div class="p-6 border-b">
+        <div class="flex items-center space-x-3">
+          <img src="../public/logo.png" alt="ELITESTOCKOPTIONS" class="w-10 h-10 object-contain">
+          <span class="font-bold text-lg text-gray-900">ELITESTOCK</span>
+        </div>
+      </div>
+      <nav class="flex-1 overflow-y-auto py-4">
+        <div class="px-4 mb-2 text-xs font-semibold text-gray-400 uppercase">Main</div>
+        <a href="dashboard.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-home w-5"></i><span>Dashboard</span>
+        </a>
+        <a href="markets.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-chart-bar w-5"></i><span>Markets</span>
+        </a>
+        <div class="px-4 mt-6 mb-2 text-xs font-semibold text-gray-400 uppercase">Finance</div>
+        <a href="deposit.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-arrow-down w-5"></i><span>Deposit</span>
+        </a>
+        <a href="withdrawal.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-arrow-up w-5"></i><span>Withdraw</span>
+        </a>
+        <a href="transactions.html" class="sidebar-link active flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl">
+          <i class="fas fa-list w-5"></i><span>Transactions</span>
+        </a>
+        <div class="px-4 mt-6 mb-2 text-xs font-semibold text-gray-400 uppercase">Account</div>
+        <a href="settings.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-cog w-5"></i><span>Settings</span>
+        </a>
+      </nav>
+      <div class="p-4 border-t">
+        <button onclick="logout()" class="flex items-center space-x-3 px-4 py-3 w-full rounded-xl text-red-600 hover:bg-red-50 transition-colors">
+          <i class="fas fa-sign-out-alt w-5"></i><span>Logout</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 overflow-y-auto">
+      <header class="bg-white shadow-sm sticky top-0 z-30">
+        <div class="flex items-center justify-between px-6 py-4">
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900">All Transactions</h1>
+            <p class="text-gray-500 text-sm">View your complete transaction history</p>
+          </div>
+        </div>
+      </header>
+
+      <div class="p-6">
+        <!-- Summary Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+          <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-gray-500 text-sm">Total Deposits</p>
+                <p class="text-2xl font-bold text-green-600" id="totalDeposits">$0.00</p>
+              </div>
+              <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                <i class="fas fa-arrow-down text-green-600 text-xl"></i>
+              </div>
+            </div>
+          </div>
+          <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-gray-500 text-sm">Total Withdrawals</p>
+                <p class="text-2xl font-bold text-red-600" id="totalWithdrawals">$0.00</p>
+              </div>
+              <div class="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
+                <i class="fas fa-arrow-up text-red-600 text-xl"></i>
+              </div>
+            </div>
+          </div>
+          <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-gray-500 text-sm">Trading Volume</p>
+                <p class="text-2xl font-bold text-blue-600" id="tradingVolume">$0.00</p>
+              </div>
+              <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                <i class="fas fa-exchange-alt text-blue-600 text-xl"></i>
+              </div>
+            </div>
+          </div>
+          <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-gray-500 text-sm">Net Profit/Loss</p>
+                <p class="text-2xl font-bold" id="netPnl">$0.00</p>
+              </div>
+              <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                <i class="fas fa-chart-line text-purple-600 text-xl"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="flex flex-col md:flex-row gap-4 mb-6">
+          <div class="flex-1 relative">
+            <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+            <input type="text" id="searchTransactions" placeholder="Search transactions..." 
+              class="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary">
+          </div>
+          <select id="filterType" class="px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary">
+            <option value="">All Types</option>
+            <option value="deposit">Deposit</option>
+            <option value="withdrawal">Withdrawal</option>
+            <option value="trade">Trade</option>
+            <option value="bonus">Bonus</option>
+          </select>
+          <select id="filterPeriod" class="px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary">
+            <option value="all">All Time</option>
+            <option value="today">Today</option>
+            <option value="week">This Week</option>
+            <option value="month">This Month</option>
+          </select>
+        </div>
+
+        <!-- Transactions Table -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Date</th>
+                  <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Type</th>
+                  <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Description</th>
+                  <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Amount</th>
+                  <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
+                </tr>
+              </thead>
+              <tbody id="transactionsTable" class="divide-y divide-gray-100">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+          </div>
+          <div id="noTransactions" class="hidden p-8 text-center text-gray-500">
+            <i class="fas fa-inbox text-4xl mb-4 text-gray-300"></i>
+            <p>No transactions found</p>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    let currentUser = JSON.parse(localStorage.getItem('elitestockoptions_user') || localStorage.getItem('eso_currentUser'));
+    if (!currentUser) {
+      alert('Please login first');
+      window.location.href = 'login.html';
+    }
+
+    // Sync balance from shared users storage (new + legacy keys)
+    const allUsers = JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
+    const serverUser = allUsers.find(u => u.id === currentUser.id);
+    if (serverUser) {
+      currentUser.balance = serverUser.balance || 0;
+      currentUser.availableCash = serverUser.availableCash || 0;
+      currentUser.profitsBalance = serverUser.profitsBalance || 0;
+      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+    }
+
+    function initTransactions() {
+      loadTransactions();
+      calculateSummary();
+    }
+
+    function loadTransactions() {
+      const transactions = JSON.parse(localStorage.getItem('eso_transactions') || '[]');
+      const userTransactions = transactions.filter(t => t.userId === currentUser.id).sort((a, b) => new Date(b.date) - new Date(a.date));
+      
+      const tbody = document.getElementById('transactionsTable');
+      
+      if (userTransactions.length === 0) {
+        document.getElementById('noTransactions').classList.remove('hidden');
+        tbody.innerHTML = '';
+        return;
+      }
+
+      document.getElementById('noTransactions').classList.add('hidden');
+
+      const typeIcons = {
+        deposit: { icon: 'fa-arrow-down', color: 'bg-green-100 text-green-600' },
+        withdrawal: { icon: 'fa-arrow-up', color: 'bg-red-100 text-red-600' },
+        trade: { icon: 'fa-exchange-alt', color: 'bg-blue-100 text-blue-600' },
+        bonus: { icon: 'fa-gift', color: 'bg-amber-100 text-amber-600' }
+      };
+
+      const statusColors = {
+        completed: 'bg-green-100 text-green-800',
+        pending: 'bg-amber-100 text-amber-800',
+        failed: 'bg-red-100 text-red-800'
+      };
+
+      tbody.innerHTML = userTransactions.map(t => {
+        const typeInfo = typeIcons[t.type] || typeIcons.trade;
+        const statusClass = statusColors[t.status] || statusColors.completed;
+        return `
+          <tr class="hover:bg-gray-50">
+            <td class="px-6 py-4 text-sm">${new Date(t.date).toLocaleString()}</td>
+            <td class="px-6 py-4">
+              <div class="flex items-center space-x-2">
+                <div class="w-8 h-8 ${typeInfo.color} rounded-lg flex items-center justify-center">
+                  <i class="fas ${typeInfo.icon} text-sm"></i>
+                </div>
+                <span class="capitalize font-medium">${t.type}</span>
+              </div>
+            </td>
+            <td class="px-6 py-4 text-sm text-gray-600">${t.description || '-'}</td>
+            <td class="px-6 py-4 font-medium ${t.amount >= 0 ? 'text-green-600' : 'text-red-600'}">
+              ${t.amount >= 0 ? '+' : ''}$${Math.abs(t.amount).toFixed(2)}
+            </td>
+            <td class="px-6 py-4">
+              <span class="px-3 py-1 rounded-full text-xs font-medium ${statusClass}">
+                ${(t.status || 'completed').charAt(0).toUpperCase() + (t.status || 'completed').slice(1)}
+              </span>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function calculateSummary() {
+      const transactions = JSON.parse(localStorage.getItem('eso_transactions') || '[]');
+      const userTransactions = transactions.filter(t => t.userId === currentUser.id);
+
+      let totalDeposits = 0;
+      let totalWithdrawals = 0;
+      let tradingVolume = 0;
+      let netPnl = 0;
+
+      userTransactions.forEach(t => {
+        if (t.type === 'deposit' && t.amount > 0) totalDeposits += t.amount;
+        if (t.type === 'withdrawal' || (t.type === 'deposit' && t.amount < 0)) totalWithdrawals += Math.abs(t.amount);
+        if (t.type === 'trade') {
+          tradingVolume += Math.abs(t.amount);
+          netPnl += t.amount;
+        }
+      });
+
+      document.getElementById('totalDeposits').textContent = '$' + totalDeposits.toFixed(2);
+      document.getElementById('totalWithdrawals').textContent = '$' + totalWithdrawals.toFixed(2);
+      document.getElementById('tradingVolume').textContent = '$' + tradingVolume.toFixed(2);
+      
+      const pnlElement = document.getElementById('netPnl');
+      pnlElement.textContent = (netPnl >= 0 ? '+' : '') + '$' + netPnl.toFixed(2);
+      pnlElement.className = 'text-2xl font-bold ' + (netPnl >= 0 ? 'text-green-600' : 'text-red-600');
+    }
+
+    function logout() {
+      localStorage.removeItem('elitestockoptions_user');
+      window.location.href = '../index.html';
+    }
+
+    initTransactions();
+  </script>
+</body>
+</html>

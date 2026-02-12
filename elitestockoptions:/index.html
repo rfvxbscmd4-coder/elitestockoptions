@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ELITESTOCKOPTIONS - Professional Trading Platform</title>
+  <link rel="icon" type="image/png" href="./public/logo.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    .gradient-text { background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .hero-gradient { background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4c1d95 100%); }
+    .feature-card { transition: all 0.3s ease; }
+    .feature-card:hover { transform: translateY(-8px); box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); }
+    .price-ticker { animation: ticker 30s linear infinite; }
+    @keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+    .btn-primary { background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); transition: all 0.3s ease; }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 30px -5px rgba(79,70,229,0.5); }
+    .plan-card { transition: all 0.3s ease; }
+    .plan-card:hover { transform: translateY(-4px); box-shadow: 0 20px 40px -5px rgba(0,0,0,0.15); }
+    .plan-featured { border: 2px solid #4F46E5; position: relative; }
+    .plan-featured::before { content: 'MOST POPULAR'; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); color: white; padding: 4px 16px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  </style>
+</head>
+<body class="font-sans text-gray-900">
+  <!-- Navigation -->
+  <nav class="fixed w-full z-50 bg-white/90 backdrop-blur-md border-b border-gray-100">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        <a href="index.html" class="flex items-center gap-3">
+          <img src="./public/logo.png" alt="ELITESTOCKOPTIONS" class="w-10 h-10 object-contain">
+          <span class="text-xl font-bold"><span class="text-gray-900">ELITE</span><span class="gradient-text">STOCK</span><span class="text-gray-900">OPTIONS</span></span>
+        </a>
+        <div class="hidden md:flex items-center gap-8">
+          <a href="#features" class="text-gray-600 hover:text-indigo-600 transition-colors">Features</a>
+          <a href="#markets" class="text-gray-600 hover:text-indigo-600 transition-colors">Markets</a>
+          <a href="#pricing" class="text-gray-600 hover:text-indigo-600 transition-colors">Pricing</a>
+        </div>
+        <div class="flex items-center gap-4">
+          <a href="pages/login.html" class="hidden md:block text-gray-600 hover:text-indigo-600 transition-colors">Sign In</a>
+          <a href="pages/register.html" class="btn-primary px-6 py-2.5 text-white rounded-full font-medium">Get Started</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <section class="hero-gradient min-h-screen flex items-center pt-16 relative overflow-hidden">
+    <div class="absolute inset-0 opacity-10">
+      <div class="absolute top-20 left-10 w-72 h-72 bg-purple-500 rounded-full blur-3xl"></div>
+      <div class="absolute bottom-20 right-10 w-96 h-96 bg-indigo-500 rounded-full blur-3xl"></div>
+    </div>
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 relative z-10">
+      <div class="grid lg:grid-cols-2 gap-12 items-center">
+        <div>
+          <div class="inline-flex items-center gap-2 px-4 py-2 bg-white/10 rounded-full text-white/80 text-sm mb-6">
+            <span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+            Live Trading Available 24/7
+          </div>
+          <h1 class="text-5xl lg:text-6xl font-bold text-white leading-tight mb-6">
+            Trade Like a <span class="gradient-text">Pro</span> Today
+          </h1>
+          <p class="text-xl text-gray-300 mb-8 leading-relaxed">
+            Access global markets with advanced tools, real-time TradingView charts, and copy trading. Join over 100,000 traders who trust ELITESTOCKOPTIONS.
+          </p>
+          <div class="flex flex-col sm:flex-row gap-4 mb-12">
+            <a href="pages/register.html" class="btn-primary px-8 py-4 text-white rounded-full font-semibold text-center">
+              Start Trading Free <i class="fas fa-arrow-right ml-2"></i>
+            </a>
+            <a href="pages/markets.html" class="px-8 py-4 border-2 border-white/30 text-white rounded-full font-semibold hover:bg-white/10 transition-colors text-center">
+              View Markets
+            </a>
+          </div>
+          <div class="flex items-center gap-8">
+            <div>
+              <p class="text-3xl font-bold text-white">$2.5B+</p>
+              <p class="text-gray-400 text-sm">Trading Volume</p>
+            </div>
+            <div class="w-px h-12 bg-white/20"></div>
+            <div>
+              <p class="text-3xl font-bold text-white">100K+</p>
+              <p class="text-gray-400 text-sm">Active Traders</p>
+            </div>
+            <div class="w-px h-12 bg-white/20"></div>
+            <div>
+              <p class="text-3xl font-bold text-white">99.9%</p>
+              <p class="text-gray-400 text-sm">Uptime</p>
+            </div>
+          </div>
+        </div>
+        <div class="relative">
+          <div class="bg-white/10 backdrop-blur-lg rounded-3xl p-6 border border-white/20">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-white font-semibold">Live Market Prices</h3>
+              <span class="text-green-400 text-sm"><i class="fas fa-circle text-xs mr-1"></i>Live</span>
+            </div>
+            <div class="space-y-3">
+              <div class="flex items-center justify-between p-4 bg-white/5 rounded-xl">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-yellow-500 flex items-center justify-center">
+                    <i class="fab fa-bitcoin text-white"></i>
+                  </div>
+                  <div>
+                    <p class="text-white font-medium">Bitcoin</p>
+                    <p class="text-gray-400 text-sm">BTC/USD</p>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <p class="text-white font-medium">$67,432.50</p>
+                  <p class="text-green-400 text-sm">+2.34%</p>
+                </div>
+              </div>
+              <div class="flex items-center justify-between p-4 bg-white/5 rounded-xl">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center">
+                    <i class="fab fa-ethereum text-white"></i>
+                  </div>
+                  <div>
+                    <p class="text-white font-medium">Ethereum</p>
+                    <p class="text-gray-400 text-sm">ETH/USD</p>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <p class="text-white font-medium">$3,521.78</p>
+                  <p class="text-green-400 text-sm">+1.87%</p>
+                </div>
+              </div>
+              <div class="flex items-center justify-between p-4 bg-white/5 rounded-xl">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center">
+                    <span class="text-white font-bold text-xs">SOL</span>
+                  </div>
+                  <div>
+                    <p class="text-white font-medium">Solana</p>
+                    <p class="text-gray-400 text-sm">SOL/USD</p>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <p class="text-white font-medium">$142.63</p>
+                  <p class="text-green-400 text-sm">+5.21%</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section id="features" class="py-24 bg-white">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center mb-16">
+        <h2 class="text-4xl font-bold text-gray-900 mb-4">Why Choose <span class="gradient-text">ELITESTOCKOPTIONS</span></h2>
+        <p class="text-xl text-gray-600 max-w-2xl mx-auto">Professional trading tools designed for both beginners and experienced traders</p>
+      </div>
+      <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div class="feature-card bg-gray-50 rounded-2xl p-8">
+          <div class="w-14 h-14 rounded-xl bg-indigo-100 flex items-center justify-center mb-6">
+            <i class="fas fa-chart-line text-indigo-600 text-2xl"></i>
+          </div>
+          <h3 class="text-xl font-bold text-gray-900 mb-3">Real-Time Charts</h3>
+          <p class="text-gray-600">Professional TradingView charts with live market data, technical indicators, and drawing tools.</p>
+        </div>
+        <div class="feature-card bg-gray-50 rounded-2xl p-8">
+          <div class="w-14 h-14 rounded-xl bg-green-100 flex items-center justify-center mb-6">
+            <i class="fas fa-copy text-green-600 text-2xl"></i>
+          </div>
+          <h3 class="text-xl font-bold text-gray-900 mb-3">Copy Trading</h3>
+          <p class="text-gray-600">Automatically copy the trades of successful traders and learn from their strategies.</p>
+        </div>
+        <div class="feature-card bg-gray-50 rounded-2xl p-8">
+          <div class="w-14 h-14 rounded-xl bg-purple-100 flex items-center justify-center mb-6">
+            <i class="fas fa-shield-alt text-purple-600 text-2xl"></i>
+          </div>
+          <h3 class="text-xl font-bold text-gray-900 mb-3">Bank-Grade Security</h3>
+          <p class="text-gray-600">Your assets are protected with 2FA, cold storage, and insurance coverage up to $250M.</p>
+        </div>
+        <div class="feature-card bg-gray-50 rounded-2xl p-8">
+          <div class="w-14 h-14 rounded-xl bg-orange-100 flex items-center justify-center mb-6">
+            <i class="fas fa-globe text-orange-600 text-2xl"></i>
+          </div>
+          <h3 class="text-xl font-bold text-gray-900 mb-3">Global Markets</h3>
+          <p class="text-gray-600">Trade crypto, stocks, forex, futures, bonds, and ETFs all in one platform.</p>
+        </div>
+        <div class="feature-card bg-gray-50 rounded-2xl p-8">
+          <div class="w-14 h-14 rounded-xl bg-pink-100 flex items-center justify-center mb-6">
+            <i class="fas fa-image text-pink-600 text-2xl"></i>
+          </div>
+          <h3 class="text-xl font-bold text-gray-900 mb-3">NFT Marketplace</h3>
+          <p class="text-gray-600">Buy, sell, and create NFTs. Explore unique digital assets from creators worldwide.</p>
+        </div>
+        <div class="feature-card bg-gray-50 rounded-2xl p-8">
+          <div class="w-14 h-14 rounded-xl bg-blue-100 flex items-center justify-center mb-6">
+            <i class="fas fa-headset text-blue-600 text-2xl"></i>
+          </div>
+          <h3 class="text-xl font-bold text-gray-900 mb-3">24/7 Support</h3>
+          <p class="text-gray-600">Our expert support team is available around the clock to help you with any questions.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing Section -->
+  <section id="pricing" class="py-24 bg-gray-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center mb-16">
+        <h2 class="text-4xl font-bold text-gray-900 mb-4">Choose Your <span class="gradient-text">Plan</span></h2>
+        <p class="text-xl text-gray-600 max-w-2xl mx-auto">Start free and upgrade as you grow. All plans include access to basic trading features.</p>
+      </div>
+      <div class="grid md:grid-cols-2 lg:grid-cols-5 gap-6">
+        <div class="plan-card bg-white rounded-2xl p-6 border border-gray-200">
+          <div class="text-center mb-6">
+            <h3 class="text-xl font-bold text-gray-900 mb-2">Bronze</h3>
+            <p class="text-gray-500 text-sm">For beginners</p>
+          </div>
+          <div class="text-center mb-6">
+            <span class="text-4xl font-bold text-gray-900">Free</span>
+          </div>
+          <ul class="space-y-3 mb-6">
+            <li class="flex items-center gap-2 text-sm text-gray-600"><i class="fas fa-check text-green-500"></i> Basic trading</li>
+            <li class="flex items-center gap-2 text-sm text-gray-600"><i class="fas fa-check text-green-500"></i> Market access</li>
+            <li class="flex items-center gap-2 text-sm text-gray-600"><i class="fas fa-check text-green-500"></i> 24/7 support</li>
+          </ul>
+          <a href="pages/register.html" class="block w-full py-3 text-center border-2 border-gray-300 text-gray-700 rounded-xl font-medium hover:border-indigo-600 hover:text-indigo-600 transition-colors">Get Started</a>
+        </div>
+        <div class="plan-card bg-white rounded-2xl p-6 border border-gray-200">
+          <div class="text-center mb-6">
+            <h3 class="text-xl font-bold text-gray-900 mb-2">Silver</h3>
+            <p class="text-gray-500 text-sm">For active traders</p>
+          </div>
+          <div class="text-center mb-6">
+            <span class="text-4xl font-bold text-gray-900">$10K</span>
+            <span class="text-gray-500">/min</span>
+          </div>
+          <ul class="space-y-3 mb-6">
+            <li class="flex items-center gap-2 text-sm text-gray-600"><i class="fas fa-check text-green-500"></i> All Bronze features</li>
+            <li class="flex items-center gap-2 text-sm text-gray-600"><i class="fas fa-check text-green-500"></i> Copy trading</li>
+            <li class="flex items-center gap-2 text-sm text-gray-600"><i class="fas fa-check text-green-500"></i> Advanced charts</li>
+          </ul>
+          <a href="pages/upgrade-plan.html" class="block w-full py-3 text-center border-2 border-gray-300 text-gray-700 rounded-xl font-medium hover:border-indigo-600 hover:text-indigo-600 transition-colors">Upgrade</a>
+        </div>
+        <div class="plan-card plan-featured bg-white rounded-2xl p-6 shadow-lg">
+          <div class="text-center mb-6">
+            <h3 class="text-xl font-bold text-gray-900 mb-2">Gold</h3>
+            <p class="text-gray-500 text-sm">Most popular</p>
+          </div>
+          <div class="text-center mb-6">
+            <span class="text-4xl font-bold text-gray-900">$30K</span>
+            <span class="text-gray-500">/min</span>
+          </div>
+          <ul class="space-y-3 mb-6">
+            <li class="flex items-center gap-2 text-sm text-gray-600"><i class="fas fa-check text-green-500"></i> All Silver features</li>
+            <li class="flex items-center gap-2 text-sm text-gray-600"><i class="fas fa-check text-green-500"></i> Trading loans</li>
+            <li class="flex items-center gap-2 text-sm text-gray-600"><i class="fas fa-check text-green-500"></i> NFT creation</li>
+          </ul>
+          <a href="pages/upgrade-plan.html" class="block w-full py-3 text-center btn-primary text-white rounded-xl font-medium">Upgrade</a>
+        </div>
+        <div class="plan-card bg-white rounded-2xl p-6 border border-gray-200">
+          <div class="text-center mb-6">
+            <h3 class="text-xl font-bold text-gray-900 mb-2">Diamond</h3>
+            <p class="text-gray-500 text-sm">For professionals</p>
+          </div>
+          <div class="text-center mb-6">
+            <span class="text-4xl font-bold text-gray-900">$50K</span>
+            <span class="text-gray-500">/min</span>
+          </div>
+          <ul class="space-y-3 mb-6">
+            <li class="flex items-center gap-2 text-sm text-gray-600"><i class="fas fa-check text-green-500"></i> All Gold features</li>
+            <li class="flex items-center gap-2 text-sm text-gray-600"><i class="fas fa-check text-green-500"></i> Higher loan limits</li>
+            <li class="flex items-center gap-2 text-sm text-gray-600"><i class="fas fa-check text-green-500"></i> Zero fees</li>
+          </ul>
+          <a href="pages/upgrade-plan.html" class="block w-full py-3 text-center border-2 border-gray-300 text-gray-700 rounded-xl font-medium hover:border-indigo-600 hover:text-indigo-600 transition-colors">Upgrade</a>
+        </div>
+        <div class="plan-card bg-white rounded-2xl p-6 border border-gray-200">
+          <div class="text-center mb-6">
+            <h3 class="text-xl font-bold text-gray-900 mb-2">Premium</h3>
+            <p class="text-gray-500 text-sm">Enterprise</p>
+          </div>
+          <div class="text-center mb-6">
+            <span class="text-4xl font-bold text-gray-900">$100K</span>
+            <span class="text-gray-500">/min</span>
+          </div>
+          <ul class="space-y-3 mb-6">
+            <li class="flex items-center gap-2 text-sm text-gray-600"><i class="fas fa-check text-green-500"></i> All Diamond features</li>
+            <li class="flex items-center gap-2 text-sm text-gray-600"><i class="fas fa-check text-green-500"></i> Unlimited loans</li>
+            <li class="flex items-center gap-2 text-sm text-gray-600"><i class="fas fa-check text-green-500"></i> Custom solutions</li>
+          </ul>
+          <a href="pages/upgrade-plan.html" class="block w-full py-3 text-center border-2 border-gray-300 text-gray-700 rounded-xl font-medium hover:border-indigo-600 hover:text-indigo-600 transition-colors">Contact Us</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Section -->
+  <section class="py-24 bg-gradient-to-br from-indigo-600 to-violet-700">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+      <h2 class="text-4xl lg:text-5xl font-bold text-white mb-6">Ready to Start Trading?</h2>
+      <p class="text-xl text-indigo-100 mb-8">Join ELITESTOCKOPTIONS today and get access to professional trading tools, real-time TradingView charts, and copy trading features.</p>
+      <div class="flex flex-col sm:flex-row gap-4 justify-center">
+        <a href="pages/register.html" class="px-8 py-4 bg-white text-indigo-600 rounded-full font-semibold hover:bg-gray-100 transition-colors">
+          Create Free Account
+        </a>
+        <a href="pages/login.html" class="px-8 py-4 border-2 border-white text-white rounded-full font-semibold hover:bg-white/10 transition-colors">
+          Sign In
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="bg-gray-900 text-white py-16">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
+        <div>
+          <div class="flex items-center gap-3 mb-6">
+            <img src="./public/logo.png" alt="ELITESTOCKOPTIONS" class="w-10 h-10 object-contain">
+            <span class="text-xl font-bold">ELITESTOCKOPTIONS</span>
+          </div>
+          <p class="text-gray-400 mb-6">Professional trading platform for crypto, stocks, forex, and NFTs. Trade with confidence.</p>
+          <div class="flex items-center gap-4">
+            <a href="#" class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"><i class="fab fa-twitter"></i></a>
+            <a href="#" class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"><i class="fab fa-discord"></i></a>
+            <a href="#" class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"><i class="fab fa-telegram"></i></a>
+          </div>
+        </div>
+        <div>
+          <h4 class="font-semibold mb-6">Products</h4>
+          <ul class="space-y-3">
+            <li><a href="pages/markets.html" class="text-gray-400 hover:text-white transition-colors">Crypto Trading</a></li>
+            <li><a href="pages/markets.html" class="text-gray-400 hover:text-white transition-colors">Stock Trading</a></li>
+            <li><a href="pages/markets.html" class="text-gray-400 hover:text-white transition-colors">Forex Trading</a></li>
+            <li><a href="pages/buy-nfts.html" class="text-gray-400 hover:text-white transition-colors">NFT Marketplace</a></li>
+            <li><a href="pages/copy-trader.html" class="text-gray-400 hover:text-white transition-colors">Copy Trading</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="font-semibold mb-6">Company</h4>
+          <ul class="space-y-3">
+            <li><a href="#" class="text-gray-400 hover:text-white transition-colors">About Us</a></li>
+            <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Careers</a></li>
+            <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Blog</a></li>
+            <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Contact</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="font-semibold mb-6">Support</h4>
+          <ul class="space-y-3">
+            <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Help Center</a></li>
+            <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Trading Fees</a></li>
+            <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Terms of Service</a></li>
+            <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Privacy Policy</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="border-t border-white/10 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
+        <p class="text-gray-400 text-sm">&copy; 2025 ELITESTOCKOPTIONS. All rights reserved.</p>
+        <p class="text-gray-500 text-sm">Trading involves risk. Please trade responsibly.</p>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

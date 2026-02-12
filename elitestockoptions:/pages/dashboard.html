@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - ELITESTOCKOPTIONS</title>
+  <link rel="icon" type="image/png" href="../public/logo.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://s3.tradingview.com/tv.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#4f46e5',
+            secondary: '#7c3aed',
+            accent: '#06b6d4',
+            dark: '#0f172a'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .gradient-bg { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); }
+    .gradient-text { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .glass-card {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    .sidebar-link {
+      transition: all 0.3s ease;
+    }
+    .sidebar-link:hover, .sidebar-link.active {
+      background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+      color: white;
+    }
+    .quick-action {
+      transition: all 0.3s ease;
+    }
+    .quick-action:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 20px 40px -10px rgba(79, 70, 229, 0.3);
+    }
+    .stat-card {
+      transition: all 0.3s ease;
+    }
+    .stat-card:hover {
+      transform: translateY(-3px);
+    }
+    .pulse-dot {
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .price-up { color: #10b981; }
+    .price-down { color: #ef4444; }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <div class="flex h-screen">
+    <!-- Sidebar -->
+    <aside class="w-64 bg-white shadow-xl hidden lg:flex flex-col">
+      <div class="p-6 border-b">
+        <div class="flex items-center space-x-3">
+          <img src="../public/logo.png" alt="ELITESTOCKOPTIONS" class="w-10 h-10 object-contain">
+          <span class="font-bold text-lg text-gray-900">ELITESTOCK</span>
+        </div>
+      </div>
+      
+      <nav class="flex-1 overflow-y-auto py-4">
+        <div class="px-4 mb-2 text-xs font-semibold text-gray-400 uppercase">Main</div>
+        <a href="dashboard.html" class="sidebar-link active flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl">
+          <i class="fas fa-home w-5"></i>
+          <span>Dashboard</span>
+        </a>
+        <a href="markets.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-chart-bar w-5"></i>
+          <span>Markets</span>
+        </a>
+        <a href="my-trades.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-exchange-alt w-5"></i>
+          <span>My Trades</span>
+        </a>
+        
+        <div class="px-4 mt-6 mb-2 text-xs font-semibold text-gray-400 uppercase">Finance</div>
+        <a href="deposit.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-arrow-down w-5"></i>
+          <span>Deposit</span>
+        </a>
+        <a href="withdrawal.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-arrow-up w-5"></i>
+          <span>Withdraw</span>
+        </a>
+        <a href="take-loan.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-hand-holding-usd w-5"></i>
+          <span>Take Loan</span>
+        </a>
+        <a href="transactions.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-list w-5"></i>
+          <span>Transactions</span>
+        </a>
+        
+        <div class="px-4 mt-6 mb-2 text-xs font-semibold text-gray-400 uppercase">NFT & Trading</div>
+        <a href="buy-nfts.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-shopping-cart w-5"></i>
+          <span>Buy NFTs</span>
+        </a>
+        <a href="create-nfts.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-paint-brush w-5"></i>
+          <span>Create NFTs</span>
+        </a>
+        <a href="copy-trader.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-copy w-5"></i>
+          <span>Copy Trader</span>
+        </a>
+        
+        <div class="px-4 mt-6 mb-2 text-xs font-semibold text-gray-400 uppercase">Account</div>
+        <a href="upgrade-plan.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-crown w-5"></i>
+          <span>Upgrade Plan</span>
+        </a>
+        <a href="settings.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-cog w-5"></i>
+          <span>Settings</span>
+        </a>
+      </nav>
+      
+      <div class="p-4 border-t">
+        <button onclick="logout()" class="flex items-center space-x-3 px-4 py-3 w-full rounded-xl text-red-600 hover:bg-red-50 transition-colors">
+          <i class="fas fa-sign-out-alt w-5"></i>
+          <span>Logout</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 overflow-y-auto">
+      <!-- Header -->
+      <header class="bg-white shadow-sm sticky top-0 z-30">
+        <div class="flex items-center justify-between px-6 py-4">
+          <div class="flex items-center lg:hidden">
+            <button onclick="toggleMobileMenu()" class="p-2 rounded-lg hover:bg-gray-100">
+              <i class="fas fa-bars text-xl"></i>
+            </button>
+            <span class="ml-3 font-bold text-lg">Dashboard</span>
+          </div>
+          
+          <div class="hidden lg:block">
+            <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
+            <p class="text-gray-500 text-sm">Welcome back, <span id="userName">Trader</span>!</p>
+          </div>
+          
+          <div class="flex items-center space-x-4">
+            <button class="relative p-2 rounded-lg hover:bg-gray-100">
+              <i class="fas fa-bell text-gray-600"></i>
+              <span class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full pulse-dot"></span>
+            </button>
+            <div class="flex items-center space-x-3">
+              <div class="text-right hidden sm:block">
+                <p class="font-semibold text-gray-900" id="headerUserName">Trader</p>
+                <p class="text-xs text-gray-500" id="userPlan">Bronze Plan</p>
+              </div>
+              <div class="w-10 h-10 gradient-bg rounded-full flex items-center justify-center text-white font-bold" id="userAvatar">
+                T
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- KYC Verification Banner -->
+      <div id="kycBanner" class="hidden bg-amber-50 border-b border-amber-200 px-6 py-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-3">
+            <i class="fas fa-exclamation-circle text-amber-500 text-xl"></i>
+            <div>
+              <p class="font-medium text-amber-800">KYC Verification Required</p>
+              <p class="text-sm text-amber-600">Please complete your KYC verification to unlock all features.</p>
+            </div>
+          </div>
+          <a href="settings.html" class="px-4 py-2 bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 transition-colors">
+            Verify Now
+          </a>
+        </div>
+      </div>
+
+      <!-- Dashboard Content -->
+      <div class="p-6">
+        <!-- Balance Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div class="stat-card bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <div class="flex items-center justify-between mb-4">
+              <div class="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center">
+                <i class="fas fa-wallet text-indigo-600 text-xl"></i>
+              </div>
+              <span class="text-xs font-medium text-gray-400">Total Balance</span>
+            </div>
+            <p class="text-2xl font-bold text-gray-900" id="totalBalance">$0.00</p>
+            <p class="text-sm text-gray-500 mt-1">Available for trading</p>
+          </div>
+          
+          <div class="stat-card bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <div class="flex items-center justify-between mb-4">
+              <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                <i class="fas fa-coins text-green-600 text-xl"></i>
+              </div>
+              <span class="text-xs font-medium text-gray-400">Available Cash</span>
+            </div>
+            <p class="text-2xl font-bold text-gray-900" id="availableCash">$0.00</p>
+            <p class="text-sm text-gray-500 mt-1">Ready to invest</p>
+          </div>
+          
+          <div class="stat-card bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <div class="flex items-center justify-between mb-4">
+              <div class="w-12 h-12 bg-cyan-100 rounded-xl flex items-center justify-center">
+                <i class="fas fa-chart-line text-cyan-600 text-xl"></i>
+              </div>
+              <span class="text-xs font-medium text-gray-400">Profits</span>
+            </div>
+            <p class="text-2xl font-bold text-green-600" id="profitsBalance">$0.00</p>
+            <p class="text-sm text-gray-500 mt-1">Total earnings</p>
+          </div>
+          
+          <div class="stat-card bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <div class="flex items-center justify-between mb-4">
+              <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                <i class="fas fa-crown text-purple-600 text-xl"></i>
+              </div>
+              <span class="text-xs font-medium text-gray-400">Current Plan</span>
+            </div>
+            <p class="text-2xl font-bold gradient-text" id="currentPlan">Bronze</p>
+            <p class="text-sm text-gray-500 mt-1">
+              <a href="upgrade-plan.html" class="text-primary hover:underline">Upgrade now</a>
+            </p>
+          </div>
+        </div>
+
+        <!-- Quick Action Board -->
+        <div class="mb-8">
+          <h2 class="text-lg font-bold text-gray-900 mb-4">Quick Actions</h2>
+          <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4">
+            <a href="my-trades.html" class="quick-action bg-white rounded-2xl p-4 text-center shadow-sm border border-gray-100 hover:border-primary">
+              <div class="w-12 h-12 gradient-bg rounded-xl flex items-center justify-center mx-auto mb-3">
+                <i class="fas fa-plus text-white"></i>
+              </div>
+              <p class="text-sm font-medium text-gray-900">Place Trade</p>
+            </a>
+            
+            <button onclick="claimBonus()" class="quick-action bg-white rounded-2xl p-4 text-center shadow-sm border border-gray-100 hover:border-primary">
+              <div class="w-12 h-12 bg-amber-500 rounded-xl flex items-center justify-center mx-auto mb-3">
+                <i class="fas fa-gift text-white"></i>
+              </div>
+              <p class="text-sm font-medium text-gray-900">Claim Bonus</p>
+            </button>
+            
+            <a href="deposit.html" class="quick-action bg-white rounded-2xl p-4 text-center shadow-sm border border-gray-100 hover:border-primary">
+              <div class="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center mx-auto mb-3">
+                <i class="fas fa-arrow-down text-white"></i>
+              </div>
+              <p class="text-sm font-medium text-gray-900">Deposit</p>
+            </a>
+            
+            <a href="withdrawal.html" class="quick-action bg-white rounded-2xl p-4 text-center shadow-sm border border-gray-100 hover:border-primary">
+              <div class="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center mx-auto mb-3">
+                <i class="fas fa-arrow-up text-white"></i>
+              </div>
+              <p class="text-sm font-medium text-gray-900">Withdraw</p>
+            </a>
+            
+            <a href="settings.html" class="quick-action bg-white rounded-2xl p-4 text-center shadow-sm border border-gray-100 hover:border-primary">
+              <div class="w-12 h-12 bg-gray-600 rounded-xl flex items-center justify-center mx-auto mb-3">
+                <i class="fas fa-cog text-white"></i>
+              </div>
+              <p class="text-sm font-medium text-gray-900">Settings</p>
+            </a>
+            
+            <a href="buy-nfts.html" class="quick-action bg-white rounded-2xl p-4 text-center shadow-sm border border-gray-100 hover:border-primary">
+              <div class="w-12 h-12 bg-pink-500 rounded-xl flex items-center justify-center mx-auto mb-3">
+                <i class="fas fa-image text-white"></i>
+              </div>
+              <p class="text-sm font-medium text-gray-900">Buy NFTs</p>
+            </a>
+            
+            <button onclick="trackProfits()" class="quick-action bg-white rounded-2xl p-4 text-center shadow-sm border border-gray-100 hover:border-primary">
+              <div class="w-12 h-12 bg-cyan-500 rounded-xl flex items-center justify-center mx-auto mb-3">
+                <i class="fas fa-chart-pie text-white"></i>
+              </div>
+              <p class="text-sm font-medium text-gray-900">Track Profits</p>
+            </button>
+          </div>
+        </div>
+
+        <!-- Main Dashboard Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- TradingView Chart -->
+          <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div class="p-4 border-b flex items-center justify-between">
+              <h3 class="font-bold text-gray-900">Market Overview</h3>
+              <a href="markets.html" class="text-primary text-sm hover:underline">View All Markets</a>
+            </div>
+            <div class="h-96" id="tradingview-chart"></div>
+          </div>
+
+          <!-- Side Panel -->
+          <div class="space-y-6">
+            <!-- Open Trades -->
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100">
+              <div class="p-4 border-b flex items-center justify-between">
+                <h3 class="font-bold text-gray-900">Open Trades</h3>
+                <span class="text-xs bg-indigo-100 text-indigo-600 px-2 py-1 rounded-full" id="openTradesCount">0</span>
+              </div>
+              <div class="p-4" id="openTradesList">
+                <p class="text-gray-500 text-center py-4">No open trades</p>
+              </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100">
+              <div class="p-4 border-b flex items-center justify-between">
+                <h3 class="font-bold text-gray-900">Recent Activity</h3>
+                <a href="transactions.html" class="text-primary text-sm hover:underline">View All</a>
+              </div>
+              <div class="p-4" id="recentActivity">
+                <p class="text-gray-500 text-center py-4">No recent activity</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Market Movers -->
+        <div class="mt-8">
+          <h2 class="text-lg font-bold text-gray-900 mb-4">Market Movers</h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" id="marketMovers">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Mobile Menu -->
+  <div id="mobileMenu" class="fixed inset-0 bg-black/50 z-40 hidden lg:hidden" onclick="toggleMobileMenu()">
+    <div class="absolute left-0 top-0 h-full w-64 bg-white shadow-xl" onclick="event.stopPropagation()">
+      <div class="p-4 border-b flex items-center justify-between">
+        <span class="font-bold text-lg">Menu</span>
+        <button onclick="toggleMobileMenu()" class="p-2">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <nav class="p-4 space-y-2">
+        <a href="dashboard.html" class="flex items-center space-x-3 px-4 py-3 rounded-xl bg-primary text-white">
+          <i class="fas fa-home w-5"></i>
+          <span>Dashboard</span>
+        </a>
+        <a href="markets.html" class="flex items-center space-x-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-gray-100">
+          <i class="fas fa-chart-bar w-5"></i>
+          <span>Markets</span>
+        </a>
+        <a href="my-trades.html" class="flex items-center space-x-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-gray-100">
+          <i class="fas fa-exchange-alt w-5"></i>
+          <span>My Trades</span>
+        </a>
+        <a href="deposit.html" class="flex items-center space-x-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-gray-100">
+          <i class="fas fa-arrow-down w-5"></i>
+          <span>Deposit</span>
+        </a>
+        <a href="withdrawal.html" class="flex items-center space-x-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-gray-100">
+          <i class="fas fa-arrow-up w-5"></i>
+          <span>Withdraw</span>
+        </a>
+        <a href="settings.html" class="flex items-center space-x-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-gray-100">
+          <i class="fas fa-cog w-5"></i>
+          <span>Settings</span>
+        </a>
+      </nav>
+    </div>
+  </div>
+
+  <!-- Bonus Modal -->
+  <div id="bonusModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden items-center justify-center">
+    <div class="bg-white rounded-2xl p-6 max-w-md mx-4">
+      <div class="text-center">
+        <div class="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <i class="fas fa-gift text-amber-500 text-2xl"></i>
+        </div>
+        <h3 class="text-xl font-bold text-gray-900 mb-2">Daily Bonus</h3>
+        <p class="text-gray-600 mb-4">Come back tomorrow to claim your daily trading bonus!</p>
+        <button onclick="closeBonusModal()" class="btn-primary px-6 py-2 text-white rounded-xl">Got it</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Check authentication - support both old and new key names
+    const currentUser = JSON.parse(localStorage.getItem('elitestockoptions_user') || localStorage.getItem('eso_currentUser'));
+    if (!currentUser) {
+      // Not logged in - show demo option instead of redirecting
+      console.log('Not logged in - user can still view but will need to login for full features');
+    }
+
+    // Initialize dashboard
+    function initDashboard() {
+      // Sync balance from shared users storage (new + legacy keys) to current session
+      const allUsers = JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
+      const serverUser = allUsers.find(u => u.id === currentUser.id);
+      if (serverUser) {
+        // Update current session with server values
+        currentUser.balance = serverUser.balance || 0;
+        currentUser.availableCash = serverUser.availableCash || 0;
+        currentUser.profitsBalance = serverUser.profitsBalance || 0;
+        currentUser.plan = serverUser.plan || currentUser.plan;
+        localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+      }
+
+      // Update user info
+      document.getElementById('userName').textContent = currentUser.fullName?.split(' ')[0] || 'Trader';
+      document.getElementById('headerUserName').textContent = currentUser.fullName || 'Trader';
+      document.getElementById('userPlan').textContent = (currentUser.plan || 'Bronze') + ' Plan';
+      document.getElementById('userAvatar').textContent = (currentUser.fullName?.[0] || 'T').toUpperCase();
+      document.getElementById('currentPlan').textContent = currentUser.plan || 'Bronze';
+
+      // Update balances
+      document.getElementById('totalBalance').textContent = '$' + (currentUser.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
+      document.getElementById('availableCash').textContent = '$' + (currentUser.availableCash || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
+      document.getElementById('profitsBalance').textContent = '$' + (currentUser.profitsBalance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
+
+      // Show/hide KYC banner
+      const kycStatus = serverUser?.kycStatus || currentUser.kycStatus || 'not_submitted';
+      const kycBanner = document.getElementById('kycBanner');
+      if (kycStatus !== 'verified') {
+        kycBanner.classList.remove('hidden');
+      } else {
+        kycBanner.classList.add('hidden');
+      }
+
+      // Load TradingView chart
+      loadTradingViewChart();
+
+      // Load open trades
+      loadOpenTrades();
+
+      // Load recent activity
+      loadRecentActivity();
+
+      // Load market movers
+      loadMarketMovers();
+    }
+
+    function loadTradingViewChart() {
+      new TradingView.widget({
+        width: "100%",
+        height: 400,
+        symbol: "BINANCE:BTCUSDT",
+        interval: "D",
+        timezone: "Etc/UTC",
+        theme: "light",
+        style: "1",
+        locale: "en",
+        toolbar_bg: "#f1f3f6",
+        enable_publishing: false,
+        allow_symbol_change: true,
+        container_id: "tradingview-chart"
+      });
+    }
+
+    function loadOpenTrades() {
+      const trades = JSON.parse(localStorage.getItem('eso_trades') || '[]');
+      const openTrades = trades.filter(t => t.userId === currentUser.id && t.status === 'open');
+      
+      document.getElementById('openTradesCount').textContent = openTrades.length;
+      
+      if (openTrades.length === 0) {
+        document.getElementById('openTradesList').innerHTML = '<p class="text-gray-500 text-center py-4">No open trades</p>';
+        return;
+      }
+
+      document.getElementById('openTradesList').innerHTML = openTrades.slice(0, 3).map(trade => `
+        <div class="flex items-center justify-between py-2 border-b last:border-0">
+          <div>
+            <p class="font-medium text-gray-900">${trade.symbol}</p>
+            <p class="text-xs text-gray-500">${trade.type} | ${trade.amount}</p>
+          </div>
+          <div class="text-right">
+            <p class="font-medium ${trade.pnl >= 0 ? 'text-green-600' : 'text-red-600'}">
+              ${trade.pnl >= 0 ? '+' : ''}$${(trade.pnl || 0).toFixed(2)}
+            </p>
+            <p class="text-xs text-gray-500">${trade.pnl >= 0 ? '+' : ''}${(trade.pnlPercent || 0).toFixed(2)}%</p>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function loadRecentActivity() {
+      const transactions = JSON.parse(localStorage.getItem('eso_transactions') || '[]');
+      const userTransactions = transactions.filter(t => t.userId === currentUser.id).slice(0, 5);
+      
+      if (userTransactions.length === 0) {
+        document.getElementById('recentActivity').innerHTML = '<p class="text-gray-500 text-center py-4">No recent activity</p>';
+        return;
+      }
+
+      const icons = {
+        deposit: { icon: 'fa-arrow-down', color: 'bg-green-100 text-green-600' },
+        withdrawal: { icon: 'fa-arrow-up', color: 'bg-red-100 text-red-600' },
+        trade: { icon: 'fa-exchange-alt', color: 'bg-blue-100 text-blue-600' },
+        bonus: { icon: 'fa-gift', color: 'bg-amber-100 text-amber-600' }
+      };
+
+      document.getElementById('recentActivity').innerHTML = userTransactions.map(t => {
+        const icon = icons[t.type] || icons.trade;
+        return `
+          <div class="flex items-center space-x-3 py-2">
+            <div class="w-10 h-10 ${icon.color} rounded-lg flex items-center justify-center">
+              <i class="fas ${icon.icon}"></i>
+            </div>
+            <div class="flex-1">
+              <p class="font-medium text-gray-900 capitalize">${t.type}</p>
+              <p class="text-xs text-gray-500">${new Date(t.date).toLocaleDateString()}</p>
+            </div>
+            <p class="font-medium ${t.amount >= 0 ? 'text-green-600' : 'text-red-600'}">
+              ${t.amount >= 0 ? '+' : ''}$${Math.abs(t.amount).toFixed(2)}
+            </p>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function loadMarketMovers() {
+      const movers = [
+        { symbol: 'BTC', name: 'Bitcoin', price: 43250.50, change: 2.35 },
+        { symbol: 'ETH', name: 'Ethereum', price: 2580.75, change: -1.20 },
+        { symbol: 'SOL', name: 'Solana', price: 98.45, change: 5.67 },
+        { symbol: 'AAPL', name: 'Apple Inc.', price: 185.92, change: 0.85 }
+      ];
+
+      document.getElementById('marketMovers').innerHTML = movers.map(m => `
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center space-x-2">
+              <div class="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center text-xs font-bold">
+                ${m.symbol[0]}
+              </div>
+              <div>
+                <p class="font-semibold text-gray-900">${m.symbol}</p>
+                <p class="text-xs text-gray-500">${m.name}</p>
+              </div>
+            </div>
+            <span class="text-xs font-medium ${m.change >= 0 ? 'text-green-600' : 'text-red-600'}">
+              ${m.change >= 0 ? '+' : ''}${m.change}%
+            </span>
+          </div>
+          <p class="text-lg font-bold text-gray-900">$${m.price.toLocaleString()}</p>
+        </div>
+      `).join('');
+    }
+
+    function toggleMobileMenu() {
+      document.getElementById('mobileMenu').classList.toggle('hidden');
+    }
+
+    function claimBonus() {
+      document.getElementById('bonusModal').classList.remove('hidden');
+      document.getElementById('bonusModal').classList.add('flex');
+    }
+
+    function closeBonusModal() {
+      document.getElementById('bonusModal').classList.add('hidden');
+      document.getElementById('bonusModal').classList.remove('flex');
+    }
+
+    function trackProfits() {
+      const trades = JSON.parse(localStorage.getItem('eso_trades') || '[]');
+      const userTrades = trades.filter(t => t.userId === currentUser.id);
+      
+      const openTrades = userTrades.filter(t => t.status === 'open');
+      const closedTrades = userTrades.filter(t => t.status === 'closed');
+      
+      const totalPnl = closedTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+      const openPnl = openTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+      const winCount = closedTrades.filter(t => (t.pnl || 0) > 0).length;
+      const lossCount = closedTrades.filter(t => (t.pnl || 0) < 0).length;
+      const winRate = closedTrades.length > 0 ? ((winCount / closedTrades.length) * 100).toFixed(1) : 0;
+      
+      const profitModal = document.createElement('div');
+      profitModal.className = 'fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center';
+      profitModal.innerHTML = `
+        <div class="bg-white rounded-2xl w-full max-w-md mx-4 p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-xl font-bold text-gray-900">Profit Tracking</h3>
+            <button onclick="this.closest('.fixed').remove()" class="p-2 hover:bg-gray-100 rounded-lg"><i class="fas fa-times"></i></button>
+          </div>
+          <div class="grid grid-cols-2 gap-4 mb-4">
+            <div class="bg-green-50 rounded-xl p-4 text-center">
+              <p class="text-2xl font-bold text-green-600">$${totalPnl.toFixed(2)}</p>
+              <p class="text-xs text-gray-500">Total Profit/Loss</p>
+            </div>
+            <div class="bg-blue-50 rounded-xl p-4 text-center">
+              <p class="text-2xl font-bold text-blue-600">$${openPnl.toFixed(2)}</p>
+              <p class="text-xs text-gray-500">Open P&L</p>
+            </div>
+            <div class="bg-purple-50 rounded-xl p-4 text-center">
+              <p class="text-2xl font-bold text-purple-600">${winRate}%</p>
+              <p class="text-xs text-gray-500">Win Rate</p>
+            </div>
+            <div class="bg-gray-50 rounded-xl p-4 text-center">
+              <p class="text-2xl font-bold text-gray-700">${closedTrades.length}</p>
+              <p class="text-xs text-gray-500">Total Trades</p>
+            </div>
+          </div>
+          <div class="flex justify-between text-sm">
+            <span class="text-green-600"><i class="fas fa-arrow-up mr-1"></i>${winCount} Wins</span>
+            <span class="text-red-600"><i class="fas fa-arrow-down mr-1"></i>${lossCount} Losses</span>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(profitModal);
+    }
+
+    function logout() {
+      localStorage.removeItem('elitestockoptions_user');
+      window.location.href = '../index.html';
+    }
+
+    // Initialize on load
+    initDashboard();
+  </script>
+
+<script>
+// Mobile sidebar auto-close fix - Improved version
+document.addEventListener('DOMContentLoaded', function() {
+    const sidebarLinks = document.querySelectorAll('aside a');
+    
+    sidebarLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+            if (window.innerWidth < 1024) {
+                const sidebar = document.querySelector('aside');
+                
+                // Hide sidebar
+                if (sidebar) {
+                    sidebar.classList.add('hidden');
+                    sidebar.classList.remove('flex');
+                }
+                
+                // Remove overlay
+                const overlay = document.querySelector('.fixed.inset-0');
+                if (overlay) overlay.remove();
+                
+                // Enable body scroll
+                document.body.style.overflow = '';
+            }
+        });
+    });
+});
+</script>
+
+</body>
+</html>

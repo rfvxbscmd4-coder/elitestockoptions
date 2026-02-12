@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Withdrawal - ELITESTOCKOPTIONS</title>
+  <link rel="icon" type="image/png" href="../public/logo.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#4f46e5',
+            secondary: '#7c3aed',
+            accent: '#06b6d4'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .gradient-bg { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); }
+    .sidebar-link { transition: all 0.3s ease; }
+    .sidebar-link:hover, .sidebar-link.active {
+      background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+      color: white;
+    }
+    .balance-card {
+      transition: all 0.3s ease;
+    }
+    .balance-card:hover {
+      transform: translateY(-3px);
+    }
+    .balance-card.selected {
+      border-color: #4f46e5;
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <div class="flex h-screen">
+    <!-- Sidebar -->
+    <aside class="w-64 bg-white shadow-xl hidden lg:flex flex-col">
+      <div class="p-6 border-b">
+        <div class="flex items-center space-x-3">
+          <img src="../public/logo.png" alt="ELITESTOCKOPTIONS" class="w-10 h-10 object-contain">
+          <span class="font-bold text-lg text-gray-900">ELITESTOCK</span>
+        </div>
+      </div>
+      <nav class="flex-1 overflow-y-auto py-4">
+        <div class="px-4 mb-2 text-xs font-semibold text-gray-400 uppercase">Main</div>
+        <a href="dashboard.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-home w-5"></i><span>Dashboard</span>
+        </a>
+        <a href="markets.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-chart-bar w-5"></i><span>Markets</span>
+        </a>
+        <a href="my-trades.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-exchange-alt w-5"></i><span>My Trades</span>
+        </a>
+        <div class="px-4 mt-6 mb-2 text-xs font-semibold text-gray-400 uppercase">Finance</div>
+        <a href="deposit.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-arrow-down w-5"></i><span>Deposit</span>
+        </a>
+        <a href="withdrawal.html" class="sidebar-link active flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl">
+          <i class="fas fa-arrow-up w-5"></i><span>Withdraw</span>
+        </a>
+        <a href="transactions.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-list w-5"></i><span>Transactions</span>
+        </a>
+        <div class="px-4 mt-6 mb-2 text-xs font-semibold text-gray-400 uppercase">Account</div>
+        <a href="settings.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-cog w-5"></i><span>Settings</span>
+        </a>
+      </nav>
+      <div class="p-4 border-t">
+        <button onclick="logout()" class="flex items-center space-x-3 px-4 py-3 w-full rounded-xl text-red-600 hover:bg-red-50 transition-colors">
+          <i class="fas fa-sign-out-alt w-5"></i><span>Logout</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 overflow-y-auto">
+      <header class="bg-white shadow-sm sticky top-0 z-30">
+        <div class="flex items-center justify-between px-6 py-4">
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900">Withdrawal</h1>
+            <p class="text-gray-500 text-sm">Withdraw funds from your account</p>
+          </div>
+        </div>
+      </header>
+
+      <div class="p-6">
+        <!-- Select Balance Source -->
+        <h2 class="text-lg font-bold text-gray-900 mb-4">Select Source</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <div onclick="selectSource('total')" id="source-total" class="balance-card cursor-pointer bg-white rounded-2xl p-6 border-2 border-gray-100">
+            <div class="flex items-center justify-between mb-4">
+              <div class="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center">
+                <i class="fas fa-wallet text-indigo-600 text-xl"></i>
+              </div>
+              <input type="radio" name="balanceSource" value="total" class="w-5 h-5 text-primary">
+            </div>
+            <p class="text-gray-500 text-sm">Total Balance</p>
+            <p class="text-2xl font-bold text-gray-900" id="totalBalance">$0.00</p>
+          </div>
+
+          <div onclick="selectSource('available')" id="source-available" class="balance-card cursor-pointer bg-white rounded-2xl p-6 border-2 border-gray-100">
+            <div class="flex items-center justify-between mb-4">
+              <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                <i class="fas fa-coins text-green-600 text-xl"></i>
+              </div>
+              <input type="radio" name="balanceSource" value="available" class="w-5 h-5 text-primary">
+            </div>
+            <p class="text-gray-500 text-sm">Available Cash</p>
+            <p class="text-2xl font-bold text-gray-900" id="availableCash">$0.00</p>
+          </div>
+
+          <div onclick="selectSource('profits')" id="source-profits" class="balance-card cursor-pointer bg-white rounded-2xl p-6 border-2 border-gray-100">
+            <div class="flex items-center justify-between mb-4">
+              <div class="w-12 h-12 bg-cyan-100 rounded-xl flex items-center justify-center">
+                <i class="fas fa-chart-line text-cyan-600 text-xl"></i>
+              </div>
+              <input type="radio" name="balanceSource" value="profits" class="w-5 h-5 text-primary">
+            </div>
+            <p class="text-gray-500 text-sm">Profits Balance</p>
+            <p class="text-2xl font-bold text-gray-900" id="profitsBalance">$0.00</p>
+          </div>
+        </div>
+
+        <!-- Withdrawal Form -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          <h2 class="text-lg font-bold text-gray-900 mb-6">Withdrawal Details</h2>
+          <form id="withdrawalForm" class="space-y-6 max-w-2xl">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Withdrawal Method</label>
+                <select id="withdrawMethod" required 
+                  class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20">
+                  <option value="">Select method</option>
+                  <option value="crypto">Cryptocurrency</option>
+                  <option value="bank">Bank Transfer</option>
+                </select>
+              </div>
+
+              <div id="cryptoSelect" class="hidden">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Select Cryptocurrency</label>
+                <select id="cryptoType" 
+                  class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20">
+                  <option value="btc">Bitcoin (BTC)</option>
+                  <option value="eth">Ethereum (ETH)</option>
+                  <option value="usdt">Tether (USDT)</option>
+                  <option value="bnb">BNB</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">
+                <span id="addressLabel">Wallet Address</span>
+              </label>
+              <input type="text" id="walletAddress" required 
+                class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                placeholder="Enter your wallet address">
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Amount (USD)</label>
+                <input type="number" id="withdrawAmount" min="50" required 
+                  class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  placeholder="Enter amount">
+                <p class="text-xs text-gray-500 mt-1">Minimum: $50 | Maximum: $<span id="maxWithdraw">0</span></p>
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">You Will Receive</label>
+                <div class="px-4 py-3 bg-gray-50 rounded-xl border border-gray-200">
+                  <p class="text-lg font-bold text-gray-900" id="receiveAmount">$0.00</p>
+                  <p class="text-xs text-gray-500">After 2% fee</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex items-start space-x-3 p-4 bg-amber-50 rounded-xl">
+              <i class="fas fa-exclamation-triangle text-amber-500 mt-0.5"></i>
+              <div>
+                <p class="text-sm text-amber-800 font-medium">Important Notice</p>
+                <p class="text-sm text-amber-700">Please double-check your wallet address. Withdrawals to incorrect addresses cannot be recovered. Processing time: 24-48 hours.</p>
+              </div>
+            </div>
+
+            <button type="submit" class="gradient-bg w-full py-4 text-white rounded-xl font-semibold text-lg hover:opacity-90 transition-opacity">
+              <i class="fas fa-paper-plane mr-2"></i>Submit Withdrawal Request
+            </button>
+          </form>
+        </div>
+
+        <!-- Withdrawal History -->
+        <div class="mt-8">
+          <h2 class="text-lg font-bold text-gray-900 mb-4">Withdrawal History</h2>
+          <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="w-full">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Date</th>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Method</th>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Amount</th>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Fee</th>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Net Amount</th>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
+                  </tr>
+                </thead>
+                <tbody id="withdrawalHistoryTable">
+                  <!-- Populated by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    let currentUser = JSON.parse(localStorage.getItem('elitestockoptions_user') || localStorage.getItem('eso_currentUser'));
+
+    // Sync balance from shared users store (supports both new and legacy keys)
+    const allUsers = JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
+    const serverUser = allUsers.find(u => u.id === currentUser.id);
+    if (serverUser) {
+      currentUser.balance = serverUser.balance || 0;
+      currentUser.availableCash = serverUser.availableCash || 0;
+      currentUser.profitsBalance = serverUser.profitsBalance || 0;
+      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+    }
+    if (!currentUser) {
+      alert('Please login first');
+      window.location.href = 'login.html';
+    }
+
+    let selectedSource = 'total';
+
+    function initWithdrawal() {
+      document.getElementById('totalBalance').textContent = '$' + (currentUser.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
+      document.getElementById('availableCash').textContent = '$' + (currentUser.availableCash || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
+      document.getElementById('profitsBalance').textContent = '$' + (currentUser.profitsBalance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
+      
+      selectSource('total');
+      loadWithdrawalHistory();
+    }
+
+    function selectSource(source) {
+      selectedSource = source;
+      
+      document.querySelectorAll('.balance-card').forEach(card => {
+        card.classList.remove('selected');
+        card.querySelector('input').checked = false;
+      });
+      
+      document.getElementById('source-' + source).classList.add('selected');
+      document.getElementById('source-' + source).querySelector('input').checked = true;
+
+      let maxAmount = 0;
+      switch(source) {
+        case 'total': maxAmount = currentUser.balance || 0; break;
+        case 'available': maxAmount = currentUser.availableCash || 0; break;
+        case 'profits': maxAmount = currentUser.profitsBalance || 0; break;
+      }
+      document.getElementById('maxWithdraw').textContent = maxAmount.toFixed(2);
+    }
+
+    document.getElementById('withdrawMethod').addEventListener('change', function() {
+      const isCrypto = this.value === 'crypto';
+      document.getElementById('cryptoSelect').classList.toggle('hidden', !isCrypto);
+      document.getElementById('addressLabel').textContent = isCrypto ? 'Wallet Address' : 'Bank Account Number';
+      document.getElementById('walletAddress').placeholder = isCrypto ? 'Enter your wallet address' : 'Enter your bank account number';
+    });
+
+    document.getElementById('withdrawAmount').addEventListener('input', function() {
+      const amount = parseFloat(this.value) || 0;
+      const fee = amount * 0.02;
+      const net = amount - fee;
+      document.getElementById('receiveAmount').textContent = '$' + net.toFixed(2);
+    });
+
+    document.getElementById('withdrawalForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      const amount = parseFloat(document.getElementById('withdrawAmount').value);
+      const method = document.getElementById('withdrawMethod').value;
+      
+      let maxAmount = 0;
+      switch(selectedSource) {
+        case 'total': maxAmount = currentUser.balance || 0; break;
+        case 'available': maxAmount = currentUser.availableCash || 0; break;
+        case 'profits': maxAmount = currentUser.profitsBalance || 0; break;
+      }
+
+      if (amount < 50) {
+        alert('Minimum withdrawal is $50');
+        return;
+      }
+
+      if (amount > maxAmount) {
+        alert('Insufficient balance in selected source');
+        return;
+      }
+
+      const withdrawal = {
+        id: Date.now().toString(),
+        userId: currentUser.id,
+        source: selectedSource,
+        method: method,
+        cryptoType: method === 'crypto' ? document.getElementById('cryptoType').value : null,
+        address: document.getElementById('walletAddress').value,
+        amount: amount,
+        fee: amount * 0.02,
+        netAmount: amount * 0.98,
+        status: 'pending',
+        createdAt: new Date().toISOString()
+      };
+
+      // Save withdrawal request
+      let withdrawals = JSON.parse(localStorage.getItem('eso_withdrawals') || '[]');
+      withdrawals.push(withdrawal);
+      localStorage.setItem('eso_withdrawals', JSON.stringify(withdrawals));
+
+      // Deduct from balance
+      switch(selectedSource) {
+        case 'total': currentUser.balance -= amount; break;
+        case 'available': currentUser.availableCash -= amount; break;
+        case 'profits': currentUser.profitsBalance -= amount; break;
+      }
+      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+
+      // Persist the same deduction to shared users store so admin and user stay in sync
+      const sharedUsers = JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
+      const sharedUser = sharedUsers.find(u => u.id === currentUser.id);
+      if (sharedUser) {
+        switch(selectedSource) {
+          case 'total': sharedUser.balance = Math.max(0, (sharedUser.balance || 0) - amount); break;
+          case 'available': sharedUser.availableCash = Math.max(0, (sharedUser.availableCash || 0) - amount); break;
+          case 'profits': sharedUser.profitsBalance = Math.max(0, (sharedUser.profitsBalance || 0) - amount); break;
+        }
+        localStorage.setItem('elitestockoptions_users', JSON.stringify(sharedUsers));
+        localStorage.setItem('eso_users', JSON.stringify(sharedUsers));
+      }
+
+      alert('Withdrawal request submitted! You will receive your funds within 24-48 hours after approval.');
+      document.getElementById('withdrawalForm').reset();
+      initWithdrawal();
+    });
+
+    function loadWithdrawalHistory() {
+      const withdrawals = JSON.parse(localStorage.getItem('eso_withdrawals') || '[]');
+      const userWithdrawals = withdrawals.filter(w => w.userId === currentUser.id).slice(0, 10);
+      
+      const tbody = document.getElementById('withdrawalHistoryTable');
+      if (userWithdrawals.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-8 text-center text-gray-500">No withdrawal history</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = userWithdrawals.map(w => {
+        const statusColors = {
+          pending: 'bg-amber-100 text-amber-800',
+          approved: 'bg-green-100 text-green-800',
+          rejected: 'bg-red-100 text-red-800'
+        };
+        return `
+          <tr class="hover:bg-gray-50">
+            <td class="px-6 py-4">${new Date(w.createdAt).toLocaleDateString()}</td>
+            <td class="px-6 py-4 capitalize">${w.method}</td>
+            <td class="px-6 py-4">$${w.amount.toFixed(2)}</td>
+            <td class="px-6 py-4">$${w.fee.toFixed(2)}</td>
+            <td class="px-6 py-4 font-medium">$${w.netAmount.toFixed(2)}</td>
+            <td class="px-6 py-4">
+              <span class="px-3 py-1 rounded-full text-xs font-medium ${statusColors[w.status] || statusColors.pending}">
+                ${w.status.charAt(0).toUpperCase() + w.status.slice(1)}
+              </span>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function logout() {
+      localStorage.removeItem('elitestockoptions_user');
+      window.location.href = '../index.html';
+    }
+
+    initWithdrawal();
+  </script>
+
+<script>
+// Mobile sidebar auto-close fix - Improved version
+document.addEventListener('DOMContentLoaded', function() {
+    const sidebarLinks = document.querySelectorAll('aside a');
+    
+    sidebarLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+            if (window.innerWidth < 1024) {
+                const sidebar = document.querySelector('aside');
+                
+                // Hide sidebar
+                if (sidebar) {
+                    sidebar.classList.add('hidden');
+                    sidebar.classList.remove('flex');
+                }
+                
+                // Remove overlay
+                const overlay = document.querySelector('.fixed.inset-0');
+                if (overlay) overlay.remove();
+                
+                // Enable body scroll
+                document.body.style.overflow = '';
+            }
+        });
+    });
+});
+</script>
+
+</body>
+</html>
