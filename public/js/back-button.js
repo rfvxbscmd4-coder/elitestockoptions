@@ -1,18 +1,25 @@
 (function () {
   function shouldHideOnThisPage() {
-    const path = (window.location.pathname || '').toLowerCase();
-    const hideOnPages = [
+    const rawPath = (window.location.pathname || '').toLowerCase();
+    const path = rawPath.replace(/\/+$/, '') || '/';
+    const hideOnPages = new Set([
+      '/',
+      '/index',
       '/index.html',
+      '/admin',
       '/admin.html',
+      '/pages/login',
       '/pages/login.html',
+      '/pages/register',
       '/pages/register.html',
+      '/pages/dashboard',
       '/pages/dashboard.html'
-    ];
+    ]);
 
-    if (path === '/' || path.endsWith('/elitestockoptions')) return true;
-    if (hideOnPages.some(p => path.endsWith(p))) return true;
+    if (path.endsWith('/elitestockoptions')) return true;
+    if (hideOnPages.has(path)) return true;
 
-    const isDashboardInnerPage = path.includes('/pages/');
+    const isDashboardInnerPage = path.startsWith('/pages/');
     return !isDashboardInnerPage;
   }
 
