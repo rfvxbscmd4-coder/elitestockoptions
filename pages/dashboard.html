@@ -159,9 +159,9 @@
           </div>
           
           <div class="flex items-center space-x-4">
-            <button class="relative p-2 rounded-lg hover:bg-gray-100">
+            <button id="notificationBell" onclick="toggleNotificationsPanel()" class="relative p-2 rounded-lg hover:bg-gray-100" aria-label="Open notifications">
               <i class="fas fa-bell text-gray-600"></i>
-              <span class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full pulse-dot"></span>
+              <span id="notificationBadge" class="hidden absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white rounded-full text-[10px] font-semibold leading-[18px] text-center"></span>
             </button>
             <a href="settings.html" class="flex items-center space-x-3 rounded-lg px-2 py-1 hover:bg-gray-100 transition-colors">
               <div class="text-right hidden sm:block">
@@ -175,6 +175,17 @@
           </div>
         </div>
       </header>
+
+      <div id="notificationsBackdrop" onclick="closeNotificationsPanel()" class="hidden fixed inset-0 bg-black/20 z-40"></div>
+      <div id="notificationsPanel" class="hidden fixed top-20 right-4 left-4 sm:left-auto sm:w-96 bg-white rounded-2xl shadow-xl border border-gray-100 z-50">
+        <div class="flex items-center justify-between p-4 border-b">
+          <h3 class="font-bold text-gray-900">Notifications</h3>
+          <button onclick="markAllNotificationsRead()" class="text-sm text-primary hover:underline">Mark all read</button>
+        </div>
+        <div id="notificationsList" class="max-h-[420px] overflow-y-auto p-3">
+          <p class="text-gray-500 text-center py-6">No notifications yet</p>
+        </div>
+      </div>
 
       <!-- KYC Verification Banner -->
       <div id="kycBanner" class="hidden bg-amber-50 border-b border-amber-200 px-6 py-3">
@@ -426,6 +437,7 @@
     // Check authentication - support both old and new key names
     const currentUser = JSON.parse(localStorage.getItem('elitestockoptions_user') || localStorage.getItem('eso_currentUser'));
     let tradesRefreshTimer = null;
+    let notificationsPanelOpen = false;
     if (!currentUser) {
       // Not logged in - show demo option instead of redirecting
       console.log('Not logged in - user can still view but will need to login for full features');
@@ -448,6 +460,86 @@
     function saveTradesStore(trades) {
       localStorage.setItem('eso_trades', JSON.stringify(trades));
       localStorage.setItem('elitestockoptions_trades', JSON.stringify(trades));
+    }
+
+    function getUserNotifications() {
+      if (!currentUser?.id) return [];
+      const notifications = JSON.parse(localStorage.getItem(`eso_notifications_${currentUser.id}`) || '[]');
+      return Array.isArray(notifications) ? notifications : [];
+    }
+
+    function saveUserNotifications(notifications) {
+      if (!currentUser?.id) return;
+      localStorage.setItem(`eso_notifications_${currentUser.id}`, JSON.stringify(notifications));
+    }
+
+    function loadUserNotifications() {
+      const notifications = getUserNotifications();
+      const unreadCount = notifications.filter(n => !n.read).length;
+      const badge = document.getElementById('notificationBadge');
+      if (unreadCount > 0) {
+        badge.classList.remove('hidden');
+        badge.textContent = unreadCount > 99 ? '99+' : String(unreadCount);
+      } else {
+        badge.classList.add('hidden');
+        badge.textContent = '';
+      }
+
+      const typeStyles = {
+        info: { icon: 'fa-circle-info', color: 'text-blue-600 bg-blue-100' },
+        success: { icon: 'fa-circle-check', color: 'text-green-600 bg-green-100' },
+        warning: { icon: 'fa-triangle-exclamation', color: 'text-amber-600 bg-amber-100' },
+        error: { icon: 'fa-circle-xmark', color: 'text-red-600 bg-red-100' }
+      };
+
+      const list = document.getElementById('notificationsList');
+      if (!notifications.length) {
+        list.innerHTML = '<p class="text-gray-500 text-center py-6">No notifications yet</p>';
+        return;
+      }
+
+      list.innerHTML = notifications.slice(0, 30).map(n => {
+        const style = typeStyles[n.type] || typeStyles.info;
+        const timestamp = new Date(n.createdAt || n.date || Date.now()).toLocaleString();
+        return `
+          <div class="p-3 rounded-xl border mb-2 ${n.read ? 'bg-white border-gray-100' : 'bg-indigo-50 border-indigo-100'}">
+            <div class="flex items-start space-x-3">
+              <div class="w-8 h-8 rounded-lg flex items-center justify-center ${style.color}">
+                <i class="fas ${style.icon} text-sm"></i>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="font-semibold text-gray-900 text-sm">${n.title || 'Notification'}</p>
+                <p class="text-sm text-gray-600 mt-1 break-words">${n.message || ''}</p>
+                <p class="text-xs text-gray-400 mt-2">${timestamp}</p>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function toggleNotificationsPanel() {
+      notificationsPanelOpen = !notificationsPanelOpen;
+      const panel = document.getElementById('notificationsPanel');
+      const backdrop = document.getElementById('notificationsBackdrop');
+      panel.classList.toggle('hidden', !notificationsPanelOpen);
+      backdrop.classList.toggle('hidden', !notificationsPanelOpen);
+
+      if (notificationsPanelOpen) {
+        loadUserNotifications();
+      }
+    }
+
+    function closeNotificationsPanel() {
+      notificationsPanelOpen = false;
+      document.getElementById('notificationsPanel').classList.add('hidden');
+      document.getElementById('notificationsBackdrop').classList.add('hidden');
+    }
+
+    function markAllNotificationsRead() {
+      const notifications = getUserNotifications().map(n => ({ ...n, read: true }));
+      saveUserNotifications(notifications);
+      loadUserNotifications();
     }
 
     async function syncRemoteTradesToLocal() {
@@ -511,10 +603,14 @@
       // Load market movers
       loadMarketMovers();
 
+      // Load user notifications
+      loadUserNotifications();
+
       if (!tradesRefreshTimer && currentUser?.id) {
         tradesRefreshTimer = setInterval(async () => {
           await syncRemoteTradesToLocal();
           loadOpenTrades();
+          loadUserNotifications();
         }, 4000);
       }
     }

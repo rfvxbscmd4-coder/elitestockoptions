@@ -305,6 +305,20 @@
       localStorage.setItem('eso_transactions', JSON.stringify(transactions));
     }
 
+    function addUserNotification(userId, title, message, type = 'info') {
+      const key = `eso_notifications_${userId}`;
+      let userNotifs = JSON.parse(localStorage.getItem(key) || '[]');
+      userNotifs.unshift({
+        id: `wd_notif_${Date.now()}`,
+        title,
+        message,
+        type,
+        read: false,
+        createdAt: new Date().toISOString()
+      });
+      localStorage.setItem(key, JSON.stringify(userNotifs));
+    }
+
     document.getElementById('withdrawalForm').addEventListener('submit', function(e) {
       e.preventDefault();
       
@@ -347,6 +361,12 @@
       withdrawals.push(withdrawal);
       localStorage.setItem('eso_withdrawals', JSON.stringify(withdrawals));
       addPendingTransactionFromWithdrawal(withdrawal);
+      addUserNotification(
+        withdrawal.userId,
+        'Withdrawal Request Submitted',
+        `$${withdrawal.amount.toFixed(2)} withdrawal request submitted and pending review.`,
+        'warning'
+      );
 
       // Deduct from balance
       switch(selectedSource) {

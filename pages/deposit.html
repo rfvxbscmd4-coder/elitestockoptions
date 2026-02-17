@@ -348,6 +348,20 @@
       localStorage.setItem('eso_transactions', JSON.stringify(transactions));
     }
 
+    function addUserNotification(userId, title, message, type = 'info') {
+      const key = `eso_notifications_${userId}`;
+      let userNotifs = JSON.parse(localStorage.getItem(key) || '[]');
+      userNotifs.unshift({
+        id: `dep_notif_${Date.now()}`,
+        title,
+        message,
+        type,
+        read: false,
+        createdAt: new Date().toISOString()
+      });
+      localStorage.setItem(key, JSON.stringify(userNotifs));
+    }
+
     document.getElementById('depositForm').addEventListener('submit', async function(e) {
       e.preventDefault();
       
@@ -379,6 +393,12 @@
       deposits.push(deposit);
       localStorage.setItem('eso_deposits', JSON.stringify(deposits));
       addPendingTransactionFromDeposit(deposit);
+      addUserNotification(
+        deposit.userId,
+        'Deposit Request Submitted',
+        `$${deposit.amount.toFixed(2)} ${deposit.cryptoSymbol} deposit request submitted and pending review.`,
+        'info'
+      );
 
       alert('Deposit request submitted! Pending until received.');
       document.getElementById('depositForm').reset();
