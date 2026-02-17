@@ -565,7 +565,9 @@
 
     function loadRecentActivity() {
       const transactions = JSON.parse(localStorage.getItem('eso_transactions') || '[]');
-      const userTransactions = transactions.filter(t => t.userId === currentUser.id).slice(0, 5);
+      const userTransactions = transactions
+        .filter(t => String(t.userId) === String(currentUser.id) && t.type !== 'admin_adjustment')
+        .slice(0, 5);
       
       if (userTransactions.length === 0) {
         document.getElementById('recentActivity').innerHTML = '<p class="text-gray-500 text-center py-4">No recent activity</p>';
