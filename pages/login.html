@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign In - ELITESTOCKOPTIONS</title>
+  <link rel="icon" type="image/png" href="../public/logo.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../public/js/supabase-config.js"></script>
+  <script src="../public/js/supabase-client.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    .gradient-text { background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .btn-primary { background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); transition: all 0.3s ease; }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 30px -5px rgba(79,70,229,0.5); }
+    .input-field { transition: all 0.3s ease; }
+    .input-field:focus { border-color: #4F46E5; box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
+    .social-btn { transition: all 0.3s ease; }
+    .social-btn:hover { background: #f3f4f6; }
+  </style>
+</head>
+<body class="min-h-screen bg-gray-50 flex">
+  <!-- Left Side - Image -->
+  <div class="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-indigo-600 to-violet-700 items-center justify-center relative overflow-hidden">
+    <div class="absolute inset-0 opacity-20">
+      <div class="absolute top-20 left-20 w-72 h-72 bg-purple-400 rounded-full blur-3xl"></div>
+      <div class="absolute bottom-20 right-20 w-96 h-96 bg-indigo-400 rounded-full blur-3xl"></div>
+    </div>
+    <div class="relative z-10 text-center text-white px-12">
+      <img src="../public/logo.png" alt="ELITESTOCKOPTIONS" class="w-24 h-24 mx-auto mb-8 object-contain">
+      <h2 class="text-4xl font-bold mb-4">Welcome Back!</h2>
+      <p class="text-xl text-indigo-100 mb-8">Sign in to access your portfolio and continue trading.</p>
+      <div class="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20">
+        <div class="flex items-center gap-4 mb-4">
+          <div class="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center">
+            <i class="fas fa-chart-line text-white text-xl"></i>
+          </div>
+          <div class="text-left">
+            <p class="font-semibold">Live Markets</p>
+            <p class="text-sm text-indigo-100">Real-time prices & trading</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center">
+            <i class="fas fa-shield-alt text-white text-xl"></i>
+          </div>
+          <div class="text-left">
+            <p class="font-semibold">Secure Trading</p>
+            <p class="text-sm text-indigo-100">Bank-grade security</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Side - Form -->
+  <div class="w-full lg:w-1/2 flex items-center justify-center p-8">
+    <div class="w-full max-w-md">
+      <!-- Mobile Logo -->
+      <div class="lg:hidden text-center mb-8">
+        <img src="../public/logo.png" alt="ELITESTOCKOPTIONS" class="w-16 h-16 mx-auto mb-4 object-contain">
+        <h1 class="text-2xl font-bold"><span class="text-gray-900">ELITE</span><span class="gradient-text">STOCK</span><span class="text-gray-900">OPTIONS</span></h1>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-xl p-8">
+        <div class="text-center mb-8">
+          <h2 class="text-2xl font-bold text-gray-900 mb-2">Sign In</h2>
+          <p class="text-gray-500">Enter your credentials to access your account</p>
+        </div>
+
+        <form id="login-form" class="space-y-6">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
+            <div class="relative">
+              <i class="fas fa-envelope absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+              <input type="email" id="email" required class="input-field w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none" placeholder="you@example.com">
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+            <div class="relative">
+              <i class="fas fa-lock absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+              <input type="password" id="password" required class="input-field w-full pl-12 pr-12 py-3 border border-gray-200 rounded-xl focus:outline-none" placeholder="Enter your password">
+              <button type="button" onclick="togglePassword()" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <i class="fas fa-eye" id="eye-icon"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" class="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500">
+              <span class="text-sm text-gray-600">Remember me</span>
+            </label>
+            <a href="#" onclick="openForgotPasswordModal(event)" class="text-sm text-indigo-600 hover:text-indigo-700 font-medium">Forgot password?</a>
+          </div>
+
+          <button type="submit" class="btn-primary w-full py-3 text-white rounded-xl font-semibold">
+            Sign In <i class="fas fa-arrow-right ml-2"></i>
+          </button>
+        </form>
+
+        <div class="relative my-8">
+          <div class="absolute inset-0 flex items-center">
+            <div class="w-full border-t border-gray-200"></div>
+          </div>
+          <div class="relative flex justify-center text-sm">
+            <span class="px-4 bg-white text-gray-500">Or continue with</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-3">
+          <button class="social-btn flex items-center justify-center gap-2 py-3 border border-gray-200 rounded-xl">
+            <i class="fab fa-google text-red-500"></i>
+          </button>
+          <button class="social-btn flex items-center justify-center gap-2 py-3 border border-gray-200 rounded-xl">
+            <i class="fab fa-apple text-gray-900"></i>
+          </button>
+          <button class="social-btn flex items-center justify-center gap-2 py-3 border border-gray-200 rounded-xl">
+            <i class="fab fa-facebook text-blue-600"></i>
+          </button>
+        </div>
+
+        <p class="text-center mt-8 text-gray-600">
+          Don't have an account? 
+          <a href="register.html" class="text-indigo-600 hover:text-indigo-700 font-medium">Create one</a>
+        </p>
+      </div>
+
+      <p class="text-center mt-6 text-sm text-gray-500">
+        <a href="../index.html" class="hover:text-gray-700"><i class="fas fa-arrow-left mr-1"></i> Back to home</a>
+      </p>
+    </div>
+  </div>
+
+  <div id="forgotPasswordModal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center">
+    <div class="bg-white rounded-2xl w-full max-w-md mx-4 p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold text-gray-900">Reset Password</h3>
+        <button type="button" onclick="closeForgotPasswordModal()" class="p-2 hover:bg-gray-100 rounded-lg"><i class="fas fa-times"></i></button>
+      </div>
+      <p class="text-sm text-gray-500 mb-4">Enter your account email and we’ll send you a password reset link.</p>
+      <input type="email" id="forgotPasswordEmail" placeholder="you@example.com" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary mb-4">
+      <button type="button" onclick="sendPasswordResetEmail()" class="btn-primary w-full py-3 text-white rounded-xl font-semibold">Send Reset Email</button>
+    </div>
+  </div>
+
+  <div id="resetPasswordModal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center">
+    <div class="bg-white rounded-2xl w-full max-w-md mx-4 p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold text-gray-900">Set New Password</h3>
+      </div>
+      <p class="text-sm text-gray-500 mb-4">Create your new password to complete account recovery.</p>
+      <input type="password" id="resetNewPassword" placeholder="New password" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary mb-3">
+      <input type="password" id="resetConfirmPassword" placeholder="Confirm password" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary mb-4">
+      <button type="button" onclick="completePasswordReset()" class="btn-primary w-full py-3 text-white rounded-xl font-semibold">Update Password</button>
+    </div>
+  </div>
+
+  <script>
+    function openForgotPasswordModal(event) {
+      event.preventDefault();
+      const emailInput = document.getElementById('email');
+      document.getElementById('forgotPasswordEmail').value = (emailInput?.value || '').trim();
+      document.getElementById('forgotPasswordModal').classList.remove('hidden');
+      document.getElementById('forgotPasswordModal').classList.add('flex');
+    }
+
+    function closeForgotPasswordModal() {
+      document.getElementById('forgotPasswordModal').classList.add('hidden');
+      document.getElementById('forgotPasswordModal').classList.remove('flex');
+    }
+
+    async function sendPasswordResetEmail() {
+      const email = document.getElementById('forgotPasswordEmail').value.trim();
+      if (!email) {
+        alert('Please enter your email address');
+        return;
+      }
+
+      if (!(window.ESO_DB && window.ESO_DB.isReady())) {
+        alert('Password reset email requires Supabase connection.');
+        return;
+      }
+
+      const redirectTo = `${window.location.origin}${window.location.pathname}`;
+      const ok = await window.ESO_DB.requestPasswordReset(email, redirectTo);
+      if (!ok) {
+        alert('Unable to send reset email. Please try again.');
+        return;
+      }
+
+      alert('Password reset email sent. Check your inbox.');
+      closeForgotPasswordModal();
+    }
+
+    function maybeOpenRecoveryModal() {
+      const hash = window.location.hash || '';
+      const isRecovery = hash.includes('type=recovery');
+      if (!isRecovery) return;
+
+      document.getElementById('resetPasswordModal').classList.remove('hidden');
+      document.getElementById('resetPasswordModal').classList.add('flex');
+    }
+
+    async function completePasswordReset() {
+      const newPassword = document.getElementById('resetNewPassword').value;
+      const confirmPassword = document.getElementById('resetConfirmPassword').value;
+
+      if (newPassword.length < 6) {
+        alert('Password must be at least 6 characters');
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        alert('Passwords do not match');
+        return;
+      }
+      if (!(window.ESO_DB && window.ESO_DB.isReady())) {
+        alert('Password reset requires Supabase connection.');
+        return;
+      }
+
+      const ok = await window.ESO_DB.updatePassword(newPassword);
+      if (!ok) {
+        alert('Unable to update password. Please open the reset email link again and retry.');
+        return;
+      }
+
+      alert('Password updated successfully. You can now sign in.');
+      document.getElementById('resetPasswordModal').classList.add('hidden');
+      document.getElementById('resetPasswordModal').classList.remove('flex');
+      window.location.hash = '';
+    }
+
+    function togglePassword() {
+      const passwordInput = document.getElementById('password');
+      const eyeIcon = document.getElementById('eye-icon');
+      if (passwordInput.type === 'password') {
+        passwordInput.type = 'text';
+        eyeIcon.classList.remove('fa-eye');
+        eyeIcon.classList.add('fa-eye-slash');
+      } else {
+        passwordInput.type = 'password';
+        eyeIcon.classList.remove('fa-eye-slash');
+        eyeIcon.classList.add('fa-eye');
+      }
+    }
+
+    function migrateUserScopedRecords(oldUserId, newUserId) {
+      if (!oldUserId || !newUserId || oldUserId === newUserId) return;
+
+      const keys = [
+        'eso_transactions',
+        'eso_deposits',
+        'eso_withdrawals',
+        'eso_trades',
+        'eso_loans',
+        'eso_upgrades',
+        'eso_copyTrades',
+        'eso_myNfts',
+        'eso_createdNfts'
+      ];
+
+      keys.forEach((key) => {
+        const data = JSON.parse(localStorage.getItem(key) || '[]');
+        if (!Array.isArray(data) || data.length === 0) return;
+
+        let changed = false;
+        data.forEach((item) => {
+          if (item && item.userId === oldUserId) {
+            item.userId = newUserId;
+            changed = true;
+          }
+        });
+
+        if (changed) {
+          localStorage.setItem(key, JSON.stringify(data));
+        }
+      });
+    }
+
+    function mergeFinancialFields(targetUser, sourceUser) {
+      if (!targetUser || !sourceUser) return targetUser;
+
+      const numericFields = ['balance', 'availableCash', 'profitsBalance'];
+      numericFields.forEach((field) => {
+        const targetValue = Number(targetUser[field] || 0);
+        const sourceValue = Number(sourceUser[field] || 0);
+        if (targetValue === 0 && sourceValue !== 0) {
+          targetUser[field] = sourceValue;
+        }
+      });
+
+      if ((!targetUser.plan || targetUser.plan === 'Bronze') && sourceUser.plan) {
+        targetUser.plan = sourceUser.plan;
+      }
+
+      if ((!targetUser.kycStatus || targetUser.kycStatus === 'pending') && sourceUser.kycStatus) {
+        targetUser.kycStatus = sourceUser.kycStatus;
+      }
+
+      return targetUser;
+    }
+
+    document.getElementById('login-form').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+
+      const newUsers = JSON.parse(localStorage.getItem('elitestockoptions_users') || '[]');
+      const oldUsers = JSON.parse(localStorage.getItem('eso_users') || '[]');
+      if (!newUsers.length && oldUsers.length) {
+        localStorage.setItem('elitestockoptions_users', JSON.stringify(oldUsers));
+      } else if (newUsers.length && !oldUsers.length) {
+        localStorage.setItem('eso_users', JSON.stringify(newUsers));
+      }
+
+      // Check for existing user (Supabase first, then local fallback)
+      let users = JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
+      let user = null;
+      const supabaseReady = !!(window.ESO_DB && window.ESO_DB.isReady());
+
+      if (supabaseReady) {
+        user = await window.ESO_DB.findUserByCredentials(email, password);
+        if (user) {
+          const normalizedEmail = (user.email || '').toLowerCase();
+          const legacyUser = users.find(u => (u.email || '').toLowerCase() === normalizedEmail && u.id !== user.id);
+
+          if (legacyUser) {
+            migrateUserScopedRecords(legacyUser.id, user.id);
+            mergeFinancialFields(user, legacyUser);
+          }
+
+          const idx = users.findIndex(u => u.id === user.id);
+          if (idx >= 0) users[idx] = user;
+
+          const dedupedUsers = users.filter(u => (u.email || '').toLowerCase() !== normalizedEmail || u.id === user.id);
+          if (idx >= 0) {
+            const existingIdx = dedupedUsers.findIndex(u => u.id === user.id);
+            if (existingIdx >= 0) dedupedUsers[existingIdx] = user;
+            else dedupedUsers.push(user);
+          } else {
+            dedupedUsers.push(user);
+          }
+
+          users = dedupedUsers;
+          localStorage.setItem('elitestockoptions_users', JSON.stringify(users));
+          localStorage.setItem('eso_users', JSON.stringify(users));
+
+          if (window.ESO_DB && window.ESO_DB.isReady()) {
+            await window.ESO_DB.upsertUser(user);
+          }
+        }
+      }
+
+      if (!user && !supabaseReady) {
+        user = users.find(u => u.email === email && u.password === password);
+      }
+
+      if (user) {
+        localStorage.setItem('elitestockoptions_user', JSON.stringify(user));
+        window.location.href = 'dashboard.html';
+      } else {
+        // Demo login
+        if (email === 'demo@example.com' && password === 'demo123') {
+          const demoUser = {
+            id: 'demo',
+            name: 'Demo User',
+            email: 'demo@example.com',
+            password: 'demo123',
+            balance: 0,
+            plan: 'Bronze',
+            kycStatus: 'not_submitted',
+            createdAt: new Date().toISOString()
+          };
+          localStorage.setItem('elitestockoptions_user', JSON.stringify(demoUser));
+          
+          if (!users.find(u => u.email === 'demo@example.com')) {
+            users.push(demoUser);
+            localStorage.setItem('elitestockoptions_users', JSON.stringify(users));
+            localStorage.setItem('eso_users', JSON.stringify(users));
+          }
+          window.location.href = 'dashboard.html';
+        } else {
+          if (supabaseReady) {
+            alert('Sign in failed. Use a registered account email/password. If email confirmation is enabled in Supabase, confirm your email first.');
+          } else {
+            alert('Invalid email or password. Try demo@example.com / demo123');
+          }
+        }
+      }
+    });
+
+    maybeOpenRecoveryModal();
+  </script>
+<script src="../public/js/back-button.js"></script>
+<script src="../public/js/smartsupp.js"></script>
+<script src="../public/js/theme.js"></script>
+</body>
+</html>

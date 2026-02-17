@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Copy Trader - ELITESTOCKOPTIONS</title>
+  <link rel="icon" type="image/png" href="../public/logo.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="../public/js/supabase-config.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#4f46e5',
+            secondary: '#7c3aed',
+            accent: '#06b6d4'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .gradient-bg { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); }
+    .sidebar-link { transition: all 0.3s ease; }
+    .sidebar-link:hover, .sidebar-link.active {
+      background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+      color: white;
+    }
+    .trader-card {
+      transition: all 0.3s ease;
+    }
+    .trader-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 20px 40px -10px rgba(79, 70, 229, 0.2);
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <div class="flex h-screen">
+    <!-- Sidebar -->
+    <aside class="w-64 bg-white shadow-xl hidden lg:flex flex-col">
+      <div class="p-6 border-b">
+        <div class="flex items-center space-x-3">
+          <img src="../public/logo.png" alt="ELITESTOCKOPTIONS" class="w-10 h-10 object-contain">
+          <span class="font-bold text-lg text-gray-900">ELITESTOCK</span>
+        </div>
+      </div>
+      <nav class="flex-1 overflow-y-auto py-4">
+        <div class="px-4 mb-2 text-xs font-semibold text-gray-400 uppercase">Main</div>
+        <a href="dashboard.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-home w-5"></i><span>Dashboard</span>
+        </a>
+        <a href="markets.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-chart-bar w-5"></i><span>Markets</span>
+        </a>
+        <div class="px-4 mt-6 mb-2 text-xs font-semibold text-gray-400 uppercase">NFT & Trading</div>
+        <a href="copy-trader.html" class="sidebar-link active flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl">
+          <i class="fas fa-copy w-5"></i><span>Copy Trader</span>
+        </a>
+        <div class="px-4 mt-6 mb-2 text-xs font-semibold text-gray-400 uppercase">Account</div>
+        <a href="settings.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-cog w-5"></i><span>Settings</span>
+        </a>
+      </nav>
+      <div class="p-4 border-t">
+        <button onclick="logout()" class="flex items-center space-x-3 px-4 py-3 w-full rounded-xl text-red-600 hover:bg-red-50 transition-colors">
+          <i class="fas fa-sign-out-alt w-5"></i><span>Logout</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 overflow-y-auto">
+      <header class="bg-white shadow-sm sticky top-0 z-30">
+        <div class="flex items-center justify-between px-6 py-4">
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900">Copy Trader</h1>
+            <p class="text-gray-500 text-sm">Copy successful traders automatically</p>
+          </div>
+        </div>
+      </header>
+
+      <div class="p-6">
+        <!-- My Copy Trading -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8">
+          <h2 class="text-lg font-bold text-gray-900 mb-4">My Copy Trading</h2>
+          <div id="myCopyTrading">
+            <div class="text-center py-8 text-gray-500">
+              <i class="fas fa-copy text-4xl mb-4 text-gray-300"></i>
+              <p>You're not copying any traders yet</p>
+              <p class="text-sm">Select a trader below to start copying</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Top Traders -->
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-lg font-bold text-gray-900">Top Performing Traders</h2>
+          <div class="flex space-x-2">
+            <select id="sortTraders" class="px-4 py-2 border border-gray-200 rounded-lg text-sm">
+              <option value="roi">Sort by ROI</option>
+              <option value="followers">Sort by Followers</option>
+              <option value="trades">Sort by Trades</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="tradersGrid">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Copy Modal -->
+  <div id="copyModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden items-center justify-center">
+    <div class="bg-white rounded-2xl w-full max-w-md mx-4 p-6">
+      <div class="text-center mb-6">
+        <div class="w-16 h-16 mx-auto mb-4" id="modalTraderAvatar">
+          <img src="" alt="" class="w-16 h-16 rounded-full">
+        </div>
+        <h3 class="text-xl font-bold text-gray-900" id="modalTraderName">Trader Name</h3>
+        <p class="text-gray-500" id="modalTraderStats">30% ROI | 1.2K Followers</p>
+      </div>
+      <form id="copyForm" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Investment Amount (USD)</label>
+          <input type="number" id="copyAmount" min="100" required 
+            class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary"
+            placeholder="Minimum $100">
+          <p class="text-xs text-gray-500 mt-1">Available: $<span id="availableForCopy">0.00</span></p>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Copy Settings</label>
+          <div class="space-y-2">
+            <label class="flex items-center space-x-2">
+              <input type="checkbox" checked class="w-4 h-4 text-primary">
+              <span class="text-sm">Copy all new trades</span>
+            </label>
+            <label class="flex items-center space-x-2">
+              <input type="checkbox" checked class="w-4 h-4 text-primary">
+              <span class="text-sm">Use same leverage</span>
+            </label>
+            <label class="flex items-center space-x-2">
+              <input type="checkbox" class="w-4 h-4 text-primary">
+              <span class="text-sm">Stop copying if loss exceeds 20%</span>
+            </label>
+          </div>
+        </div>
+        <div class="flex space-x-3 pt-4">
+          <button type="button" onclick="closeCopyModal()" class="flex-1 py-3 border border-gray-200 rounded-xl font-medium hover:bg-gray-50">Cancel</button>
+          <button type="submit" class="flex-1 py-3 gradient-bg text-white rounded-xl font-medium hover:opacity-90">Start Copying</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    let currentUser = JSON.parse(localStorage.getItem('elitestockoptions_user') || localStorage.getItem('eso_currentUser'));
+
+    // Sync balance from shared users storage (new + legacy keys)
+    const allUsers = JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
+    const serverUser = allUsers.find(u => u.id === currentUser.id);
+    if (serverUser) {
+      currentUser.balance = serverUser.balance || 0;
+      currentUser.availableCash = serverUser.availableCash || 0;
+      currentUser.profitsBalance = serverUser.profitsBalance || 0;
+      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+    }
+    if (!currentUser) {
+      alert('Please login first');
+      window.location.href = 'login.html';
+    }
+
+    const topTraders = [
+      { id: '1', name: 'Alex Morgan', roi: 45.2, followers: 2340, trades: 156, winRate: 68, avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alex&backgroundColor=b6e3f4' },
+      { id: '2', name: 'Crypto King', roi: 38.7, followers: 1890, trades: 203, winRate: 72, avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Crypto&backgroundColor=c0aede' },
+      { id: '3', name: 'Sarah Chen', roi: 32.1, followers: 1560, trades: 178, winRate: 65, avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah&backgroundColor=ffdfbf' },
+      { id: '4', name: 'Mike Johnson', roi: 28.9, followers: 1230, trades: 134, winRate: 61, avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Mike&backgroundColor=d1d4f9' },
+      { id: '5', name: 'Emma Wilson', roi: 25.4, followers: 980, trades: 112, winRate: 58, avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Emma&backgroundColor=ffd5dc' },
+      { id: '6', name: 'David Park', roi: 22.8, followers: 750, trades: 89, winRate: 63, avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=David&backgroundColor=c0aede' }
+    ];
+
+    let selectedTrader = null;
+
+    function initCopyTrader() {
+      document.getElementById('availableForCopy').textContent = (currentUser.availableCash || 0).toFixed(2);
+      renderTraders();
+      loadMyCopyTrading();
+    }
+
+    function renderTraders() {
+      const grid = document.getElementById('tradersGrid');
+      grid.innerHTML = topTraders.map(trader => `
+        <div class="trader-card bg-white rounded-2xl p-6 border border-gray-100">
+          <div class="flex items-center space-x-4 mb-4">
+            <img src="${trader.avatar}" alt="${trader.name}" class="w-14 h-14 rounded-full bg-gradient-to-br from-primary to-secondary">
+            <div>
+              <h3 class="font-bold text-gray-900">${trader.name}</h3>
+              <p class="text-sm text-gray-500">${trader.followers.toLocaleString()} followers</p>
+            </div>
+          </div>
+          <div class="grid grid-cols-3 gap-4 mb-4">
+            <div class="text-center">
+              <p class="text-lg font-bold text-green-600">+${trader.roi}%</p>
+              <p class="text-xs text-gray-500">30D ROI</p>
+            </div>
+            <div class="text-center">
+              <p class="text-lg font-bold text-gray-900">${trader.trades}</p>
+              <p class="text-xs text-gray-500">Trades</p>
+            </div>
+            <div class="text-center">
+              <p class="text-lg font-bold text-gray-900">${trader.winRate}%</p>
+              <p class="text-xs text-gray-500">Win Rate</p>
+            </div>
+          </div>
+          <button onclick="openCopyModal('${trader.id}')" class="w-full py-3 gradient-bg text-white rounded-xl font-medium hover:opacity-90">
+            <i class="fas fa-copy mr-2"></i>Copy Trader
+          </button>
+        </div>
+      `).join('');
+    }
+
+    function openCopyModal(traderId) {
+      selectedTrader = topTraders.find(t => t.id === traderId);
+      if (!selectedTrader) return;
+
+      document.getElementById('modalTraderName').textContent = selectedTrader.name;
+      document.getElementById('modalTraderStats').textContent = `${selectedTrader.roi}% ROI | ${selectedTrader.followers.toLocaleString()} Followers`;
+      document.getElementById('modalTraderAvatar').innerHTML = `<img src="${selectedTrader.avatar}" alt="${selectedTrader.name}" class="w-16 h-16 rounded-full">`;
+
+      document.getElementById('copyModal').classList.remove('hidden');
+      document.getElementById('copyModal').classList.add('flex');
+    }
+
+    function closeCopyModal() {
+      document.getElementById('copyModal').classList.add('hidden');
+      document.getElementById('copyModal').classList.remove('flex');
+    }
+
+    document.getElementById('copyForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+
+      const amount = parseFloat(document.getElementById('copyAmount').value);
+      if (amount < 100) {
+        alert('Minimum investment is $100');
+        return;
+      }
+
+      if (amount > (currentUser.availableCash || 0)) {
+        alert('Insufficient balance');
+        return;
+      }
+
+      const copyTrade = {
+        id: Date.now().toString(),
+        userId: currentUser.id,
+        traderId: selectedTrader.id,
+        traderName: selectedTrader.name,
+        traderAvatar: selectedTrader.avatar,
+        amount: amount,
+        startedAt: new Date().toISOString()
+      };
+
+      let copyTrades = JSON.parse(localStorage.getItem('eso_copyTrades') || '[]');
+      copyTrades.push(copyTrade);
+      localStorage.setItem('eso_copyTrades', JSON.stringify(copyTrades));
+
+      // Deduct amount
+      currentUser.availableCash -= amount;
+      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+
+      alert(`You are now copying ${selectedTrader.name}!`);
+      closeCopyModal();
+      loadMyCopyTrading();
+    });
+
+    function loadMyCopyTrading() {
+      const copyTrades = JSON.parse(localStorage.getItem('eso_copyTrades') || '[]').filter(c => c.userId === currentUser.id);
+      const container = document.getElementById('myCopyTrading');
+
+      if (copyTrades.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-8 text-gray-500">
+            <i class="fas fa-copy text-4xl mb-4 text-gray-300"></i>
+            <p>You're not copying any traders yet</p>
+            <p class="text-sm">Select a trader below to start copying</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          ${copyTrades.map(c => {
+            const avatarUrl = c.traderAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${c.traderName}&backgroundColor=b6e3f4`;
+            return `
+            <div class="bg-gray-50 rounded-xl p-4">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                  <img src="${avatarUrl}" alt="${c.traderName}" class="w-10 h-10 rounded-full">
+                  <div>
+                    <p class="font-semibold text-gray-900">${c.traderName}</p>
+                    <p class="text-sm text-gray-500">Invested: $${c.amount.toFixed(2)}</p>
+                  </div>
+                </div>
+                <button onclick="stopCopying('${c.id}')" class="text-red-500 hover:text-red-700 text-sm font-medium">
+                  Stop
+                </button>
+              </div>
+            </div>
+          `}).join('')}
+        </div>
+      `;
+    }
+
+    function stopCopying(copyId) {
+      if (!confirm('Are you sure you want to stop copying this trader?')) return;
+
+      let copyTrades = JSON.parse(localStorage.getItem('eso_copyTrades') || '[]');
+      const copyTrade = copyTrades.find(c => c.id === copyId);
+      
+      if (copyTrade) {
+        // Return invested amount
+        currentUser.availableCash += copyTrade.amount;
+        localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+      }
+
+      copyTrades = copyTrades.filter(c => c.id !== copyId);
+      localStorage.setItem('eso_copyTrades', JSON.stringify(copyTrades));
+
+      loadMyCopyTrading();
+    }
+
+    function logout() {
+      localStorage.removeItem('elitestockoptions_user');
+      window.location.href = '../index.html';
+    }
+
+    initCopyTrader();
+  </script>
+<script src="../public/js/back-button.js"></script>
+<script src="../public/js/theme.js"></script>
+<script src="../public/js/smartsupp.js"></script>
+</body>
+</html>

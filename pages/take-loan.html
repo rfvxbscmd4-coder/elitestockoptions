@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Take Loan - ELITESTOCKOPTIONS</title>
+  <link rel="icon" type="image/png" href="../public/logo.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="../public/js/supabase-config.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#4f46e5',
+            secondary: '#7c3aed',
+            accent: '#06b6d4'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .gradient-bg { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); }
+    .sidebar-link { transition: all 0.3s ease; }
+    .sidebar-link:hover, .sidebar-link.active {
+      background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+      color: white;
+    }
+    .loan-card {
+      transition: all 0.3s ease;
+    }
+    .loan-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 20px 40px -10px rgba(79, 70, 229, 0.2);
+    }
+    .loan-card.selected {
+      border-color: #4f46e5;
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <div class="flex h-screen">
+    <!-- Sidebar -->
+    <aside class="w-64 bg-white shadow-xl hidden lg:flex flex-col">
+      <div class="p-6 border-b">
+        <div class="flex items-center space-x-3">
+          <img src="../public/logo.png" alt="ELITESTOCKOPTIONS" class="w-10 h-10 object-contain">
+          <span class="font-bold text-lg text-gray-900">ELITESTOCK</span>
+        </div>
+      </div>
+      <nav class="flex-1 overflow-y-auto py-4">
+        <div class="px-4 mb-2 text-xs font-semibold text-gray-400 uppercase">Main</div>
+        <a href="dashboard.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-home w-5"></i><span>Dashboard</span>
+        </a>
+        <a href="markets.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-chart-bar w-5"></i><span>Markets</span>
+        </a>
+        <div class="px-4 mt-6 mb-2 text-xs font-semibold text-gray-400 uppercase">Finance</div>
+        <a href="deposit.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-arrow-down w-5"></i><span>Deposit</span>
+        </a>
+        <a href="withdrawal.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-arrow-up w-5"></i><span>Withdraw</span>
+        </a>
+        <a href="take-loan.html" class="sidebar-link active flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl">
+          <i class="fas fa-hand-holding-usd w-5"></i><span>Take Loan</span>
+        </a>
+        <a href="transactions.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-list w-5"></i><span>Transactions</span>
+        </a>
+        <div class="px-4 mt-6 mb-2 text-xs font-semibold text-gray-400 uppercase">Account</div>
+        <a href="settings.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-cog w-5"></i><span>Settings</span>
+        </a>
+      </nav>
+      <div class="p-4 border-t">
+        <button onclick="logout()" class="flex items-center space-x-3 px-4 py-3 w-full rounded-xl text-red-600 hover:bg-red-50 transition-colors">
+          <i class="fas fa-sign-out-alt w-5"></i><span>Logout</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 overflow-y-auto">
+      <header class="bg-white shadow-sm sticky top-0 z-30">
+        <div class="flex items-center justify-between px-6 py-4">
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900">Take Loan</h1>
+            <p class="text-gray-500 text-sm">Borrow funds for trading</p>
+          </div>
+        </div>
+      </header>
+
+      <div class="p-6">
+        <!-- Access Check -->
+        <div id="accessDenied" class="hidden">
+          <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center">
+            <div class="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <i class="fas fa-lock text-red-500 text-3xl"></i>
+            </div>
+            <h2 class="text-2xl font-bold text-gray-900 mb-2">Gold+ Plan Required</h2>
+            <p class="text-gray-600 mb-6">Loan feature is exclusively available for Gold, Diamond, and Premium plan members.</p>
+            <a href="upgrade-plan.html" class="gradient-bg inline-block px-8 py-3 text-white rounded-xl font-semibold hover:opacity-90">
+              <i class="fas fa-crown mr-2"></i>Upgrade Your Plan
+            </a>
+          </div>
+        </div>
+
+        <!-- Loan Content -->
+        <div id="loanContent">
+          <!-- Loan Options -->
+          <h2 class="text-lg font-bold text-gray-900 mb-4">Select Loan Amount</h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <div onclick="selectLoan(5000)" id="loan-5000" class="loan-card cursor-pointer bg-white rounded-2xl p-6 border-2 border-gray-100">
+              <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center mb-4">
+                <i class="fas fa-dollar-sign text-green-600 text-xl"></i>
+              </div>
+              <p class="text-3xl font-bold text-gray-900">$5,000</p>
+              <p class="text-sm text-gray-500 mt-1">5% interest / month</p>
+              <p class="text-xs text-gray-400 mt-2">Repay in 3-12 months</p>
+            </div>
+
+            <div onclick="selectLoan(10000)" id="loan-10000" class="loan-card cursor-pointer bg-white rounded-2xl p-6 border-2 border-gray-100">
+              <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mb-4">
+                <i class="fas fa-dollar-sign text-blue-600 text-xl"></i>
+              </div>
+              <p class="text-3xl font-bold text-gray-900">$10,000</p>
+              <p class="text-sm text-gray-500 mt-1">4.5% interest / month</p>
+              <p class="text-xs text-gray-400 mt-2">Repay in 3-12 months</p>
+            </div>
+
+            <div onclick="selectLoan(25000)" id="loan-25000" class="loan-card cursor-pointer bg-white rounded-2xl p-6 border-2 border-gray-100">
+              <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center mb-4">
+                <i class="fas fa-dollar-sign text-purple-600 text-xl"></i>
+              </div>
+              <p class="text-3xl font-bold text-gray-900">$25,000</p>
+              <p class="text-sm text-gray-500 mt-1">4% interest / month</p>
+              <p class="text-xs text-gray-400 mt-2">Repay in 3-12 months</p>
+            </div>
+
+            <div onclick="selectLoan(50000)" id="loan-50000" class="loan-card cursor-pointer bg-white rounded-2xl p-6 border-2 border-gray-100">
+              <div class="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center mb-4">
+                <i class="fas fa-dollar-sign text-amber-600 text-xl"></i>
+              </div>
+              <p class="text-3xl font-bold text-gray-900">$50,000</p>
+              <p class="text-sm text-gray-500 mt-1">3.5% interest / month</p>
+              <p class="text-xs text-gray-400 mt-2">Repay in 3-12 months</p>
+            </div>
+          </div>
+
+          <!-- Loan Application Form -->
+          <div id="loanFormSection" class="hidden bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+            <h2 class="text-lg font-bold text-gray-900 mb-6">Loan Application</h2>
+            <form id="loanForm" class="space-y-6 max-w-2xl">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-2">Selected Amount</label>
+                  <input type="text" id="selectedAmount" readonly 
+                    class="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-xl font-bold text-gray-900">
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-2">Repayment Period</label>
+                  <select id="repaymentPeriod" required 
+                    class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary">
+                    <option value="3">3 months</option>
+                    <option value="6">6 months</option>
+                    <option value="9">9 months</option>
+                    <option value="12">12 months</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Purpose of Loan</label>
+                <textarea id="loanPurpose" required rows="3"
+                  class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary"
+                  placeholder="Briefly describe how you plan to use this loan..."></textarea>
+              </div>
+
+              <div class="p-4 bg-gray-50 rounded-xl">
+                <h3 class="font-semibold text-gray-900 mb-4">Required Documents</h3>
+                <div class="space-y-4">
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">ID Proof</label>
+                    <div class="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:border-primary transition-colors cursor-pointer">
+                      <i class="fas fa-cloud-upload-alt text-2xl text-gray-400 mb-2"></i>
+                      <p class="text-sm text-gray-500">Upload ID (Passport/Driver's License)</p>
+                    </div>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Proof of Income</label>
+                    <div class="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:border-primary transition-colors cursor-pointer">
+                      <i class="fas fa-cloud-upload-alt text-2xl text-gray-400 mb-2"></i>
+                      <p class="text-sm text-gray-500">Upload bank statement or payslip</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex items-start space-x-3">
+                <input type="checkbox" id="loanTerms" required class="mt-1 w-4 h-4 text-primary">
+                <label for="loanTerms" class="text-sm text-gray-600">
+                  I agree to the loan terms and conditions. I understand that failure to repay may result in account suspension and legal action.
+                </label>
+              </div>
+
+              <button type="submit" class="gradient-bg w-full py-4 text-white rounded-xl font-semibold text-lg hover:opacity-90 transition-opacity">
+                <i class="fas fa-paper-plane mr-2"></i>Submit Loan Application
+              </button>
+            </form>
+          </div>
+
+          <!-- Active Loans -->
+          <div class="mt-8">
+            <h2 class="text-lg font-bold text-gray-900 mb-4">Your Loans</h2>
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div class="overflow-x-auto">
+                <table class="w-full">
+                  <thead class="bg-gray-50">
+                    <tr>
+                      <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Amount</th>
+                      <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Interest Rate</th>
+                      <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Term</th>
+                      <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Monthly Payment</th>
+                      <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="loansTable">
+                    <tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">No active loans</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    let currentUser = JSON.parse(localStorage.getItem('elitestockoptions_user') || localStorage.getItem('eso_currentUser'));
+
+    // Sync balance from shared users storage (new + legacy keys)
+    const allUsers = JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
+    const serverUser = allUsers.find(u => u.id === currentUser.id);
+    if (serverUser) {
+      currentUser.balance = serverUser.balance || 0;
+      currentUser.availableCash = serverUser.availableCash || 0;
+      currentUser.profitsBalance = serverUser.profitsBalance || 0;
+      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+    }
+    if (!currentUser) {
+      alert('Please login first');
+      window.location.href = 'login.html';
+    }
+
+    const eligiblePlans = ['Gold', 'Diamond', 'Premium'];
+    let selectedLoanAmount = 0;
+
+    function initLoan() {
+      const userPlan = currentUser.plan || 'Bronze';
+      
+      if (!eligiblePlans.includes(userPlan)) {
+        document.getElementById('accessDenied').classList.remove('hidden');
+        document.getElementById('loanContent').classList.add('hidden');
+      } else {
+        document.getElementById('accessDenied').classList.add('hidden');
+        document.getElementById('loanContent').classList.remove('hidden');
+        loadLoans();
+      }
+    }
+
+    function selectLoan(amount) {
+      selectedLoanAmount = amount;
+      
+      document.querySelectorAll('.loan-card').forEach(card => {
+        card.classList.remove('selected', 'border-primary');
+        card.classList.add('border-gray-100');
+      });
+      
+      document.getElementById('loan-' + amount).classList.add('selected', 'border-primary');
+      document.getElementById('loan-' + amount).classList.remove('border-gray-100');
+
+      document.getElementById('loanFormSection').classList.remove('hidden');
+      document.getElementById('selectedAmount').value = '$' + amount.toLocaleString();
+      
+      document.getElementById('loanFormSection').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    document.getElementById('loanForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      const loan = {
+        id: Date.now().toString(),
+        userId: currentUser.id,
+        amount: selectedLoanAmount,
+        period: parseInt(document.getElementById('repaymentPeriod').value),
+        purpose: document.getElementById('loanPurpose').value,
+        status: 'pending',
+        createdAt: new Date().toISOString()
+      };
+
+      let loans = JSON.parse(localStorage.getItem('eso_loans') || '[]');
+      loans.push(loan);
+      localStorage.setItem('eso_loans', JSON.stringify(loans));
+
+      alert('Loan application submitted! We will review your application and get back to you within 48 hours.');
+      document.getElementById('loanForm').reset();
+      document.getElementById('loanFormSection').classList.add('hidden');
+      document.querySelectorAll('.loan-card').forEach(card => {
+        card.classList.remove('selected', 'border-primary');
+        card.classList.add('border-gray-100');
+      });
+      loadLoans();
+    });
+
+    function loadLoans() {
+      const loans = JSON.parse(localStorage.getItem('eso_loans') || '[]');
+      const userLoans = loans.filter(l => l.userId === currentUser.id);
+      
+      const tbody = document.getElementById('loansTable');
+      if (userLoans.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">No active loans</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = userLoans.map(l => {
+        const interestRate = l.amount <= 5000 ? 5 : l.amount <= 10000 ? 4.5 : l.amount <= 25000 ? 4 : 3.5;
+        const monthlyPayment = (l.amount * (1 + interestRate / 100 * l.period) / l.period).toFixed(2);
+        
+        const statusColors = {
+          pending: 'bg-amber-100 text-amber-800',
+          approved: 'bg-green-100 text-green-800',
+          rejected: 'bg-red-100 text-red-800',
+          active: 'bg-blue-100 text-blue-800',
+          repaid: 'bg-gray-100 text-gray-800'
+        };
+        
+        return `
+          <tr class="hover:bg-gray-50">
+            <td class="px-6 py-4 font-medium">$${l.amount.toLocaleString()}</td>
+            <td class="px-6 py-4">${interestRate}% / month</td>
+            <td class="px-6 py-4">${l.period} months</td>
+            <td class="px-6 py-4">$${monthlyPayment}</td>
+            <td class="px-6 py-4">
+              <span class="px-3 py-1 rounded-full text-xs font-medium ${statusColors[l.status] || statusColors.pending}">
+                ${l.status.charAt(0).toUpperCase() + l.status.slice(1)}
+              </span>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function logout() {
+      localStorage.removeItem('elitestockoptions_user');
+      window.location.href = '../index.html';
+    }
+
+    initLoan();
+  </script>
+<script src="../public/js/back-button.js"></script>
+<script src="../public/js/theme.js"></script>
+<script src="../public/js/smartsupp.js"></script>
+</body>
+</html>

@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Markets - ELITESTOCKOPTIONS</title>
+  <link rel="icon" type="image/png" href="../public/logo.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="../public/js/supabase-config.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    .sidebar-link { transition: all 0.3s ease; }
+    .sidebar-link:hover, .sidebar-link.active { background: linear-gradient(90deg, rgba(79,70,229,0.1) 0%, transparent 100%); border-left: 3px solid #4F46E5; }
+    .tab-btn.active { background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); color: white; }
+    .price-up { color: #10B981; }
+    .price-down { color: #EF4444; }
+    @keyframes flash-green { 0% { background-color: rgba(16,185,129,0.2); } 100% { background-color: transparent; } }
+    @keyframes flash-red { 0% { background-color: rgba(239,68,68,0.2); } 100% { background-color: transparent; } }
+    .flash-up { animation: flash-green 0.5s ease; }
+    .flash-down { animation: flash-red 0.5s ease; }
+    .asset-row { cursor: pointer; transition: all 0.2s ease; }
+    .asset-row:hover { background-color: #f3f4f6; }
+    .chart-modal { backdrop-filter: blur(8px); }
+    .timeframe-btn.active { background: #4F46E5; color: white; }
+    .tradingview-widget-container { height: 100%; }
+    .no-scroll { overflow: hidden; }
+    /* Make this page stationary: prevent page-level scrolling */
+    html, body { height: 100%; overflow: hidden; }
+    main { height: 100vh; overflow: hidden; }
+
+    /* Horizontal carousel for crypto asset cards */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    #crypto-carousel { display: none; }
+    #crypto-carousel.active { display: block; }
+    .asset-card { display: inline-block; width: 260px; margin-right: 16px; vertical-align: top; }
+    .asset-card .card-inner { height: 140px; display: flex; flex-direction: column; justify-content: space-between; }
+    /* Allow table area to scroll internally while page stays fixed */
+    .market-scroll { max-height: calc(100vh - 260px); overflow-y: auto; }
+  </style>
+</head>
+<body class="bg-gray-50">
+  <div class="flex h-screen">
+    <!-- Sidebar -->
+    <aside id="sidebar" class="fixed left-0 top-0 z-40 h-full w-64 bg-white border-r border-gray-200 transform -translate-x-full lg:translate-x-0 lg:static lg:transform-none transition-transform duration-200 ease-in-out">
+      <div class="p-6 border-b border-gray-100">
+        <a href="dashboard.html" class="flex items-center gap-3">
+          <img src="../public/logo.png" alt="ELITESTOCKOPTIONS" class="w-10 h-10 object-contain">
+          <div>
+            <span class="text-sm font-bold text-gray-900">ELITE</span><span class="text-sm font-bold text-indigo-600">STOCK</span>
+          </div>
+        </a>
+      </div>
+      <nav class="flex-1 overflow-y-auto py-4">
+        <div class="px-4 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Main</div>
+        <a href="dashboard.html" class="sidebar-link flex items-center gap-3 px-4 py-3 text-gray-700">
+          <i class="fas fa-home w-5"></i> Dashboard
+        </a>
+        <a href="markets.html" class="sidebar-link active flex items-center gap-3 px-4 py-3 text-gray-700">
+          <i class="fas fa-chart-line w-5"></i> Markets
+        </a>
+        <a href="my-trades.html" class="sidebar-link flex items-center gap-3 px-4 py-3 text-gray-700">
+          <i class="fas fa-exchange-alt w-5"></i> My Trades
+        </a>
+        <div class="px-4 mt-6 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Finance</div>
+        <a href="deposit.html" class="sidebar-link flex items-center gap-3 px-4 py-3 text-gray-700">
+          <i class="fas fa-arrow-down w-5"></i> Deposit
+        </a>
+        <a href="withdrawal.html" class="sidebar-link flex items-center gap-3 px-4 py-3 text-gray-700">
+          <i class="fas fa-arrow-up w-5"></i> Withdrawal
+        </a>
+        <a href="take-loan.html" class="sidebar-link flex items-center gap-3 px-4 py-3 text-gray-700">
+          <i class="fas fa-hand-holding-usd w-5"></i> Take Loan
+        </a>
+        <a href="transactions.html" class="sidebar-link flex items-center gap-3 px-4 py-3 text-gray-700">
+          <i class="fas fa-list-alt w-5"></i> All Transactions
+        </a>
+        <div class="px-4 mt-6 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">NFT</div>
+        <a href="buy-nfts.html" class="sidebar-link flex items-center gap-3 px-4 py-3 text-gray-700">
+          <i class="fas fa-shopping-cart w-5"></i> Buy NFTs
+        </a>
+        <a href="create-nfts.html" class="sidebar-link flex items-center gap-3 px-4 py-3 text-gray-700">
+          <i class="fas fa-paint-brush w-5"></i> Create NFTs
+        </a>
+        <div class="px-4 mt-6 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Premium</div>
+        <a href="upgrade-plan.html" class="sidebar-link flex items-center gap-3 px-4 py-3 text-gray-700">
+          <i class="fas fa-crown w-5 text-yellow-500"></i> Upgrade Plan
+        </a>
+        <a href="copy-trader.html" class="sidebar-link flex items-center gap-3 px-4 py-3 text-gray-700">
+          <i class="fas fa-users w-5"></i> Copy Trader
+        </a>
+      </nav>
+      <div class="p-4 border-t border-gray-200">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
+            <span class="text-sm font-bold text-white" id="user-initials">U</span>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-gray-900 truncate" id="user-name">User</p>
+            <p class="text-xs text-gray-500">Bronze Plan</p>
+          </div>
+          <a href="settings.html" class="text-gray-400 hover:text-gray-600"><i class="fas fa-cog"></i></a>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 lg:ml-64 overflow-hidden">
+      <header class="bg-white border-b border-gray-200 sticky top-0 z-30">
+        <div class="flex items-center justify-between px-4 md:px-8 py-4">
+          <div class="flex items-center gap-4">
+            <button id="mobile-menu-btn" onclick="openSidebar()" class="lg:hidden p-2 rounded-md hover:bg-gray-100">
+              <i class="fas fa-bars text-xl"></i>
+            </button>
+            <div>
+              <h1 class="text-2xl font-bold text-gray-900">Markets</h1>
+              <p class="text-sm text-gray-500">Real-time market data and prices</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-4">
+            <div class="relative">
+              <input type="text" id="search-input" placeholder="Search markets..." class="pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 w-64">
+              <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+            </div>
+            <div class="relative">
+              <button id="more-menu-btn" class="px-3 py-2 text-gray-600 hover:text-gray-900 rounded-md transition-colors">
+                <i class="fas fa-ellipsis-v"></i>
+              </button>
+              <div id="more-menu" class="hidden absolute right-0 mt-2 w-56 bg-white border border-gray-100 rounded-lg shadow-lg z-50">
+                <a href="dashboard.html" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50">Dashboard</a>
+                <a href="markets.html" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50">Markets</a>
+                <a href="buy-nfts.html" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50">Buy NFTs</a>
+                <a href="create-nfts.html" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50">Create NFTs</a>
+                <a href="take-loan.html" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50">Take Loan</a>
+                <a href="upgrade-plan.html" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50">Upgrade Plan</a>
+                <a href="copy-trader.html" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50">Copy Trader</a>
+                <div class="border-t border-gray-100"></div>
+                <a href="settings.html" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50">Settings</a>
+                <button onclick="logout()" class="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50">Logout</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div id="market-content" class="p-8">
+        <!-- Market Tabs -->
+        <div class="flex gap-2 mb-6 overflow-x-auto pb-2 sticky top-16 z-20 bg-white">
+          <button onclick="switchTab('crypto')" id="tab-crypto" class="tab-btn active px-6 py-2 rounded-lg font-medium transition-all bg-gray-100 text-gray-700 hover:bg-gray-200">
+            <i class="fab fa-bitcoin mr-2"></i>Cryptocurrency <span id="count-crypto" class="ml-1 text-xs">(50)</span>
+          </button>
+          <button onclick="switchTab('stocks')" id="tab-stocks" class="tab-btn px-6 py-2 rounded-lg font-medium transition-all bg-gray-100 text-gray-700 hover:bg-gray-200">
+            <i class="fas fa-chart-bar mr-2"></i>Stocks <span id="count-stocks" class="ml-1 text-xs">(50)</span>
+          </button>
+          <button onclick="switchTab('futures')" id="tab-futures" class="tab-btn px-6 py-2 rounded-lg font-medium transition-all bg-gray-100 text-gray-700 hover:bg-gray-200">
+            <i class="fas fa-file-contract mr-2"></i>Futures <span id="count-futures" class="ml-1 text-xs">(25)</span>
+          </button>
+          <button onclick="switchTab('bonds')" id="tab-bonds" class="tab-btn px-6 py-2 rounded-lg font-medium transition-all bg-gray-100 text-gray-700 hover:bg-gray-200">
+            <i class="fas fa-landmark mr-2"></i>Bonds <span id="count-bonds" class="ml-1 text-xs">(15)</span>
+          </button>
+          <button onclick="switchTab('etfs')" id="tab-etfs" class="tab-btn px-6 py-2 rounded-lg font-medium transition-all bg-gray-100 text-gray-700 hover:bg-gray-200">
+            <i class="fas fa-layer-group mr-2"></i>ETFs <span id="count-etfs" class="ml-1 text-xs">(30)</span>
+          </button>
+        </div>
+
+        <!-- Crypto carousel removed: now all categories use table/list UI -->
+
+        <!-- Market Table -->
+        <div id="market-table-wrapper" class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div class="overflow-x-auto market-scroll">
+            <table class="w-full">
+              <thead class="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th class="text-left px-6 py-4 text-sm font-semibold text-gray-700">Asset</th>
+                  <th class="text-right px-6 py-4 text-sm font-semibold text-gray-700">Price</th>
+                  <th class="text-right px-6 py-4 text-sm font-semibold text-gray-700">24h Change</th>
+                  <th class="text-right px-6 py-4 text-sm font-semibold text-gray-700">24h High</th>
+                  <th class="text-right px-6 py-4 text-sm font-semibold text-gray-700">24h Low</th>
+                  <th class="text-right px-6 py-4 text-sm font-semibold text-gray-700">Volume</th>
+                  <th class="text-center px-6 py-4 text-sm font-semibold text-gray-700">Live Chart</th>
+                  <th class="text-center px-6 py-4 text-sm font-semibold text-gray-700">Action</th>
+                </tr>
+              </thead>
+              <tbody id="market-table-body">
+                <!-- Dynamic content -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Chart Modal with TradingView -->
+  <div id="chart-modal" class="chart-modal fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-black/70" onclick="closeChartModal()"></div>
+    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-6xl max-h-[95vh] overflow-hidden">
+      <div class="bg-white rounded-2xl shadow-2xl m-4 flex flex-col h-[90vh]">
+        <!-- Modal Header -->
+        <div class="flex items-center justify-between p-4 border-b border-gray-100 bg-white">
+          <div class="flex items-center gap-4">
+            <div id="chart-asset-icon" class="w-12 h-12 rounded-xl flex items-center justify-center"></div>
+            <div>
+              <h3 id="chart-asset-name" class="text-xl font-bold text-gray-900">Bitcoin</h3>
+              <p id="chart-asset-symbol" class="text-gray-500">BTC/USD</p>
+            </div>
+            <div class="ml-6 flex items-center gap-4">
+              <div>
+                <p id="chart-current-price" class="text-2xl font-bold text-gray-900">$67,432.50</p>
+                <p id="chart-price-change" class="text-sm price-up"><i class="fas fa-arrow-up mr-1"></i>+2.34%</p>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <button onclick="openTradeFromChart()" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-colors">
+              <i class="fas fa-exchange-alt mr-2"></i>Trade Now
+            </button>
+            <button onclick="closeChartModal()" class="p-2.5 hover:bg-gray-100 rounded-xl transition-colors">
+              <i class="fas fa-times text-xl text-gray-500"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- TradingView Chart -->
+        <div class="flex-1 bg-white">
+          <div id="tradingview-widget" class="tradingview-widget-container"></div>
+        </div>
+
+        <!-- Quick Stats -->
+        <div class="grid grid-cols-4 gap-4 p-4 border-t border-gray-100 bg-gray-50">
+          <div class="text-center">
+            <p class="text-xs text-gray-500">Market Cap</p>
+            <p id="stat-mcap" class="font-semibold text-gray-900">$1.32T</p>
+          </div>
+          <div class="text-center">
+            <p class="text-xs text-gray-500">24h Volume</p>
+            <p id="stat-volume" class="font-semibold text-gray-900">$28.4B</p>
+          </div>
+          <div class="text-center">
+            <p class="text-xs text-gray-500">Circulating Supply</p>
+            <p id="stat-supply" class="font-semibold text-gray-900">19.6M BTC</p>
+          </div>
+          <div class="text-center">
+            <p class="text-xs text-gray-500">All Time High</p>
+            <p id="stat-ath" class="font-semibold text-gray-900">$73,750</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TradingView Script -->
+  <script src="https://s3.tradingview.com/tv.js"></script>
+
+  <script>
+    const user = JSON.parse(localStorage.getItem('elitestockoptions_user'));
+    if (!user) window.location.href = '../index.html';
+    
+    // Handle both name and fullName fields
+    const displayName = user.fullName || user.name || 'User';
+    document.getElementById('user-name').textContent = displayName;
+    document.getElementById('user-initials').textContent = displayName.split(' ').map(n => n[0]).join('');
+
+    let currentAsset = null;
+    let currentCategory = 'crypto';
+    let tvWidget = null;
+
+    // Asset data with TradingView symbols
+    const assets = {
+      crypto: [
+        { symbol: 'BTC', tvSymbol: 'BINANCE:BTCUSDT', name: 'Bitcoin', price: 67432.50, change: 2.34, high: 68120, low: 65890, volume: '28.4B', mcap: '1.32T', supply: '19.6M', ath: 73750, icon: 'fab fa-bitcoin', color: 'from-orange-500 to-yellow-500' },
+        { symbol: 'ETH', tvSymbol: 'BINANCE:ETHUSDT', name: 'Ethereum', price: 3521.78, change: 1.87, high: 3580, low: 3420, volume: '15.2B', mcap: '423B', supply: '120M', ath: 4878, icon: 'fab fa-ethereum', color: 'from-indigo-500 to-purple-500' },
+        { symbol: 'SOL', tvSymbol: 'BINANCE:SOLUSDT', name: 'Solana', price: 142.63, change: 5.21, high: 148, low: 135, volume: '3.8B', mcap: '64B', supply: '443M', ath: 260, icon: 'fas fa-sun', color: 'from-green-500 to-teal-500' },
+        { symbol: 'BNB', tvSymbol: 'BINANCE:BNBUSDT', name: 'BNB', price: 432.15, change: -0.52, high: 438, low: 425, volume: '1.2B', mcap: '66B', supply: '153M', ath: 690, icon: 'fas fa-coins', color: 'from-yellow-500 to-orange-500' },
+        { symbol: 'XRP', tvSymbol: 'BINANCE:XRPUSDT', name: 'Ripple', price: 0.6234, change: -1.23, high: 0.635, low: 0.61, volume: '892M', mcap: '34B', supply: '54B', ath: 3.84, icon: 'fas fa-water', color: 'from-blue-500 to-cyan-500' },
+        { symbol: 'ADA', tvSymbol: 'BINANCE:ADAUSDT', name: 'Cardano', price: 0.4582, change: 0.89, high: 0.468, low: 0.452, volume: '345M', mcap: '16B', supply: '35B', ath: 3.10, icon: 'fas fa-circle', color: 'from-blue-600 to-indigo-600' },
+        { symbol: 'DOGE', tvSymbol: 'BINANCE:DOGEUSDT', name: 'Dogecoin', price: 0.0892, change: 3.45, high: 0.091, low: 0.086, volume: '567M', mcap: '13B', supply: '143B', ath: 0.74, icon: 'fas fa-dog', color: 'from-yellow-400 to-orange-400' },
+        { symbol: 'SHIB', tvSymbol: 'BINANCE:SHIBUSDT', name: 'Shiba Inu', price: 0.0000189, change: -2.12, high: 0.0000195, low: 0.0000185, volume: '234M', mcap: '11B', supply: '589T', ath: 0.000088, icon: 'fas fa-paw', color: 'from-red-500 to-orange-500' },
+        { symbol: 'AVAX', tvSymbol: 'BINANCE:AVAXUSDT', name: 'Avalanche', price: 35.42, change: 4.23, high: 36.5, low: 34.1, volume: '456M', mcap: '13B', supply: '367M', ath: 146, icon: 'fas fa-mountain', color: 'from-red-500 to-pink-500' },
+        { symbol: 'DOT', tvSymbol: 'BINANCE:DOTUSDT', name: 'Polkadot', price: 7.23, change: -0.89, high: 7.45, low: 7.12, volume: '189M', mcap: '10B', supply: '1.38B', ath: 55, icon: 'fas fa-dot-circle', color: 'from-pink-500 to-rose-500' },
+        { symbol: 'MATIC', tvSymbol: 'BINANCE:MATICUSDT', name: 'Polygon', price: 0.5823, change: 1.45, high: 0.59, low: 0.57, volume: '234M', mcap: '5.8B', supply: '9.9B', ath: 2.92, icon: 'fas fa-shapes', color: 'from-purple-500 to-indigo-500' },
+        { symbol: 'LINK', tvSymbol: 'BINANCE:LINKUSDT', name: 'Chainlink', price: 14.56, change: 2.78, high: 14.89, low: 14.12, volume: '345M', mcap: '8.5B', supply: '587M', ath: 52.70, icon: 'fas fa-link', color: 'from-blue-400 to-cyan-400' },
+        { symbol: 'UNI', tvSymbol: 'BINANCE:UNIUSDT', name: 'Uniswap', price: 9.87, change: -1.23, high: 10.12, low: 9.65, volume: '123M', mcap: '5.9B', supply: '600M', ath: 44.92, icon: 'fas fa-unicorn', color: 'from-pink-400 to-rose-400' },
+        { symbol: 'LTC', tvSymbol: 'BINANCE:LTCUSDT', name: 'Litecoin', price: 72.34, change: 0.56, high: 73.45, low: 71.23, volume: '234M', mcap: '5.4B', supply: '74M', ath: 412, icon: 'fas fa-coins', color: 'from-gray-400 to-gray-600' },
+        { symbol: 'BCH', tvSymbol: 'BINANCE:BCHUSDT', name: 'Bitcoin Cash', price: 342.56, change: -0.78, high: 348, low: 338, volume: '156M', mcap: '6.7B', supply: '19.6M', ath: 3785, icon: 'fas fa-money-bill', color: 'from-green-500 to-emerald-500' },
+        { symbol: 'ETC', tvSymbol: 'BINANCE:ETCUSDT', name: 'Ethereum Classic', price: 23.45, change: 1.89, high: 23.89, low: 22.98, volume: '89M', mcap: '3.4B', supply: '145M', ath: 167, icon: 'fas fa-gem', color: 'from-emerald-500 to-green-500' },
+        { symbol: 'XLM', tvSymbol: 'BINANCE:XLMUSDT', name: 'Stellar', price: 0.1123, change: -0.45, high: 0.115, low: 0.11, volume: '67M', mcap: '3.2B', supply: '28B', ath: 0.94, icon: 'fas fa-star', color: 'from-blue-400 to-indigo-400' },
+        { symbol: 'VET', tvSymbol: 'BINANCE:VETUSDT', name: 'VeChain', price: 0.0345, change: 2.34, high: 0.035, low: 0.033, volume: '45M', mcap: '2.8B', supply: '81B', ath: 0.28, icon: 'fas fa-certificate', color: 'from-blue-500 to-cyan-500' },
+        { symbol: 'FIL', tvSymbol: 'BINANCE:FILUSDT', name: 'Filecoin', price: 5.67, change: -2.34, high: 5.89, low: 5.45, volume: '78M', mcap: '3.1B', supply: '548M', ath: 237, icon: 'fas fa-folder', color: 'from-green-400 to-teal-400' },
+        { symbol: 'TRX', tvSymbol: 'BINANCE:TRXUSDT', name: 'TRON', price: 0.1123, change: 1.23, high: 0.114, low: 0.11, volume: '234M', mcap: '10B', supply: '89B', ath: 0.23, icon: 'fas fa-bolt', color: 'from-red-500 to-orange-500' },
+        { symbol: 'EOS', tvSymbol: 'BINANCE:EOSUSDT', name: 'EOS', price: 0.789, change: -1.45, high: 0.81, low: 0.77, volume: '56M', mcap: '890M', supply: '1.13B', ath: 22.89, icon: 'fas fa-globe', color: 'from-gray-800 to-black' },
+        { symbol: 'AAVE', tvSymbol: 'BINANCE:AAVEUSDT', name: 'Aave', price: 98.76, change: 3.21, high: 102, low: 95, volume: '89M', mcap: '1.5B', supply: '15M', ath: 661, icon: 'fas fa-ghost', color: 'from-purple-600 to-pink-600' },
+        { symbol: 'SUSHI', tvSymbol: 'BINANCE:SUSHIUSDT', name: 'SushiSwap', price: 1.23, change: -0.89, high: 1.28, low: 1.19, volume: '34M', mcap: '290M', supply: '236M', ath: 23.38, icon: 'fas fa-fish', color: 'from-pink-500 to-rose-500' },
+        { symbol: 'COMP', tvSymbol: 'BINANCE:COMPUSDT', name: 'Compound', price: 56.78, change: 1.45, high: 58, low: 55, volume: '23M', mcap: '450M', supply: '7.9M', ath: 911, icon: 'fas fa-coins', color: 'from-green-600 to-teal-600' },
+        { symbol: 'MKR', tvSymbol: 'BINANCE:MKRUSDT', name: 'Maker', price: 1567.89, change: -2.34, high: 1600, low: 1520, volume: '45M', mcap: '1.4B', supply: '892K', ath: 6339, icon: 'fas fa-hammer', color: 'from-teal-500 to-cyan-500' },
+        { symbol: 'YFI', tvSymbol: 'BINANCE:YFIUSDT', name: 'yearn.finance', price: 7890.12, change: 0.67, high: 8100, low: 7650, volume: '34M', mcap: '260M', supply: '33K', ath: 93707, icon: 'fas fa-chart-line', color: 'from-blue-500 to-indigo-500' },
+        { symbol: 'SNX', tvSymbol: 'BINANCE:SNXUSDT', name: 'Synthetix', price: 2.89, change: 4.56, high: 3.0, low: 2.75, volume: '45M', mcap: '950M', supply: '328M', ath: 28.77, icon: 'fas fa-wave-square', color: 'from-blue-600 to-indigo-600' },
+        { symbol: 'CRV', tvSymbol: 'BINANCE:CRVUSDT', name: 'Curve DAO', price: 0.456, change: -3.21, high: 0.48, low: 0.44, volume: '23M', mcap: '560M', supply: '1.23B', ath: 15.37, icon: 'fas fa-bezier-curve', color: 'from-yellow-500 to-orange-500' },
+        { symbol: '1INCH', tvSymbol: 'BINANCE:1INCHUSDT', name: '1inch', price: 0.345, change: 1.23, high: 0.36, low: 0.34, volume: '12M', mcap: '420M', supply: '1.2B', ath: 7.87, icon: 'fas fa-compress-arrows-alt', color: 'from-blue-400 to-cyan-400' },
+        { symbol: 'GRT', tvSymbol: 'BINANCE:GRTUSDT', name: 'The Graph', price: 0.234, change: -1.45, high: 0.24, low: 0.23, volume: '34M', mcap: '2.2B', supply: '9.4B', ath: 2.88, icon: 'fas fa-project-diagram', color: 'from-purple-500 to-indigo-500' },
+        { symbol: 'BAT', tvSymbol: 'BINANCE:BATUSDT', name: 'Basic Attention', price: 0.234, change: 0.89, high: 0.24, low: 0.23, volume: '23M', mcap: '350M', supply: '1.5B', ath: 1.90, icon: 'fas fa-bullseye', color: 'from-orange-500 to-red-500' },
+        { symbol: 'ENJ', tvSymbol: 'BINANCE:ENJUSDT', name: 'Enjin Coin', price: 0.234, change: -2.34, high: 0.24, low: 0.23, volume: '12M', mcap: '340M', supply: '1.5B', ath: 4.85, icon: 'fas fa-gamepad', color: 'from-purple-600 to-indigo-600' },
+        { symbol: 'MANA', tvSymbol: 'BINANCE:MANAUSDT', name: 'Decentraland', price: 0.456, change: 3.45, high: 0.47, low: 0.44, volume: '34M', mcap: '850M', supply: '1.9B', ath: 5.90, icon: 'fas fa-vr-cardboard', color: 'from-red-500 to-pink-500' },
+        { symbol: 'SAND', tvSymbol: 'BINANCE:SANDUSDT', name: 'The Sandbox', price: 0.345, change: -1.23, high: 0.36, low: 0.34, volume: '23M', mcap: '780M', supply: '2.3B', ath: 8.44, icon: 'fas fa-cube', color: 'from-blue-500 to-cyan-500' },
+        { symbol: 'AXS', tvSymbol: 'BINANCE:AXSUSDT', name: 'Axie Infinity', price: 7.89, change: 2.34, high: 8.12, low: 7.65, volume: '45M', mcap: '1.1B', supply: '138M', ath: 165, icon: 'fas fa-dragon', color: 'from-blue-600 to-indigo-600' },
+        { symbol: 'CHZ', tvSymbol: 'BINANCE:CHZUSDT', name: 'Chiliz', price: 0.089, change: -0.67, high: 0.092, low: 0.087, volume: '23M', mcap: '790M', supply: '8.9B', ath: 0.89, icon: 'fas fa-futbol', color: 'from-red-500 to-pink-500' },
+        { symbol: 'FLOW', tvSymbol: 'BINANCE:FLOWUSDT', name: 'Flow', price: 0.678, change: 1.89, high: 0.70, low: 0.66, volume: '12M', mcap: '1B', supply: '1.5B', ath: 42.40, icon: 'fas fa-water', color: 'from-green-500 to-teal-500' },
+        { symbol: 'THETA', tvSymbol: 'BINANCE:THETAUSDT', name: 'Theta Network', price: 1.45, change: -2.34, high: 1.50, low: 1.42, volume: '23M', mcap: '1.5B', supply: '1B', ath: 15.90, icon: 'fas fa-video', color: 'from-green-400 to-emerald-400' },
+        { symbol: 'ALGO', tvSymbol: 'BINANCE:ALGOUSDT', name: 'Algorand', price: 0.178, change: 0.45, high: 0.182, low: 0.175, volume: '34M', mcap: '1.4B', supply: '7.9B', ath: 3.56, icon: 'fas fa-infinity', color: 'from-gray-800 to-black' },
+        { symbol: 'XTZ', tvSymbol: 'BINANCE:XTZUSDT', name: 'Tezos', price: 0.789, change: -1.23, high: 0.81, low: 0.77, volume: '12M', mcap: '780M', supply: '987M', ath: 9.18, icon: 'fas fa-seedling', color: 'from-blue-500 to-cyan-500' },
+        { symbol: 'ATOM', tvSymbol: 'BINANCE:ATOMUSDT', name: 'Cosmos', price: 8.23, change: 3.45, high: 8.45, low: 7.95, volume: '67M', mcap: '3.2B', supply: '390M', ath: 44.70, icon: 'fas fa-atom', color: 'from-purple-500 to-indigo-500' },
+        { symbol: 'NEAR', tvSymbol: 'BINANCE:NEARUSDT', name: 'NEAR Protocol', price: 5.67, change: -0.89, high: 5.80, low: 5.55, volume: '45M', mcap: '6B', supply: '1.06B', ath: 20.44, icon: 'fas fa-bolt', color: 'from-black to-gray-800' },
+        { symbol: 'FTM', tvSymbol: 'BINANCE:FTMUSDT', name: 'Fantom', price: 0.678, change: 4.56, high: 0.70, low: 0.65, volume: '34M', mcap: '1.9B', supply: '2.8B', ath: 3.48, icon: 'fas fa-ghost', color: 'from-blue-500 to-indigo-500' },
+        { symbol: 'HBAR', tvSymbol: 'BINANCE:HBARUSDT', name: 'Hedera', price: 0.0789, change: -0.45, high: 0.081, low: 0.077, volume: '23M', mcap: '2.6B', supply: '33B', ath: 0.57, icon: 'fas fa-circle', color: 'from-purple-500 to-indigo-500' },
+        { symbol: 'ICP', tvSymbol: 'BINANCE:ICPUSDT', name: 'Internet Computer', price: 12.34, change: 2.34, high: 12.67, low: 12.0, volume: '34M', mcap: '5.6B', supply: '455M', ath: 700.65, icon: 'fas fa-globe', color: 'from-pink-500 to-rose-500' },
+        { symbol: 'CAKE', tvSymbol: 'BINANCE:CAKEUSDT', name: 'PancakeSwap', price: 2.34, change: 0.78, high: 2.40, low: 2.30, volume: '23M', mcap: '650M', supply: '278M', ath: 44.18, icon: 'fas fa-birthday-cake', color: 'from-green-400 to-teal-400' },
+        { symbol: 'RUNE', tvSymbol: 'BINANCE:RUNEUSDT', name: 'THORChain', price: 4.56, change: 5.67, high: 4.78, low: 4.30, volume: '45M', mcap: '1.5B', supply: '330M', ath: 21.26, icon: 'fas fa-bolt', color: 'from-green-500 to-emerald-500' },
+        { symbol: 'DASH', tvSymbol: 'BINANCE:DASHUSDT', name: 'Dash', price: 28.45, change: 1.23, high: 29.0, low: 28.0, volume: '12M', mcap: '340M', supply: '11.9M', ath: 1493, icon: 'fas fa-bolt', color: 'from-blue-400 to-cyan-400' },
+        { symbol: 'ZEC', tvSymbol: 'BINANCE:ZECUSDT', name: 'Zcash', price: 28.90, change: -0.89, high: 29.5, low: 28.4, volume: '23M', mcap: '470M', supply: '16.3M', ath: 3191, icon: 'fas fa-circle', color: 'from-yellow-400 to-orange-400' },
+        { symbol: 'XMR', tvSymbol: 'BINANCE:XMRUSDT', name: 'Monero', price: 145.67, change: 2.34, high: 148, low: 143, volume: '45M', mcap: '2.7B', supply: '18.4M', ath: 517, icon: 'fas fa-user-secret', color: 'from-orange-500 to-red-500' },
+        { symbol: 'NEO', tvSymbol: 'BINANCE:NEOUSDT', name: 'Neo', price: 12.34, change: -1.23, high: 12.60, low: 12.15, volume: '23M', mcap: '870M', supply: '70.5M', ath: 196.85, icon: 'fas fa-cube', color: 'from-green-500 to-teal-500' },
+        { symbol: 'QTUM', tvSymbol: 'BINANCE:QTUMUSDT', name: 'Qtum', price: 3.45, change: 0.67, high: 3.52, low: 3.40, volume: '12M', mcap: '360M', supply: '105M', ath: 100.22, icon: 'fas fa-q', color: 'from-blue-500 to-indigo-500' }
+      ],
+      stocks: [
+        { symbol: 'AAPL', tvSymbol: 'NASDAQ:AAPL', name: 'Apple Inc.', price: 189.52, change: 1.23, high: 191.00, low: 187.50, volume: '45.2M', mcap: '2.9T', pe: '29.5', div: '0.5%', icon: 'fab fa-apple', color: 'bg-gray-800' },
+        { symbol: 'MSFT', tvSymbol: 'NASDAQ:MSFT', name: 'Microsoft', price: 412.35, change: 0.87, high: 415.00, low: 408.00, volume: '32.1M', mcap: '3.1T', pe: '35.2', div: '0.7%', icon: 'fab fa-microsoft', color: 'bg-blue-600' },
+        { symbol: 'GOOGL', tvSymbol: 'NASDAQ:GOOGL', name: 'Alphabet', price: 142.58, change: 0.56, high: 144.00, low: 141.00, volume: '18.9M', mcap: '1.8T', pe: '24.8', div: '0%', icon: 'fab fa-google', color: 'bg-red-500' },
+        { symbol: 'AMZN', tvSymbol: 'NASDAQ:AMZN', name: 'Amazon', price: 178.92, change: -0.45, high: 181.00, low: 176.50, volume: '28.7M', mcap: '1.9T', pe: '58.9', div: '0%', icon: 'fab fa-amazon', color: 'bg-orange-500' },
+        { symbol: 'TSLA', tvSymbol: 'NASDAQ:TSLA', name: 'Tesla', price: 245.67, change: 3.21, high: 252.00, low: 238.00, volume: '52.3M', mcap: '780B', pe: '68.5', div: '0%', icon: 'fas fa-car', color: 'bg-red-600' },
+        { symbol: 'NVDA', tvSymbol: 'NASDAQ:NVDA', name: 'NVIDIA', price: 875.28, change: 2.18, high: 885.00, low: 865.00, volume: '42.1M', mcap: '2.2T', pe: '72.3', div: '0.03%', icon: 'fas fa-microchip', color: 'bg-green-600' },
+        { symbol: 'META', tvSymbol: 'NASDAQ:META', name: 'Meta Platforms', price: 498.23, change: 1.45, high: 505.00, low: 492.00, volume: '15.6M', mcap: '1.3T', pe: '32.8', div: '0%', icon: 'fab fa-meta', color: 'bg-blue-700' },
+        { symbol: 'BRK.B', tvSymbol: 'NYSE:BRK_B', name: 'Berkshire Hathaway', price: 412.56, change: 0.34, high: 415.00, low: 410.00, volume: '3.2M', mcap: '890B', pe: '9.2', div: '0%', icon: 'fas fa-building', color: 'bg-blue-900' },
+        { symbol: 'TSM', tvSymbol: 'NYSE:TSM', name: 'Taiwan Semi', price: 142.34, change: 2.67, high: 145.00, low: 140.00, volume: '12.3M', mcap: '738B', pe: '24.5', div: '1.5%', icon: 'fas fa-microchip', color: 'bg-red-700' },
+        { symbol: 'V', tvSymbol: 'NYSE:V', name: 'Visa', price: 278.45, change: 0.78, high: 280.00, low: 276.00, volume: '4.5M', mcap: '580B', pe: '32.1', div: '0.7%', icon: 'fab fa-cc-visa', color: 'bg-blue-800' },
+        { symbol: 'JPM', tvSymbol: 'NYSE:JPM', name: 'JPMorgan Chase', price: 195.67, change: -0.23, high: 197.00, low: 194.00, volume: '8.9M', mcap: '565B', pe: '11.2', div: '2.3%', icon: 'fas fa-university', color: 'bg-blue-600' },
+        { symbol: 'JNJ', tvSymbol: 'NYSE:JNJ', name: 'Johnson & Johnson', price: 158.92, change: -0.56, high: 160.00, low: 157.00, volume: '5.6M', mcap: '382B', pe: '15.2', div: '2.9%', icon: 'fas fa-pills', color: 'bg-red-600' },
+        { symbol: 'WMT', tvSymbol: 'NYSE:WMT', name: 'Walmart', price: 67.89, change: 0.45, high: 68.50, low: 67.20, volume: '6.7M', mcap: '547B', pe: '25.6', div: '1.4%', icon: 'fas fa-shopping-cart', color: 'bg-blue-500' },
+        { symbol: 'MA', tvSymbol: 'NYSE:MA', name: 'Mastercard', price: 467.23, change: 1.12, high: 472.00, low: 462.00, volume: '2.3M', mcap: '435B', pe: '38.9', div: '0.5%', icon: 'fab fa-cc-mastercard', color: 'bg-orange-500' },
+        { symbol: 'PG', tvSymbol: 'NYSE:PG', name: 'Procter & Gamble', price: 162.34, change: 0.23, high: 163.50, low: 161.00, volume: '4.1M', mcap: '383B', pe: '26.8', div: '2.3%', icon: 'fas fa-soap', color: 'bg-blue-400' },
+        { symbol: 'UNH', tvSymbol: 'NYSE:UNH', name: 'UnitedHealth', price: 520.45, change: -1.23, high: 527.00, low: 516.00, volume: '2.8M', mcap: '482B', pe: '32.4', div: '1.3%', icon: 'fas fa-heartbeat', color: 'bg-blue-700' },
+        { symbol: 'HD', tvSymbol: 'NYSE:HD', name: 'Home Depot', price: 345.67, change: 0.89, high: 348.00, low: 343.00, volume: '3.2M', mcap: '345B', pe: '23.4', div: '2.1%', icon: 'fas fa-home', color: 'bg-orange-600' },
+        { symbol: 'BAC', tvSymbol: 'NYSE:BAC', name: 'Bank of America', price: 37.45, change: -0.34, high: 37.80, low: 37.10, volume: '28.9M', mcap: '292B', pe: '12.3', div: '2.4%', icon: 'fas fa-piggy-bank', color: 'bg-red-700' },
+        { symbol: 'XOM', tvSymbol: 'NYSE:XOM', name: 'Exxon Mobil', price: 105.67, change: 1.45, high: 107.00, low: 104.00, volume: '12.3M', mcap: '420B', pe: '13.2', div: '3.2%', icon: 'fas fa-oil-can', color: 'bg-red-600' },
+        { symbol: 'CVX', tvSymbol: 'NYSE:CVX', name: 'Chevron', price: 156.78, change: 0.67, high: 158.00, low: 155.00, volume: '5.6M', mcap: '295B', pe: '14.5', div: '3.1%', icon: 'fas fa-gas-pump', color: 'bg-red-500' },
+        { symbol: 'KO', tvSymbol: 'NYSE:KO', name: 'Coca-Cola', price: 62.34, change: 0.12, high: 62.80, low: 61.90, volume: '9.8M', mcap: '269B', pe: '24.1', div: '2.9%', icon: 'fas fa-wine-bottle', color: 'bg-red-600' },
+        { symbol: 'PEP', tvSymbol: 'NASDAQ:PEP', name: 'PepsiCo', price: 178.45, change: 0.34, high: 179.50, low: 177.00, volume: '3.4M', mcap: '245B', pe: '25.6', div: '2.6%', icon: 'fas fa-glass-whiskey', color: 'bg-blue-600' },
+        { symbol: 'ABBV', tvSymbol: 'NYSE:ABBV', name: 'AbbVie', price: 167.89, change: -0.78, high: 169.00, low: 166.00, volume: '4.5M', mcap: '296B', pe: '17.8', div: '3.5%', icon: 'fas fa-prescription-bottle-alt', color: 'bg-blue-800' },
+        { symbol: 'MRK', tvSymbol: 'NYSE:MRK', name: 'Merck', price: 126.45, change: 0.56, high: 127.50, low: 125.00, volume: '5.6M', mcap: '320B', pe: '15.6', div: '2.5%', icon: 'fas fa-pills', color: 'bg-green-600' },
+        { symbol: 'PFE', tvSymbol: 'NYSE:PFE', name: 'Pfizer', price: 28.45, change: -1.23, high: 28.90, low: 28.10, volume: '23.4M', mcap: '160B', pe: '9.2', div: '5.6%', icon: 'fas fa-capsules', color: 'bg-blue-500' },
+        { symbol: 'AVGO', tvSymbol: 'NASDAQ:AVGO', name: 'Broadcom', price: 1245.67, change: 2.34, high: 1260.00, low: 1230.00, volume: '1.8M', mcap: '580B', pe: '28.9', div: '1.6%', icon: 'fas fa-wifi', color: 'bg-red-600' },
+        { symbol: 'COST', tvSymbol: 'NASDAQ:COST', name: 'Costco', price: 712.34, change: 0.89, high: 718.00, low: 706.00, volume: '1.5M', mcap: '316B', pe: '42.3', div: '0.6%', icon: 'fas fa-shopping-basket', color: 'bg-red-700' },
+        { symbol: 'DIS', tvSymbol: 'NYSE:DIS', name: 'Walt Disney', price: 112.45, change: -0.45, high: 114.00, low: 111.00, volume: '8.9M', mcap: '205B', pe: '72.5', div: '0%', icon: 'fab fa-disney', color: 'bg-blue-500' },
+        { symbol: 'NFLX', tvSymbol: 'NASDAQ:NFLX', name: 'Netflix', price: 612.34, change: 3.45, high: 625.00, low: 600.00, volume: '4.5M', mcap: '267B', pe: '45.6', div: '0%', icon: 'fas fa-play', color: 'bg-red-600' },
+        { symbol: 'ADBE', tvSymbol: 'NASDAQ:ADBE', name: 'Adobe', price: 523.45, change: 1.67, high: 530.00, low: 517.00, volume: '2.3M', mcap: '238B', pe: '32.1', div: '0%', icon: 'fas fa-file-pdf', color: 'bg-red-500' },
+        { symbol: 'CRM', tvSymbol: 'NYSE:CRM', name: 'Salesforce', price: 278.90, change: -1.23, high: 283.00, low: 275.00, volume: '4.5M', mcap: '270B', pe: '58.9', div: '0%', icon: 'fas fa-cloud', color: 'bg-blue-600' },
+        { symbol: 'VZ', tvSymbol: 'NYSE:VZ', name: 'Verizon', price: 41.23, change: -0.34, high: 41.60, low: 40.90, volume: '15.6M', mcap: '173B', pe: '15.2', div: '6.5%', icon: 'fas fa-mobile-alt', color: 'bg-red-600' },
+        { symbol: 'NKE', tvSymbol: 'NYSE:NKE', name: 'Nike', price: 98.76, change: -0.89, high: 100.00, low: 97.50, volume: '6.7M', mcap: '148B', pe: '28.9', div: '1.2%', icon: 'fas fa-running', color: 'bg-black' },
+        { symbol: 'SBUX', tvSymbol: 'NASDAQ:SBUX', name: 'Starbucks', price: 94.56, change: 0.34, high: 95.50, low: 93.50, volume: '5.6M', mcap: '107B', pe: '24.5', div: '2.1%', icon: 'fas fa-coffee', color: 'bg-green-700' },
+        { symbol: 'MCD', tvSymbol: 'NYSE:MCD', name: 'McDonald\'s', price: 289.45, change: 0.56, high: 291.00, low: 287.00, volume: '2.3M', mcap: '210B', pe: '24.8', div: '2.2%', icon: 'fas fa-hamburger', color: 'bg-yellow-500' },
+        { symbol: 'IBM', tvSymbol: 'NYSE:IBM', name: 'IBM', price: 187.23, change: -0.45, high: 189.00, low: 185.00, volume: '3.4M', mcap: '172B', pe: '23.4', div: '3.5%', icon: 'fas fa-server', color: 'bg-blue-800' },
+        { symbol: 'ORCL', tvSymbol: 'NYSE:ORCL', name: 'Oracle', price: 123.45, change: 1.23, high: 125.00, low: 122.00, volume: '5.6M', mcap: '340B', pe: '32.1', div: '1.2%', icon: 'fas fa-database', color: 'bg-red-600' },
+        { symbol: 'AMD', tvSymbol: 'NASDAQ:AMD', name: 'AMD', price: 156.78, change: 2.67, high: 160.00, low: 153.00, volume: '45.6M', mcap: '253B', pe: '245', div: '0%', icon: 'fas fa-microchip', color: 'bg-green-600' },
+        { symbol: 'INTC', tvSymbol: 'NASDAQ:INTC', name: 'Intel', price: 31.23, change: -1.45, high: 31.80, low: 30.80, volume: '34.5M', mcap: '133B', pe: '85.2', div: '1.5%', icon: 'fas fa-microchip', color: 'bg-blue-600' },
+        { symbol: 'QCOM', tvSymbol: 'NASDAQ:QCOM', name: 'Qualcomm', price: 156.78, change: 1.45, high: 159.00, low: 154.00, volume: '5.6M', mcap: '175B', pe: '18.9', div: '1.9%', icon: 'fas fa-signal', color: 'bg-blue-500' },
+        { symbol: 'BA', tvSymbol: 'NYSE:BA', name: 'Boeing', price: 212.34, change: 1.23, high: 216.00, low: 208.00, volume: '5.6M', mcap: '129B', pe: '-45.2', div: '0%', icon: 'fas fa-plane-departure', color: 'bg-blue-800' },
+        { symbol: 'GE', tvSymbol: 'NYSE:GE', name: 'GE Aerospace', price: 156.78, change: 0.89, high: 158.00, low: 155.00, volume: '3.4M', mcap: '170B', pe: '28.9', div: '0.2%', icon: 'fas fa-cog', color: 'bg-blue-500' },
+        { symbol: 'CAT', tvSymbol: 'NYSE:CAT', name: 'Caterpillar', price: 312.45, change: 1.45, high: 316.00, low: 308.00, volume: '2.3M', mcap: '162B', pe: '16.8', div: '1.5%', icon: 'fas fa-truck-monster', color: 'bg-yellow-600' },
+        { symbol: 'GS', tvSymbol: 'NYSE:GS', name: 'Goldman Sachs', price: 412.34, change: 1.23, high: 418.00, low: 406.00, volume: '1.8M', mcap: '137B', pe: '15.6', div: '2.6%', icon: 'fas fa-landmark', color: 'bg-blue-900' },
+        { symbol: 'BLK', tvSymbol: 'NYSE:BLK', name: 'BlackRock', price: 823.45, change: 1.67, high: 832.00, low: 815.00, volume: '0.5M', mcap: '124B', pe: '21.4', div: '2.4%', icon: 'fas fa-money-bill-wave', color: 'bg-black' },
+        { symbol: 'PLTR', tvSymbol: 'NASDAQ:PLTR', name: 'Palantir', price: 23.45, change: 4.56, high: 24.20, low: 22.50, volume: '45.6M', mcap: '52B', pe: '185', div: '0%', icon: 'fas fa-eye', color: 'bg-black' },
+        { symbol: 'UBER', tvSymbol: 'NYSE:UBER', name: 'Uber', price: 78.90, change: 2.34, high: 80.50, low: 77.00, volume: '12.3M', mcap: '165B', pe: '112', div: '0%', icon: 'fas fa-car', color: 'bg-black' },
+        { symbol: 'ABNB', tvSymbol: 'NASDAQ:ABNB', name: 'Airbnb', price: 145.67, change: 1.89, high: 148.00, low: 143.00, volume: '3.4M', mcap: '92B', pe: '18.9', div: '0%', icon: 'fas fa-home', color: 'bg-red-500' },
+        { symbol: 'SHOP', tvSymbol: 'NYSE:SHOP', name: 'Shopify', price: 78.90, change: 3.45, high: 81.00, low: 76.00, volume: '12.3M', mcap: '102B', pe: '-145', div: '0%', icon: 'fas fa-shopping-bag', color: 'bg-green-600' },
+        { symbol: 'SQ', tvSymbol: 'NYSE:SQ', name: 'Block', price: 78.90, change: 2.67, high: 81.00, low: 76.00, volume: '6.7M', mcap: '48B', pe: '68.9', div: '0%', icon: 'fas fa-credit-card', color: 'bg-green-500' },
+        { symbol: 'BABA', tvSymbol: 'NYSE:BABA', name: 'Alibaba', price: 78.90, change: 2.34, high: 81.00, low: 76.50, volume: '8.9M', mcap: '200B', pe: '18.9', div: '1.2%', icon: 'fas fa-shopping-bag', color: 'bg-orange-500' },
+        { symbol: 'JD', tvSymbol: 'NASDAQ:JD', name: 'JD.com', price: 28.90, change: 1.45, high: 29.50, low: 28.30, volume: '4.5M', mcap: '45B', pe: '12.4', div: '1.5%', icon: 'fas fa-box', color: 'bg-red-600' }
+      ],
+      futures: [
+        { symbol: 'CL=F', tvSymbol: 'NYMEX:CL1!', name: 'Crude Oil WTI', price: 78.45, change: 1.89, high: 79.20, low: 77.10, volume: '125K', type: 'Commodity', expiry: 'Dec 2024', icon: 'fas fa-oil-can', color: 'bg-black' },
+        { symbol: 'BZ=F', tvSymbol: 'NYMEX:BZ1!', name: 'Brent Crude Oil', price: 82.34, change: 1.67, high: 83.10, low: 81.00, volume: '98K', type: 'Commodity', expiry: 'Jan 2025', icon: 'fas fa-oil-can', color: 'bg-gray-800' },
+        { symbol: 'GC=F', tvSymbol: 'COMEX:GC1!', name: 'Gold', price: 2045.80, change: 0.67, high: 2052.00, low: 2038.00, volume: '89K', type: 'Metal', expiry: 'Dec 2024', icon: 'fas fa-coins', color: 'bg-yellow-500' },
+        { symbol: 'SI=F', tvSymbol: 'COMEX:SI1!', name: 'Silver', price: 23.12, change: -0.34, high: 23.35, low: 22.90, volume: '45K', type: 'Metal', expiry: 'Dec 2024', icon: 'fas fa-coins', color: 'bg-gray-400' },
+        { symbol: 'NG=F', tvSymbol: 'NYMEX:NG1!', name: 'Natural Gas', price: 2.89, change: -2.12, high: 2.98, low: 2.82, volume: '67K', type: 'Energy', expiry: 'Jan 2025', icon: 'fas fa-fire', color: 'bg-blue-500' },
+        { symbol: 'ZC=F', tvSymbol: 'CBOT:ZC1!', name: 'Corn', price: 4.56, change: -0.67, high: 4.62, low: 4.50, volume: '156K', type: 'Agriculture', expiry: 'Mar 2025', icon: 'fas fa-seedling', color: 'bg-yellow-500' },
+        { symbol: 'ZS=F', tvSymbol: 'CBOT:ZS1!', name: 'Soybeans', price: 12.34, change: 0.45, high: 12.45, low: 12.23, volume: '89K', type: 'Agriculture', expiry: 'Mar 2025', icon: 'fas fa-seedling', color: 'bg-green-600' },
+        { symbol: 'ZW=F', tvSymbol: 'CBOT:ZW1!', name: 'Wheat', price: 5.67, change: -1.23, high: 5.78, low: 5.58, volume: '67K', type: 'Agriculture', expiry: 'Mar 2025', icon: 'fas fa-bread-slice', color: 'bg-yellow-600' },
+        { symbol: 'DX=F', tvSymbol: 'NYMEX:DX1!', name: 'US Dollar Index', price: 103.45, change: -0.23, high: 103.80, low: 103.10, volume: '12K', type: 'Currency', expiry: 'Mar 2025', icon: 'fas fa-dollar-sign', color: 'bg-green-600' },
+        { symbol: '6E=F', tvSymbol: 'CME:6E1!', name: 'Euro FX', price: 1.0890, change: 0.34, high: 1.0920, low: 1.0860, volume: '89K', type: 'Currency', expiry: 'Mar 2025', icon: 'fas fa-euro-sign', color: 'bg-blue-600' },
+        { symbol: '6B=F', tvSymbol: 'CME:6B1!', name: 'British Pound', price: 1.2678, change: -0.45, high: 1.2720, low: 1.2630, volume: '45K', type: 'Currency', expiry: 'Mar 2025', icon: 'fas fa-pound-sign', color: 'bg-purple-600' },
+        { symbol: '6J=F', tvSymbol: 'CME:6J1!', name: 'Japanese Yen', price: 0.0067, change: 0.67, high: 0.0068, low: 0.0066, volume: '34K', type: 'Currency', expiry: 'Mar 2025', icon: 'fas fa-yen-sign', color: 'bg-red-600' },
+        { symbol: 'BTC=F', tvSymbol: 'CME:BTC1!', name: 'Bitcoin Futures', price: 67890.00, change: 2.34, high: 68500.00, low: 67200.00, volume: '12K', type: 'Crypto', expiry: 'Jan 2025', icon: 'fab fa-bitcoin', color: 'bg-orange-500' },
+        { symbol: 'ETH=F', tvSymbol: 'CME:ETH1!', name: 'Ethereum Futures', price: 3567.00, change: 1.89, high: 3600.00, low: 3530.00, volume: '8K', type: 'Crypto', expiry: 'Jan 2025', icon: 'fab fa-ethereum', color: 'bg-purple-600' },
+        { symbol: 'ES=F', tvSymbol: 'CME:ES1!', name: 'E-mini S&P 500', price: 5890.25, change: 0.78, high: 5910.00, low: 5870.00, volume: '1.2M', type: 'Index', expiry: 'Dec 2024', icon: 'fas fa-chart-line', color: 'bg-green-600' },
+        { symbol: 'NQ=F', tvSymbol: 'CME:NQ1!', name: 'E-mini Nasdaq 100', price: 20456.75, change: 1.23, high: 20550.00, low: 20360.00, volume: '890K', type: 'Index', expiry: 'Dec 2024', icon: 'fas fa-chart-area', color: 'bg-blue-600' },
+        { symbol: 'YM=F', tvSymbol: 'CBOT:YM1!', name: 'E-mini Dow', price: 42345.00, change: 0.45, high: 42500.00, low: 42180.00, volume: '234K', type: 'Index', expiry: 'Dec 2024', icon: 'fas fa-chart-bar', color: 'bg-blue-800' },
+        { symbol: 'ZN=F', tvSymbol: 'CBOT:ZN1!', name: '10-Year T-Note', price: 110.45, change: 0.23, high: 110.60, low: 110.30, volume: '567K', type: 'Interest Rate', expiry: 'Mar 2025', icon: 'fas fa-file-invoice-dollar', color: 'bg-green-700' },
+        { symbol: 'ZB=F', tvSymbol: 'CBOT:ZB1!', name: '30-Year T-Bond', price: 123.67, change: -0.12, high: 123.90, low: 123.45, volume: '234K', type: 'Interest Rate', expiry: 'Mar 2025', icon: 'fas fa-file-contract', color: 'bg-blue-800' },
+        { symbol: 'VIX=F', tvSymbol: 'CBOE:VIX1!', name: 'VIX Futures', price: 14.56, change: -2.34, high: 15.20, low: 14.10, volume: '45K', type: 'Volatility', expiry: 'Dec 2024', icon: 'fas fa-wave-square', color: 'bg-red-500' },
+        { symbol: 'KC=F', tvSymbol: 'ICEUS:KC1!', name: 'Coffee', price: 178.90, change: 2.34, high: 182.00, low: 175.00, volume: '23K', type: 'Agriculture', expiry: 'Mar 2025', icon: 'fas fa-coffee', color: 'bg-brown-600' },
+        { symbol: 'CT=F', tvSymbol: 'ICEUS:CT1!', name: 'Cotton', price: 78.45, change: -0.89, high: 79.50, low: 77.50, volume: '18K', type: 'Agriculture', expiry: 'Mar 2025', icon: 'fas fa-tshirt', color: 'bg-white border border-gray-300' },
+        { symbol: 'SB=F', tvSymbol: 'ICEUS:SB1!', name: 'Sugar', price: 21.34, change: 1.23, high: 21.60, low: 21.05, volume: '34K', type: 'Agriculture', expiry: 'Mar 2025', icon: 'fas fa-candy-cane', color: 'bg-pink-400' },
+        { symbol: 'LE=F', tvSymbol: 'CME:LE1!', name: 'Live Cattle', price: 178.90, change: -0.45, high: 180.00, low: 177.50, volume: '23K', type: 'Livestock', expiry: 'Feb 2025', icon: 'fas fa-cow', color: 'bg-brown-500' },
+        { symbol: 'HG=F', tvSymbol: 'COMEX:HG1!', name: 'Copper', price: 3.89, change: 1.23, high: 3.95, low: 3.84, volume: '34K', type: 'Metal', expiry: 'Dec 2024', icon: 'fas fa-cog', color: 'bg-orange-600' }
+      ],
+      bonds: [
+        { symbol: '^TNX', tvSymbol: 'TVC:US10Y', name: 'US 10Y Treasury', price: 4.32, change: 0.05, high: 4.35, low: 4.28, volume: '-', yield: '4.32%', duration: '10Y', rating: 'AAA', icon: 'fas fa-flag-usa', color: 'bg-blue-800' },
+        { symbol: '^TYX', tvSymbol: 'TVC:US30Y', name: 'US 30Y Treasury', price: 4.56, change: 0.03, high: 4.60, low: 4.52, volume: '-', yield: '4.56%', duration: '30Y', rating: 'AAA', icon: 'fas fa-flag-usa', color: 'bg-blue-900' },
+        { symbol: '^FVX', tvSymbol: 'TVC:US05Y', name: 'US 5Y Treasury', price: 4.12, change: 0.04, high: 4.15, low: 4.08, volume: '-', yield: '4.12%', duration: '5Y', rating: 'AAA', icon: 'fas fa-flag-usa', color: 'bg-blue-700' },
+        { symbol: '^IRX', tvSymbol: 'TVC:US13W', name: 'US 13W Treasury', price: 5.23, change: 0.02, high: 5.25, low: 5.20, volume: '-', yield: '5.23%', duration: '13W', rating: 'AAA', icon: 'fas fa-flag-usa', color: 'bg-blue-600' },
+        { symbol: 'DE10Y', tvSymbol: 'TVC:DE10Y', name: 'Germany 10Y Bund', price: 2.45, change: -0.03, high: 2.48, low: 2.42, volume: '-', yield: '2.45%', duration: '10Y', rating: 'AAA', icon: 'fas fa-euro-sign', color: 'bg-yellow-600' },
+        { symbol: 'FR10Y', tvSymbol: 'TVC:FR10Y', name: 'France 10Y OAT', price: 3.12, change: 0.02, high: 3.15, low: 3.09, volume: '-', yield: '3.12%', duration: '10Y', rating: 'AA', icon: 'fas fa-euro-sign', color: 'bg-blue-600' },
+        { symbol: 'IT10Y', tvSymbol: 'TVC:IT10Y', name: 'Italy 10Y BTP', price: 3.89, change: 0.04, high: 3.94, low: 3.84, volume: '-', yield: '3.89%', duration: '10Y', rating: 'BBB', icon: 'fas fa-euro-sign', color: 'bg-green-600' },
+        { symbol: 'ES10Y', tvSymbol: 'TVC:ES10Y', name: 'Spain 10Y Bond', price: 3.34, change: 0.03, high: 3.38, low: 3.30, volume: '-', yield: '3.34%', duration: '10Y', rating: 'A-', icon: 'fas fa-euro-sign', color: 'bg-red-600' },
+        { symbol: 'UK10Y', tvSymbol: 'TVC:GB10Y', name: 'UK 10Y Gilt', price: 4.23, change: 0.04, high: 4.28, low: 4.18, volume: '-', yield: '4.23%', duration: '10Y', rating: 'AA', icon: 'fas fa-pound-sign', color: 'bg-red-700' },
+        { symbol: 'JP10Y', tvSymbol: 'TVC:JP10Y', name: 'Japan 10Y JGB', price: 0.72, change: 0.01, high: 0.74, low: 0.70, volume: '-', yield: '0.72%', duration: '10Y', rating: 'A', icon: 'fas fa-yen-sign', color: 'bg-red-600' },
+        { symbol: 'AU10Y', tvSymbol: 'TVC:AU10Y', name: 'Australia 10Y Bond', price: 4.45, change: 0.03, high: 4.50, low: 4.40, volume: '-', yield: '4.45%', duration: '10Y', rating: 'AAA', icon: 'fas fa-dollar-sign', color: 'bg-blue-500' },
+        { symbol: 'CA10Y', tvSymbol: 'TVC:CA10Y', name: 'Canada 10Y Bond', price: 3.67, change: 0.02, high: 3.70, low: 3.64, volume: '-', yield: '3.67%', duration: '10Y', rating: 'AAA', icon: 'fas fa-maple-leaf', color: 'bg-red-600' },
+        { symbol: 'CN10Y', tvSymbol: 'TVC:CN10Y', name: 'China 10Y Bond', price: 2.34, change: -0.01, high: 2.36, low: 2.32, volume: '-', yield: '2.34%', duration: '10Y', rating: 'A+', icon: 'fas fa-yen-sign', color: 'bg-red-700' },
+        { symbol: 'IN10Y', tvSymbol: 'TVC:IN10Y', name: 'India 10Y Bond', price: 7.23, change: 0.05, high: 7.28, low: 7.18, volume: '-', yield: '7.23%', duration: '10Y', rating: 'BBB-', icon: 'fas fa-rupee-sign', color: 'bg-orange-500' }
+      ],
+      etfs: [
+        { symbol: 'SPY', tvSymbol: 'AMEX:SPY', name: 'SPDR S&P 500', price: 478.92, change: 0.78, high: 481.00, low: 476.00, volume: '89.2M', aum: '489B', expense: '0.09%', icon: 'fas fa-chart-line', color: 'bg-purple-600' },
+        { symbol: 'VOO', tvSymbol: 'AMEX:VOO', name: 'Vanguard S&P 500', price: 439.23, change: 0.76, high: 441.00, low: 437.00, volume: '23.4M', aum: '412B', expense: '0.03%', icon: 'fas fa-chart-line', color: 'bg-red-700' },
+        { symbol: 'IVV', tvSymbol: 'AMEX:IVV', name: 'iShares Core S&P 500', price: 441.56, change: 0.77, high: 443.00, low: 439.00, volume: '18.9M', aum: '398B', expense: '0.03%', icon: 'fas fa-chart-line', color: 'bg-blue-800' },
+        { symbol: 'QQQ', tvSymbol: 'NASDAQ:QQQ', name: 'Invesco QQQ', price: 412.35, change: 1.12, high: 415.50, low: 408.00, volume: '45.8M', aum: '245B', expense: '0.20%', icon: 'fas fa-chart-area', color: 'bg-blue-600' },
+        { symbol: 'VTI', tvSymbol: 'AMEX:VTI', name: 'Vanguard Total Stock', price: 245.67, change: 0.65, high: 247.00, low: 244.00, volume: '23.1M', aum: '356B', expense: '0.03%', icon: 'fas fa-chart-pie', color: 'bg-red-600' },
+        { symbol: 'IWM', tvSymbol: 'AMEX:IWM', name: 'iShares Russell 2000', price: 198.76, change: -0.45, high: 200.00, low: 197.00, volume: '34.5M', aum: '58B', expense: '0.19%', icon: 'fas fa-chart-bar', color: 'bg-orange-600' },
+        { symbol: 'BND', tvSymbol: 'AMEX:BND', name: 'Vanguard Total Bond', price: 72.34, change: 0.12, high: 72.50, low: 72.15, volume: '5.6M', aum: '102B', expense: '0.03%', icon: 'fas fa-file-invoice-dollar', color: 'bg-blue-800' },
+        { symbol: 'AGG', tvSymbol: 'AMEX:AGG', name: 'iShares Core US Aggregate', price: 98.76, change: 0.08, high: 98.90, low: 98.60, volume: '6.7M', aum: '98B', expense: '0.03%', icon: 'fas fa-file-contract', color: 'bg-blue-700' },
+        { symbol: 'TLT', tvSymbol: 'NASDAQ:TLT', name: 'iShares 20+ Year Treasury', price: 89.45, change: -0.34, high: 90.00, low: 88.90, volume: '23.4M', aum: '42B', expense: '0.15%', icon: 'fas fa-file-invoice', color: 'bg-blue-900' },
+        { symbol: 'GLD', tvSymbol: 'AMEX:GLD', name: 'SPDR Gold Shares', price: 178.45, change: 0.42, high: 179.50, low: 177.20, volume: '12.4M', aum: '58B', expense: '0.40%', icon: 'fas fa-coins', color: 'bg-yellow-500' },
+        { symbol: 'SLV', tvSymbol: 'AMEX:SLV', name: 'iShares Silver Trust', price: 21.34, change: -0.23, high: 21.50, low: 21.18, volume: '15.6M', aum: '12B', expense: '0.50%', icon: 'fas fa-coins', color: 'bg-gray-400' },
+        { symbol: 'USO', tvSymbol: 'AMEX:USO', name: 'United States Oil Fund', price: 78.90, change: 1.89, high: 80.00, low: 77.50, volume: '4.5M', aum: '1.8B', expense: '0.79%', icon: 'fas fa-oil-can', color: 'bg-black' },
+        { symbol: 'VNQ', tvSymbol: 'AMEX:VNQ', name: 'Vanguard Real Estate', price: 84.56, change: -0.45, high: 85.00, low: 84.10, volume: '5.6M', aum: '32B', expense: '0.12%', icon: 'fas fa-building', color: 'bg-blue-700' },
+        { symbol: 'SCHD', tvSymbol: 'AMEX:SCHD', name: 'Schwab US Dividend Equity', price: 76.54, change: 0.34, high: 77.00, low: 76.10, volume: '3.4M', aum: '52B', expense: '0.06%', icon: 'fas fa-money-bill-wave', color: 'bg-blue-600' },
+        { symbol: 'ARKK', tvSymbol: 'AMEX:ARKK', name: 'ARK Innovation ETF', price: 45.67, change: 2.34, high: 46.50, low: 44.80, volume: '12.3M', aum: '7B', expense: '0.75%', icon: 'fas fa-rocket', color: 'bg-black' },
+        { symbol: 'ICLN', tvSymbol: 'NASDAQ:ICLN', name: 'iShares Global Clean Energy', price: 12.34, change: -0.89, high: 12.50, low: 12.18, volume: '5.6M', aum: '2.5B', expense: '0.40%', icon: 'fas fa-leaf', color: 'bg-green-600' },
+        { symbol: 'SMH', tvSymbol: 'NASDAQ:SMH', name: 'VanEck Semiconductor ETF', price: 234.56, change: 2.34, high: 238.00, low: 230.00, volume: '4.5M', aum: '16B', expense: '0.35%', icon: 'fas fa-microchip', color: 'bg-blue-600' },
+        { symbol: 'XLF', tvSymbol: 'AMEX:XLF', name: 'Financial Select Sector SPDR', price: 38.90, change: -0.23, high: 39.10, low: 38.70, volume: '45.6M', aum: '42B', expense: '0.09%', icon: 'fas fa-university', color: 'bg-blue-800' },
+        { symbol: 'XLK', tvSymbol: 'AMEX:XLK', name: 'Technology Select Sector SPDR', price: 198.76, change: 1.23, high: 200.00, low: 197.00, volume: '12.3M', aum: '62B', expense: '0.09%', icon: 'fas fa-laptop', color: 'bg-blue-600' },
+        { symbol: 'XLE', tvSymbol: 'AMEX:XLE', name: 'Energy Select Sector SPDR', price: 89.45, change: 1.45, high: 90.50, low: 88.30, volume: '18.9M', aum: '38B', expense: '0.09%', icon: 'fas fa-oil-can', color: 'bg-black' },
+        { symbol: 'XLV', tvSymbol: 'AMEX:XLV', name: 'Health Care Select Sector SPDR', price: 145.67, change: 0.34, high: 146.20, low: 145.10, volume: '8.9M', aum: '42B', expense: '0.09%', icon: 'fas fa-heartbeat', color: 'bg-blue-500' },
+        { symbol: 'XLI', tvSymbol: 'AMEX:XLI', name: 'Industrial Select Sector SPDR', price: 112.34, change: 0.56, high: 112.80, low: 111.80, volume: '8.9M', aum: '22B', expense: '0.09%', icon: 'fas fa-industry', color: 'bg-orange-600' },
+        { symbol: 'XLP', tvSymbol: 'AMEX:XLP', name: 'Consumer Staples Select Sector SPDR', price: 76.54, change: -0.12, high: 76.80, low: 76.28, volume: '8.9M', aum: '18B', expense: '0.09%', icon: 'fas fa-shopping-basket', color: 'bg-green-600' },
+        { symbol: 'XLY', tvSymbol: 'AMEX:XLY', name: 'Consumer Discretionary Select Sector SPDR', price: 178.90, change: 0.78, high: 180.00, low: 177.50, volume: '5.6M', aum: '22B', expense: '0.09%', icon: 'fas fa-shopping-bag', color: 'bg-orange-500' },
+        { symbol: 'XLU', tvSymbol: 'AMEX:XLU', name: 'Utilities Select Sector SPDR', price: 67.89, change: -0.34, high: 68.20, low: 67.55, volume: '12.3M', aum: '15B', expense: '0.09%', icon: 'fas fa-bolt', color: 'bg-yellow-600' },
+        { symbol: 'IBB', tvSymbol: 'NASDAQ:IBB', name: 'iShares Nasdaq Biotechnology', price: 123.45, change: 0.67, high: 124.20, low: 122.70, volume: '2.3M', aum: '7B', expense: '0.45%', icon: 'fas fa-dna', color: 'bg-green-700' },
+        { symbol: 'XBI', tvSymbol: 'AMEX:XBI', name: 'SPDR S&P Biotech ETF', price: 84.56, change: 1.45, high: 85.50, low: 83.50, volume: '5.6M', aum: '6B', expense: '0.35%', icon: 'fas fa-flask', color: 'bg-green-600' },
+        { symbol: 'EFA', tvSymbol: 'AMEX:EFA', name: 'iShares MSCI EAFE', price: 78.90, change: 0.45, high: 79.50, low: 78.30, volume: '12.3M', aum: '58B', expense: '0.32%', icon: 'fas fa-globe', color: 'bg-blue-600' },
+        { symbol: 'EEM', tvSymbol: 'AMEX:EEM', name: 'iShares MSCI Emerging Markets', price: 41.23, change: 0.67, high: 41.60, low: 40.90, volume: '23.4M', aum: '22B', expense: '0.68%', icon: 'fas fa-globe-asia', color: 'bg-yellow-600' },
+        { symbol: 'LQD', tvSymbol: 'AMEX:LQD', name: 'iShares iBoxx IG Corp Bond', price: 108.90, change: 0.23, high: 109.20, low: 108.60, volume: '12.3M', aum: '38B', expense: '0.14%', icon: 'fas fa-building', color: 'bg-blue-600' },
+        { symbol: 'HYG', tvSymbol: 'AMEX:HYG', name: 'iShares iBoxx HY Corp Bond', price: 76.54, change: 0.45, high: 77.00, low: 76.10, volume: '18.9M', aum: '18B', expense: '0.48%', icon: 'fas fa-industry', color: 'bg-red-600' }
+      ]
+    };
+
+    function renderTable(category) {
+      const tbody = document.getElementById('market-table-body');
+      const tableWrapper = document.getElementById('market-table-wrapper');
+      const data = assets[category];
+      // All categories now use the table/list UI
+      tableWrapper.style.display = '';
+      tbody.innerHTML = data.map(asset => {
+        const changeClass = asset.change >= 0 ? 'price-up' : 'price-down';
+        const arrow = asset.change >= 0 ? 'fa-arrow-up' : 'fa-arrow-down';
+        const priceStr = asset.price < 1 ? asset.price.toFixed(6) : asset.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        
+        return `
+          <tr class="asset-row border-b border-gray-100" onclick="openChart('${category}', '${asset.symbol}')">
+            <td class="px-6 py-4">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br ${asset.color} flex items-center justify-center">
+                  <i class="${asset.icon} text-white"></i>
+                </div>
+                <div>
+                  <p class="font-medium text-gray-900">${asset.name}</p>
+                  <p class="text-sm text-gray-500">${asset.symbol}</p>
+                </div>
+              </div>
+            </td>
+            <td class="px-6 py-4 text-right font-medium">$${priceStr}</td>
+            <td class="px-6 py-4 text-right ${changeClass}"><i class="fas ${arrow} mr-1"></i>${asset.change >= 0 ? '+' : ''}${asset.change}%</td>
+            <td class="px-6 py-4 text-right text-gray-600">$${asset.high.toLocaleString()}</td>
+            <td class="px-6 py-4 text-right text-gray-600">$${asset.low.toLocaleString()}</td>
+            <td class="px-6 py-4 text-right text-gray-600">${asset.volume}</td>
+            <td class="px-6 py-4 text-center">
+              <button class="px-3 py-1.5 bg-indigo-100 text-indigo-700 rounded-lg text-sm hover:bg-indigo-200 transition-colors">
+                <i class="fas fa-chart-line mr-1"></i>View
+              </button>
+            </td>
+            <td class="px-6 py-4 text-center">
+              <button onclick="event.stopPropagation(); window.location.href='my-trades.html?asset=${asset.symbol}'" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 transition-colors">Trade</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function switchTab(tab) {
+      currentCategory = tab;
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.getElementById('tab-' + tab).classList.add('active');
+      renderTable(tab);
+    }
+
+    function openChart(category, symbol) {
+      const asset = assets[category].find(a => a.symbol === symbol);
+      if (!asset) return;
+      
+      currentAsset = asset;
+      
+      document.getElementById('chart-asset-name').textContent = asset.name;
+      document.getElementById('chart-asset-symbol').textContent = asset.symbol;
+      document.getElementById('chart-asset-icon').innerHTML = `<i class="${asset.icon} text-white text-xl"></i>`;
+      document.getElementById('chart-asset-icon').className = `w-12 h-12 rounded-xl bg-gradient-to-br ${asset.color} flex items-center justify-center`;
+      document.getElementById('chart-current-price').textContent = '$' + asset.price.toLocaleString();
+      
+      const changeEl = document.getElementById('chart-price-change');
+      changeEl.className = `text-sm ${asset.change >= 0 ? 'price-up' : 'price-down'}`;
+      changeEl.innerHTML = `<i class="fas fa-arrow-${asset.change >= 0 ? 'up' : 'down'} mr-1"></i>${asset.change >= 0 ? '+' : ''}${asset.change}%`;
+      
+      // Update stats
+      if (category === 'crypto') {
+        document.getElementById('stat-mcap').textContent = asset.mcap;
+        document.getElementById('stat-volume').textContent = asset.volume;
+        document.getElementById('stat-supply').textContent = asset.supply + ' ' + asset.symbol;
+        document.getElementById('stat-ath').textContent = '$' + asset.ath.toLocaleString();
+      } else if (category === 'stocks') {
+        document.getElementById('stat-mcap').textContent = asset.mcap;
+        document.getElementById('stat-volume').textContent = asset.volume;
+        document.getElementById('stat-supply').textContent = asset.pe + ' P/E';
+        document.getElementById('stat-ath').textContent = asset.div + ' Div';
+      } else if (category === 'etfs') {
+        document.getElementById('stat-mcap').textContent = asset.aum;
+        document.getElementById('stat-volume').textContent = asset.volume;
+        document.getElementById('stat-supply').textContent = asset.expense + ' Expense';
+        document.getElementById('stat-ath').textContent = '-';
+      } else if (category === 'futures') {
+        document.getElementById('stat-mcap').textContent = asset.type;
+        document.getElementById('stat-volume').textContent = asset.volume;
+        document.getElementById('stat-supply').textContent = 'Expiry: ' + asset.expiry;
+        document.getElementById('stat-ath').textContent = '-';
+      } else if (category === 'bonds') {
+        document.getElementById('stat-mcap').textContent = asset.yield;
+        document.getElementById('stat-volume').textContent = asset.duration;
+        document.getElementById('stat-supply').textContent = asset.rating;
+        document.getElementById('stat-ath').textContent = '-';
+      }
+      
+      document.getElementById('chart-modal').classList.remove('hidden');
+      
+      // Load TradingView widget
+      setTimeout(() => loadTradingViewWidget(asset.tvSymbol), 100);
+    }
+
+    function loadTradingViewWidget(symbol) {
+      const container = document.getElementById('tradingview-widget');
+      container.innerHTML = '';
+      
+      tvWidget = new TradingView.widget({
+        autosize: true,
+        symbol: symbol,
+        interval: '60',
+        timezone: 'exchange',
+        theme: 'light',
+        style: '1',
+        locale: 'en',
+        toolbar_bg: '#f1f3f6',
+        enable_publishing: false,
+        hide_top_toolbar: false,
+        hide_legend: false,
+        save_image: false,
+        container_id: 'tradingview-widget',
+        studies: ['RSI@tv-basicstudies', 'MASimple@tv-basicstudies'],
+        show_popup_button: true,
+        popup_width: '1000',
+        popup_height: '650'
+      });
+    }
+
+    function closeChartModal() {
+      document.getElementById('chart-modal').classList.add('hidden');
+      if (tvWidget) {
+        tvWidget = null;
+      }
+    }
+
+    function openTradeFromChart() {
+      if (currentAsset) {
+        window.location.href = `my-trades.html?asset=${currentAsset.symbol}`;
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem('elitestockoptions_user');
+      window.location.href = '../index.html';
+    }
+
+    // Search functionality
+    document.getElementById('search-input').addEventListener('input', function(e) {
+      const search = e.target.value.toLowerCase();
+      const rows = document.querySelectorAll('.asset-row');
+      
+      rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(search) ? '' : 'none';
+      });
+    });
+
+    // Initialize
+    renderTable('crypto');
+
+    // Simulate real-time price updates
+    setInterval(() => {
+      Object.keys(assets).forEach(category => {
+        assets[category].forEach(asset => {
+          const change = (Math.random() - 0.5) * 0.001;
+          asset.price = asset.price * (1 + change);
+        });
+      });
+      
+      // Update visible prices
+      document.querySelectorAll('.asset-row').forEach(row => {
+        if (row.style.display !== 'none') {
+          const priceCell = row.querySelector('td:nth-child(2)');
+          if (priceCell) {
+            const currentPrice = parseFloat(priceCell.textContent.replace(/[$,]/g, ''));
+            const newPrice = currentPrice * (1 + (Math.random() - 0.5) * 0.001);
+            priceCell.textContent = '$' + newPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            priceCell.parentElement.classList.add(Math.random() > 0.5 ? 'flash-up' : 'flash-down');
+            setTimeout(() => priceCell.parentElement.classList.remove('flash-up', 'flash-down'), 500);
+          }
+        }
+      });
+    }, 3000);
+  </script>
+
+  <script>
+    // More-menu toggle
+    document.addEventListener('click', function(e) {
+      const btn = document.getElementById('more-menu-btn');
+      const menu = document.getElementById('more-menu');
+      if (!btn || !menu) return;
+
+      if (btn.contains(e.target)) {
+        menu.classList.toggle('hidden');
+      } else if (!menu.contains(e.target)) {
+        menu.classList.add('hidden');
+      }
+    });
+
+    // Keep sidebar active style stable: ensure active link has fixed visual (no layout shifts)
+    (function(){
+      const active = document.querySelector('.sidebar-link.active');
+      if(active) active.style.position = 'relative';
+    })();
+  </script>
+
+<script>
+// Mobile sidebar slide-in/out (no layout reflow)
+document.addEventListener('DOMContentLoaded', function() {
+  const sidebar = document.getElementById('sidebar');
+  const openBtn = document.getElementById('mobile-menu-btn');
+
+  function createOverlay() {
+    let ov = document.querySelector('.sidebar-overlay');
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.className = 'sidebar-overlay fixed inset-0 bg-black/50 z-30';
+      ov.addEventListener('click', closeSidebar);
+      document.body.appendChild(ov);
+    }
+    return ov;
+  }
+
+  window.openSidebar = function() {
+    if (!sidebar) return;
+    sidebar.classList.remove('-translate-x-full');
+    sidebar.classList.add('translate-x-0');
+    createOverlay();
+
+    // Lock scroll by hiding overflow and compensating for scrollbar width to avoid layout shift
+    const scrollBarWidth = window.innerWidth - document.documentElement.clientWidth;
+    if (scrollBarWidth > 0) {
+      document.documentElement.style.paddingRight = scrollBarWidth + 'px';
+    }
+    document.documentElement.classList.add('no-scroll');
+    document.body.classList.add('no-scroll');
+  }
+
+  window.closeSidebar = function() {
+    if (!sidebar) return;
+    sidebar.classList.remove('translate-x-0');
+    sidebar.classList.add('-translate-x-full');
+    const ov = document.querySelector('.sidebar-overlay');
+    if (ov) ov.remove();
+
+    // Restore scrolling
+    document.documentElement.classList.remove('no-scroll');
+    document.body.classList.remove('no-scroll');
+    document.documentElement.style.paddingRight = '';
+  }
+
+  // Close when a sidebar link is clicked (mobile)
+  document.querySelectorAll('#sidebar a').forEach(link => {
+    link.addEventListener('click', function() {
+      if (window.innerWidth < 1024) closeSidebar();
+    });
+  });
+});
+</script>
+
+<script src="../public/js/back-button.js"></script>
+<script src="../public/js/theme.js"></script>
+<script src="../public/js/smartsupp.js"></script>
+</body>
+</html>

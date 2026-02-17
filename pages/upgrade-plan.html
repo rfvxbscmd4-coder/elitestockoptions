@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Upgrade Plan - ELITESTOCKOPTIONS</title>
+  <link rel="icon" type="image/png" href="../public/logo.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="../public/js/supabase-config.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#4f46e5',
+            secondary: '#7c3aed',
+            accent: '#06b6d4',
+            bronze: '#cd7f32',
+            silver: '#c0c0c0',
+            gold: '#ffd700',
+            diamond: '#b9f2ff'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .gradient-bg { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); }
+    .sidebar-link { transition: all 0.3s ease; }
+    .sidebar-link:hover, .sidebar-link.active {
+      background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+      color: white;
+    }
+    .plan-card {
+      transition: all 0.3s ease;
+    }
+    .plan-card:hover {
+      transform: translateY(-10px);
+    }
+    .plan-card.popular {
+      border-color: #4f46e5;
+      box-shadow: 0 20px 50px -10px rgba(79, 70, 229, 0.3);
+    }
+    .bronze-gradient { background: linear-gradient(135deg, #cd7f32 0%, #8b4513 100%); }
+    .silver-gradient { background: linear-gradient(135deg, #c0c0c0 0%, #808080 100%); }
+    .gold-gradient { background: linear-gradient(135deg, #ffd700 0%, #daa520 100%); }
+    .diamond-gradient { background: linear-gradient(135deg, #b9f2ff 0%, #00bfff 100%); }
+    .premium-gradient { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #06b6d4 100%); }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <div class="flex h-screen">
+    <!-- Sidebar -->
+    <aside class="w-64 bg-white shadow-xl hidden lg:flex flex-col">
+      <div class="p-6 border-b">
+        <div class="flex items-center space-x-3">
+          <img src="../public/logo.png" alt="ELITESTOCKOPTIONS" class="w-10 h-10 object-contain">
+          <span class="font-bold text-lg text-gray-900">ELITESTOCK</span>
+        </div>
+      </div>
+      <nav class="flex-1 overflow-y-auto py-4">
+        <div class="px-4 mb-2 text-xs font-semibold text-gray-400 uppercase">Main</div>
+        <a href="dashboard.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-home w-5"></i><span>Dashboard</span>
+        </a>
+        <a href="markets.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-chart-bar w-5"></i><span>Markets</span>
+        </a>
+        <div class="px-4 mt-6 mb-2 text-xs font-semibold text-gray-400 uppercase">Account</div>
+        <a href="upgrade-plan.html" class="sidebar-link active flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl">
+          <i class="fas fa-crown w-5"></i><span>Upgrade Plan</span>
+        </a>
+        <a href="settings.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-cog w-5"></i><span>Settings</span>
+        </a>
+      </nav>
+      <div class="p-4 border-t">
+        <button onclick="logout()" class="flex items-center space-x-3 px-4 py-3 w-full rounded-xl text-red-600 hover:bg-red-50 transition-colors">
+          <i class="fas fa-sign-out-alt w-5"></i><span>Logout</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 overflow-y-auto">
+      <header class="bg-white shadow-sm sticky top-0 z-30">
+        <div class="flex items-center justify-between px-6 py-4">
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900">Upgrade Your Plan</h1>
+            <p class="text-gray-500 text-sm">Unlock premium features and higher limits</p>
+          </div>
+          <div class="text-right">
+            <p class="text-sm text-gray-500">Current Plan</p>
+            <p class="text-xl font-bold" id="currentPlanDisplay">Bronze</p>
+          </div>
+        </div>
+      </header>
+
+      <div class="p-6">
+        <!-- Plans Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+          <!-- Bronze -->
+          <div class="plan-card bg-white rounded-2xl p-6 border-2 border-gray-100 relative">
+            <div class="text-center mb-6">
+              <div class="w-16 h-16 bronze-gradient rounded-full flex items-center justify-center mx-auto mb-4">
+                <i class="fas fa-medal text-white text-2xl"></i>
+              </div>
+              <h3 class="text-xl font-bold text-gray-900">Bronze</h3>
+              <p class="text-gray-500">Free</p>
+            </div>
+            <ul class="space-y-3 mb-6 text-sm">
+              <li class="flex items-center text-gray-600"><i class="fas fa-check text-green-500 mr-2"></i>Basic trading</li>
+              <li class="flex items-center text-gray-600"><i class="fas fa-check text-green-500 mr-2"></i>Market access</li>
+              <li class="flex items-center text-gray-600"><i class="fas fa-check text-green-500 mr-2"></i>Email support</li>
+              <li class="flex items-center text-gray-400"><i class="fas fa-times mr-2"></i>Loan access</li>
+              <li class="flex items-center text-gray-400"><i class="fas fa-times mr-2"></i>Copy trading</li>
+            </ul>
+            <button disabled class="w-full py-3 bg-gray-100 text-gray-400 rounded-xl font-medium cursor-not-allowed">Current Plan</button>
+          </div>
+
+          <!-- Silver -->
+          <div class="plan-card bg-white rounded-2xl p-6 border-2 border-gray-100 relative">
+            <div class="text-center mb-6">
+              <div class="w-16 h-16 silver-gradient rounded-full flex items-center justify-center mx-auto mb-4">
+                <i class="fas fa-medal text-white text-2xl"></i>
+              </div>
+              <h3 class="text-xl font-bold text-gray-900">Silver</h3>
+              <p class="text-gray-500">$10,000 deposit</p>
+            </div>
+            <ul class="space-y-3 mb-6 text-sm">
+              <li class="flex items-center text-gray-600"><i class="fas fa-check text-green-500 mr-2"></i>All Bronze features</li>
+              <li class="flex items-center text-gray-600"><i class="fas fa-check text-green-500 mr-2"></i>Priority support</li>
+              <li class="flex items-center text-gray-600"><i class="fas fa-check text-green-500 mr-2"></i>Advanced charts</li>
+              <li class="flex items-center text-gray-600"><i class="fas fa-check text-green-500 mr-2"></i>Lower fees</li>
+              <li class="flex items-center text-gray-400"><i class="fas fa-times mr-2"></i>Loan access</li>
+            </ul>
+            <button onclick="upgradePlan('Silver', 10000)" id="btn-silver" class="w-full py-3 gradient-bg text-white rounded-xl font-medium hover:opacity-90">Upgrade</button>
+          </div>
+
+          <!-- Gold -->
+          <div class="plan-card bg-white rounded-2xl p-6 border-2 border-gray-100 relative">
+            <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-500 text-white text-xs px-3 py-1 rounded-full">Popular</div>
+            <div class="text-center mb-6">
+              <div class="w-16 h-16 gold-gradient rounded-full flex items-center justify-center mx-auto mb-4">
+                <i class="fas fa-crown text-white text-2xl"></i>
+              </div>
+              <h3 class="text-xl font-bold text-gray-900">Gold</h3>
+              <p class="text-gray-500">$30,000 deposit</p>
+            </div>
+            <ul class="space-y-3 mb-6 text-sm">
+              <li class="flex items-center text-gray-600"><i class="fas fa-check text-green-500 mr-2"></i>All Silver features</li>
+              <li class="flex items-center text-gray-600"><i class="fas fa-check text-green-500 mr-2"></i>Loan access</li>
+              <li class="flex items-center text-gray-600"><i class="fas fa-check text-green-500 mr-2"></i>Copy trading</li>
+              <li class="flex items-center text-gray-600"><i class="fas fa-check text-green-500 mr-2"></i>VIP support</li>
+              <li class="flex items-center text-gray-600"><i class="fas fa-check text-green-500 mr-2"></i>API access</li>
+            </ul>
+            <button onclick="upgradePlan('Gold', 30000)" id="btn-gold" class="w-full py-3 gradient-bg text-white rounded-xl font-medium hover:opacity-90">Upgrade</button>
+          </div>
+
+          <!-- Diamond -->
+          <div class="plan-card bg-white rounded-2xl p-6 border-2 border-gray-100 relative">
+            <div class="text-center mb-6">
+              <div class="w-16 h-16 diamond-gradient rounded-full flex items-center justify-center mx-auto mb-4">
+                <i class="fas fa-gem text-white text-2xl"></i>
+              </div>
+              <h3 class="text-xl font-bold text-gray-900">Diamond</h3>
+              <p class="text-gray-500">$50,000 deposit</p>
+            </div>
+            <ul class="space-y-3 mb-6 text-sm">
+              <li class="flex items-center text-gray-600"><i class="fas fa-check text-green-500 mr-2"></i>All Gold features</li>
+              <li class="flex items-center text-gray-600"><i class="fas fa-check text-green-500 mr-2"></i>Higher loan limits</li>
+              <li class="flex items-center text-gray-600"><i class="fas fa-check text-green-500 mr-2"></i>Personal manager</li>
+              <li class="flex items-center text-gray-600"><i class="fas fa-check text-green-500 mr-2"></i>Zero fees</li>
+              <li class="flex items-center text-gray-600"><i class="fas fa-check text-green-500 mr-2"></i>Early access</li>
+            </ul>
+            <button onclick="upgradePlan('Diamond', 50000)" id="btn-diamond" class="w-full py-3 gradient-bg text-white rounded-xl font-medium hover:opacity-90">Upgrade</button>
+          </div>
+
+          <!-- Premium -->
+          <div class="plan-card bg-white rounded-2xl p-6 border-2 border-gray-100 relative">
+            <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs px-3 py-1 rounded-full">Elite</div>
+            <div class="text-center mb-6">
+              <div class="w-16 h-16 premium-gradient rounded-full flex items-center justify-center mx-auto mb-4">
+                <i class="fas fa-star text-white text-2xl"></i>
+              </div>
+              <h3 class="text-xl font-bold text-gray-900">Premium</h3>
+              <p class="text-gray-500">$100,000 deposit</p>
+            </div>
+            <ul class="space-y-3 mb-6 text-sm">
+              <li class="flex items-center text-gray-600"><i class="fas fa-check text-green-500 mr-2"></i>All Diamond features</li>
+              <li class="flex items-center text-gray-600"><i class="fas fa-check text-green-500 mr-2"></i>Unlimited loans</li>
+              <li class="flex items-center text-gray-600"><i class="fas fa-check text-green-500 mr-2"></i>Custom solutions</li>
+              <li class="flex items-center text-gray-600"><i class="fas fa-check text-green-500 mr-2"></i>24/7 phone support</li>
+              <li class="flex items-center text-gray-600"><i class="fas fa-check text-green-500 mr-2"></i>Exclusive events</li>
+            </ul>
+            <button onclick="upgradePlan('Premium', 100000)" id="btn-premium" class="w-full py-3 gradient-bg text-white rounded-xl font-medium hover:opacity-90">Upgrade</button>
+          </div>
+        </div>
+
+        <!-- Upgrade History -->
+        <div class="mt-12">
+          <h2 class="text-lg font-bold text-gray-900 mb-4">Plan History</h2>
+          <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="w-full">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Date</th>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">From</th>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">To</th>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="px-6 py-4">${new Date(currentUser.createdAt || Date.now()).toLocaleDateString()}</td>
+                    <td class="px-6 py-4">-</td>
+                    <td class="px-6 py-4 font-medium">${currentUser.plan || 'Bronze'}</td>
+                    <td class="px-6 py-4"><span class="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">Active</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Upgrade Modal -->
+  <div id="upgradeModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden items-center justify-center">
+    <div class="bg-white rounded-2xl w-full max-w-md mx-4 p-6">
+      <div class="text-center mb-6">
+        <div class="w-16 h-16 gradient-bg rounded-full flex items-center justify-center mx-auto mb-4">
+          <i class="fas fa-arrow-up text-white text-2xl"></i>
+        </div>
+        <h3 class="text-xl font-bold text-gray-900">Upgrade to <span id="upgradePlanName">Gold</span></h3>
+        <p class="text-gray-600 mt-2">Required deposit: $<span id="upgradeAmount">30,000</span></p>
+      </div>
+      <div class="bg-amber-50 rounded-xl p-4 mb-6">
+        <p class="text-sm text-amber-800">
+          <i class="fas fa-info-circle mr-2"></i>
+          Your plan will be upgraded after admin verification of your deposit.
+        </p>
+      </div>
+      <div class="flex space-x-3">
+        <button onclick="closeUpgradeModal()" class="flex-1 py-3 border border-gray-200 rounded-xl font-medium hover:bg-gray-50">Cancel</button>
+        <button onclick="confirmUpgrade()" class="flex-1 py-3 gradient-bg text-white rounded-xl font-medium hover:opacity-90">Proceed</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentUser = JSON.parse(localStorage.getItem('elitestockoptions_user') || localStorage.getItem('eso_currentUser'));
+
+    // Sync balance from shared users storage (new + legacy keys)
+    const allUsers = JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
+    const serverUser = allUsers.find(u => u.id === currentUser.id);
+    if (serverUser) {
+      currentUser.balance = serverUser.balance || 0;
+      currentUser.availableCash = serverUser.availableCash || 0;
+      currentUser.profitsBalance = serverUser.profitsBalance || 0;
+      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+    }
+    if (!currentUser) {
+      alert('Please login first');
+      window.location.href = 'login.html';
+    }
+
+    let selectedUpgrade = { plan: '', amount: 0 };
+
+    function initUpgradePlan() {
+      document.getElementById('currentPlanDisplay').textContent = currentUser.plan || 'Bronze';
+      updateButtonStates();
+    }
+
+    function updateButtonStates() {
+      const plans = ['Bronze', 'Silver', 'Gold', 'Diamond', 'Premium'];
+      const currentIndex = plans.indexOf(currentUser.plan || 'Bronze');
+      
+      plans.forEach((plan, index) => {
+        const btn = document.getElementById('btn-' + plan.toLowerCase());
+        if (btn) {
+          if (index <= currentIndex) {
+            btn.disabled = true;
+            btn.textContent = index === currentIndex ? 'Current Plan' : 'Owned';
+            btn.classList.add('bg-gray-100', 'text-gray-400');
+            btn.classList.remove('gradient-bg', 'text-white');
+          }
+        }
+      });
+    }
+
+    function upgradePlan(plan, amount) {
+      selectedUpgrade = { plan, amount };
+      document.getElementById('upgradePlanName').textContent = plan;
+      document.getElementById('upgradeAmount').textContent = amount.toLocaleString();
+      document.getElementById('upgradeModal').classList.remove('hidden');
+      document.getElementById('upgradeModal').classList.add('flex');
+    }
+
+    function closeUpgradeModal() {
+      document.getElementById('upgradeModal').classList.add('hidden');
+      document.getElementById('upgradeModal').classList.remove('flex');
+    }
+
+    function confirmUpgrade() {
+      // Create upgrade request
+      const upgradeRequest = {
+        id: Date.now().toString(),
+        userId: currentUser.id,
+        fromPlan: currentUser.plan || 'Bronze',
+        toPlan: selectedUpgrade.plan,
+        requiredDeposit: selectedUpgrade.amount,
+        status: 'pending',
+        createdAt: new Date().toISOString()
+      };
+
+      let upgrades = JSON.parse(localStorage.getItem('eso_upgrades') || '[]');
+      upgrades.push(upgradeRequest);
+      localStorage.setItem('eso_upgrades', JSON.stringify(upgrades));
+
+      alert('Upgrade request submitted! Please make a deposit of $' + selectedUpgrade.amount.toLocaleString() + ' to complete the upgrade.');
+      closeUpgradeModal();
+      window.location.href = 'deposit.html';
+    }
+
+    function logout() {
+      localStorage.removeItem('elitestockoptions_user');
+      window.location.href = '../index.html';
+    }
+
+    initUpgradePlan();
+  </script>
+<script src="../public/js/back-button.js"></script>
+<script src="../public/js/theme.js"></script>
+<script src="../public/js/smartsupp.js"></script>
+</body>
+</html>

@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Trades - ELITESTOCKOPTIONS</title>
+  <link rel="icon" type="image/png" href="../public/logo.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="../public/js/supabase-config.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://s3.tradingview.com/tv.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#4f46e5',
+            secondary: '#7c3aed',
+            accent: '#06b6d4',
+            success: '#10b981',
+            danger: '#ef4444'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .gradient-bg { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); }
+    .sidebar-link { transition: all 0.3s ease; }
+    .sidebar-link:hover, .sidebar-link.active {
+      background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+      color: white;
+    }
+    .trade-tab { transition: all 0.3s ease; }
+    .trade-tab.active {
+      background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+      color: white;
+    }
+    .order-type-btn {
+      transition: all 0.3s ease;
+    }
+    .order-type-btn.active {
+      background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+      color: white;
+      border-color: transparent;
+    }
+    .trade-btn {
+      transition: all 0.3s ease;
+    }
+    .trade-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2);
+    }
+    .long-btn { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
+    .short-btn { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
+    .asset-cat-btn {
+      transition: all 0.3s ease;
+    }
+    .asset-cat-btn.active {
+      background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+      color: white;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <div class="flex h-screen">
+    <!-- Sidebar -->
+    <aside class="w-64 bg-white shadow-xl hidden lg:flex flex-col">
+      <div class="p-6 border-b">
+        <div class="flex items-center space-x-3">
+          <img src="../public/logo.png" alt="ELITESTOCKOPTIONS" class="w-10 h-10 object-contain">
+          <span class="font-bold text-lg text-gray-900">ELITESTOCK</span>
+        </div>
+      </div>
+      <nav class="flex-1 overflow-y-auto py-4">
+        <div class="px-4 mb-2 text-xs font-semibold text-gray-400 uppercase">Main</div>
+        <a href="dashboard.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-home w-5"></i><span>Dashboard</span>
+        </a>
+        <a href="markets.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-chart-bar w-5"></i><span>Markets</span>
+        </a>
+        <a href="my-trades.html" class="sidebar-link active flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl">
+          <i class="fas fa-exchange-alt w-5"></i><span>My Trades</span>
+        </a>
+        <div class="px-4 mt-6 mb-2 text-xs font-semibold text-gray-400 uppercase">Finance</div>
+        <a href="deposit.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-arrow-down w-5"></i><span>Deposit</span>
+        </a>
+        <a href="withdrawal.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-arrow-up w-5"></i><span>Withdraw</span>
+        </a>
+        <a href="transactions.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-list w-5"></i><span>Transactions</span>
+        </a>
+        <div class="px-4 mt-6 mb-2 text-xs font-semibold text-gray-400 uppercase">Account</div>
+        <a href="settings.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-cog w-5"></i><span>Settings</span>
+        </a>
+      </nav>
+      <div class="p-4 border-t">
+        <button onclick="logout()" class="flex items-center space-x-3 px-4 py-3 w-full rounded-xl text-red-600 hover:bg-red-50 transition-colors">
+          <i class="fas fa-sign-out-alt w-5"></i><span>Logout</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 overflow-y-auto">
+      <header class="bg-white shadow-sm sticky top-0 z-30">
+        <div class="flex items-center justify-between px-6 py-4">
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900">My Trades</h1>
+            <p class="text-gray-500 text-sm">Manage your trading positions</p>
+          </div>
+          <button onclick="openNewTradeModal()" class="gradient-bg text-white px-4 py-2 rounded-xl font-medium hover:opacity-90">
+            <i class="fas fa-plus mr-2"></i>New Trade
+          </button>
+        </div>
+      </header>
+
+      <div class="p-6">
+        <!-- Trade Tabs -->
+        <div class="flex space-x-2 mb-6">
+          <button onclick="switchTradeTab('open')" id="trade-tab-open" class="trade-tab active px-6 py-2 rounded-xl font-medium">Open Trades</button>
+          <button onclick="switchTradeTab('closed')" id="trade-tab-closed" class="trade-tab px-6 py-2 rounded-xl font-medium text-gray-600 hover:bg-gray-100">Closed Trades</button>
+          <button onclick="switchTradeTab('history')" id="trade-tab-history" class="trade-tab px-6 py-2 rounded-xl font-medium text-gray-600 hover:bg-gray-100">History</button>
+        </div>
+
+        <!-- Open Trades -->
+        <div id="trades-open" class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Asset</th>
+                  <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Type</th>
+                  <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Amount</th>
+                  <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Entry Price</th>
+                  <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Current Price</th>
+                  <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Take Profit</th>
+                  <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Stop Loss</th>
+                  <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">P&L</th>
+                  <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="openTradesTable" class="divide-y divide-gray-100">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+          </div>
+          <div id="noOpenTrades" class="p-8 text-center text-gray-500">
+            <i class="fas fa-chart-line text-4xl mb-4 text-gray-300"></i>
+            <p>No open trades</p>
+            <button onclick="openNewTradeModal()" class="mt-4 text-primary hover:underline">Place your first trade</button>
+          </div>
+        </div>
+
+        <!-- Closed Trades -->
+        <div id="trades-closed" class="hidden bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Asset</th>
+                  <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Type</th>
+                  <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Amount</th>
+                  <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Entry</th>
+                  <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Exit</th>
+                  <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Closed Date</th>
+                  <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Result</th>
+                </tr>
+              </thead>
+              <tbody id="closedTradesTable" class="divide-y divide-gray-100">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- History -->
+        <div id="trades-history" class="hidden bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Date</th>
+                  <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Action</th>
+                  <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Asset</th>
+                  <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Details</th>
+                  <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Amount</th>
+                </tr>
+              </thead>
+              <tbody id="historyTable" class="divide-y divide-gray-100">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- New Trade Modal -->
+  <div id="newTradeModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden items-center justify-center">
+    <div class="bg-white rounded-2xl w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
+      <div class="p-6 border-b flex items-center justify-between">
+        <h2 class="text-xl font-bold text-gray-900">Place New Trade</h2>
+        <button onclick="closeNewTradeModal()" class="p-2 hover:bg-gray-100 rounded-lg">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Chart -->
+        <div>
+          <div class="bg-gray-50 rounded-xl p-4 mb-4">
+            <!-- Asset Category Tabs -->
+            <div class="flex space-x-2 mb-4 overflow-x-auto">
+              <button onclick="switchAssetCategory('crypto')" id="cat-crypto" class="asset-cat-btn active px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap">Crypto</button>
+              <button onclick="switchAssetCategory('stocks')" id="cat-stocks" class="asset-cat-btn px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap text-gray-600 bg-gray-100">Stocks</button>
+              <button onclick="switchAssetCategory('futures')" id="cat-futures" class="asset-cat-btn px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap text-gray-600 bg-gray-100">Futures</button>
+              <button onclick="switchAssetCategory('bonds')" id="cat-bonds" class="asset-cat-btn px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap text-gray-600 bg-gray-100">Bonds</button>
+              <button onclick="switchAssetCategory('etfs')" id="cat-etfs" class="asset-cat-btn px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap text-gray-600 bg-gray-100">ETFs</button>
+            </div>
+            
+            <div class="flex items-center space-x-4 mb-4">
+              <select id="tradeSymbol" class="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-primary" onchange="updateChartSymbol()">
+                <!-- Populated by JS based on category -->
+              </select>
+              <span class="text-2xl font-bold text-gray-900" id="currentPrice">$43,250.50</span>
+            </div>
+            <div id="tradeChart" class="h-64"></div>
+          </div>
+        </div>
+
+        <!-- Trade Form -->
+        <div>
+          <!-- Order Type -->
+          <div class="flex space-x-2 mb-4">
+            <button onclick="setOrderType('market')" id="order-market" class="order-type-btn active flex-1 py-2 border border-gray-200 rounded-lg font-medium">Market</button>
+            <button onclick="setOrderType('limit')" id="order-limit" class="order-type-btn flex-1 py-2 border border-gray-200 rounded-lg font-medium">Limit</button>
+            <button onclick="setOrderType('stop')" id="order-stop" class="order-type-btn flex-1 py-2 border border-gray-200 rounded-lg font-medium">Stop</button>
+          </div>
+
+          <!-- Limit Price (hidden for market) -->
+          <div id="limitPriceField" class="hidden mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Limit Price</label>
+            <input type="number" id="limitPrice" step="0.01" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary">
+          </div>
+
+          <!-- Investment Amount -->
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Investment Amount (USD)</label>
+            <input type="number" id="investmentAmount" min="10" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary" placeholder="Enter amount">
+            <p class="text-xs text-gray-500 mt-1">Available: $<span id="availableBalance">0.00</span></p>
+          </div>
+
+          <!-- Leverage -->
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Leverage</label>
+            <input type="range" id="leverage" min="1" max="100" value="1" class="w-full" oninput="updateLeverageDisplay()">
+            <div class="flex justify-between text-sm text-gray-500 mt-1">
+              <span>1x</span>
+              <span id="leverageValue" class="font-medium text-primary">1x</span>
+              <span>100x</span>
+            </div>
+          </div>
+
+          <!-- Take Profit -->
+          <div class="mb-4">
+            <div class="flex items-center justify-between mb-2">
+              <label class="text-sm font-medium text-gray-700">Take Profit</label>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="tpEnabled" checked class="sr-only peer" onchange="toggleTP()">
+                <div class="w-9 h-5 bg-gray-200 peer-focus:ring-4 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+              </label>
+            </div>
+            <div id="tpFields" class="grid grid-cols-2 gap-3">
+              <div>
+                <input type="number" id="tpPrice" step="0.01" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="TP Price" oninput="calculateRR()">
+              </div>
+              <div>
+                <input type="number" id="tpPercent" step="0.1" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="% Profit" oninput="calculateTPFromPercent()">
+              </div>
+            </div>
+          </div>
+
+          <!-- Stop Loss -->
+          <div class="mb-4">
+            <div class="flex items-center justify-between mb-2">
+              <label class="text-sm font-medium text-gray-700">Stop Loss</label>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="slEnabled" checked class="sr-only peer" onchange="toggleSL()">
+                <div class="w-9 h-5 bg-gray-200 peer-focus:ring-4 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+              </label>
+            </div>
+            <div id="slFields" class="grid grid-cols-2 gap-3">
+              <div>
+                <input type="number" id="slPrice" step="0.01" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="SL Price" oninput="calculateRR()">
+              </div>
+              <div>
+                <input type="number" id="slPercent" step="0.1" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="% Loss" oninput="calculateSLFromPercent()">
+              </div>
+            </div>
+          </div>
+
+          <!-- Risk/Reward Display -->
+          <div class="bg-gray-50 rounded-xl p-4 mb-4">
+            <div class="flex items-center justify-between">
+              <span class="text-sm text-gray-600">Risk/Reward Ratio</span>
+              <span class="text-lg font-bold" id="rrRatio">--</span>
+            </div>
+            <div class="flex items-center justify-between mt-2">
+              <span class="text-sm text-gray-600">Potential Profit</span>
+              <span class="text-sm font-medium text-green-600" id="potentialProfit">$0.00</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-sm text-gray-600">Potential Loss</span>
+              <span class="text-sm font-medium text-red-600" id="potentialLoss">$0.00</span>
+            </div>
+          </div>
+
+          <!-- Trade Buttons -->
+          <div class="grid grid-cols-2 gap-4">
+            <button type="button" onclick="placeTrade('long')" class="trade-btn long-btn text-white py-4 rounded-xl font-bold text-lg">
+              <i class="fas fa-arrow-up mr-2"></i>BUY / LONG
+            </button>
+            <button type="button" onclick="placeTrade('short')" class="trade-btn short-btn text-white py-4 rounded-xl font-bold text-lg">
+              <i class="fas fa-arrow-down mr-2"></i>SELL / SHORT
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentUser = JSON.parse(localStorage.getItem('elitestockoptions_user') || localStorage.getItem('eso_currentUser'));
+
+    if (!currentUser || !currentUser.id) {
+      window.location.href = 'login.html';
+    }
+
+    // Sync balance from shared users storage (new + legacy keys)
+    const allUsers = JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
+    const serverUser = allUsers.find(u => u.id === currentUser.id);
+    if (serverUser) {
+      currentUser.balance = serverUser.balance || 0;
+      currentUser.availableCash = serverUser.availableCash || 0;
+      currentUser.profitsBalance = serverUser.profitsBalance || 0;
+      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+    }
+    let orderType = 'market';
+    let currentPrice = 43250.50;
+
+    async function syncRemoteTradesToLocal() {
+      if (!(window.ESO_DB && window.ESO_DB.isReady())) return;
+      const remoteTrades = await window.ESO_DB.getTrades();
+      if (Array.isArray(remoteTrades)) {
+        localStorage.setItem('eso_trades', JSON.stringify(remoteTrades));
+        localStorage.setItem('elitestockoptions_trades', JSON.stringify(remoteTrades));
+      }
+    }
+
+    async function initTrades() {
+      await syncRemoteTradesToLocal();
+      document.getElementById('availableBalance').textContent = (currentUser.availableCash || 0).toFixed(2);
+      
+      // Initialize asset category dropdown
+      populateSymbolDropdown();
+      
+      loadOpenTrades();
+      loadClosedTrades();
+      loadHistory();
+      initTradeChart();
+    }
+
+    function initTradeChart() {
+      new TradingView.widget({
+        width: "100%",
+        height: 250,
+        symbol: "BINANCE:BTCUSDT",
+        interval: "15",
+        timezone: "Etc/UTC",
+        theme: "light",
+        style: "1",
+        locale: "en",
+        enable_publishing: false,
+        hide_top_toolbar: true,
+        hide_legend: true,
+        save_image: false,
+        container_id: "tradeChart"
+      });
+    }
+
+    // Asset categories data
+    const assetSymbols = {
+      crypto: [
+        { value: 'BINANCE:BTCUSDT', label: 'BTC/USDT', price: 43250 },
+        { value: 'BINANCE:ETHUSDT', label: 'ETH/USDT', price: 2580 },
+        { value: 'BINANCE:SOLUSDT', label: 'SOL/USDT', price: 98 },
+        { value: 'BINANCE:BNBUSDT', label: 'BNB/USDT', price: 315 },
+        { value: 'BINANCE:XRPUSDT', label: 'XRP/USDT', price: 0.62 },
+        { value: 'BINANCE:ADAUSDT', label: 'ADA/USDT', price: 0.48 },
+        { value: 'BINANCE:DOGEUSDT', label: 'DOGE/USDT', price: 0.089 },
+        { value: 'BINANCE:DOTUSDT', label: 'DOT/USDT', price: 7.25 },
+        { value: 'BINANCE:MATICUSDT', label: 'MATIC/USDT', price: 0.72 },
+        { value: 'BINANCE:AVAXUSDT', label: 'AVAX/USDT', price: 36.5 },
+        { value: 'BINANCE:LINKUSDT', label: 'LINK/USDT', price: 14.8 },
+        { value: 'BINANCE:LTCUSDT', label: 'LTC/USDT', price: 72 },
+        { value: 'BINANCE:UNIUSDT', label: 'UNI/USDT', price: 7.15 },
+        { value: 'BINANCE:ATOMUSDT', label: 'ATOM/USDT', price: 9.8 },
+        { value: 'BINANCE:ETCUSDT', label: 'ETC/USDT', price: 25.4 }
+      ],
+      stocks: [
+        { value: 'NASDAQ:AAPL', label: 'AAPL - Apple', price: 185.92 },
+        { value: 'NASDAQ:MSFT', label: 'MSFT - Microsoft', price: 420.55 },
+        { value: 'NASDAQ:GOOGL', label: 'GOOGL - Alphabet', price: 175.98 },
+        { value: 'NASDAQ:AMZN', label: 'AMZN - Amazon', price: 178.35 },
+        { value: 'NASDAQ:TSLA', label: 'TSLA - Tesla', price: 248.42 },
+        { value: 'NASDAQ:META', label: 'META - Meta', price: 505.68 },
+        { value: 'NASDAQ:NVDA', label: 'NVDA - NVIDIA', price: 875.28 },
+        { value: 'NASDAQ:NFLX', label: 'NFLX - Netflix', price: 628.75 },
+        { value: 'NASDAQ:AMD', label: 'AMD', price: 162.45 },
+        { value: 'NASDAQ:INTC', label: 'INTC - Intel', price: 31.25 },
+        { value: 'NYSE:JPM', label: 'JPM - JPMorgan', price: 198.75 },
+        { value: 'NYSE:V', label: 'V - Visa', price: 275.42 },
+        { value: 'NYSE:WMT', label: 'WMT - Walmart', price: 168.92 },
+        { value: 'NYSE:DIS', label: 'DIS - Disney', price: 112.35 },
+        { value: 'NYSE:KO', label: 'KO - Coca-Cola', price: 62.48 }
+      ],
+      futures: [
+        { value: 'CME_MINI:ES1!', label: 'ES - S&P 500 E-mini', price: 5250 },
+        { value: 'CME_MINI:NQ1!', label: 'NQ - Nasdaq E-mini', price: 18500 },
+        { value: 'CME:GC1!', label: 'GC - Gold', price: 2345 },
+        { value: 'CME:SI1!', label: 'SI - Silver', price: 27.85 },
+        { value: 'CME:CL1!', label: 'CL - Crude Oil', price: 78.45 },
+        { value: 'CME:NG1!', label: 'NG - Natural Gas', price: 2.85 },
+        { value: 'CBOT:ZC1!', label: 'ZC - Corn', price: 445 },
+        { value: 'CBOT:ZW1!', label: 'ZW - Wheat', price: 585 },
+        { value: 'CBOT:ZS1!', label: 'ZS - Soybeans', price: 1185 },
+        { value: 'CME:6E1!', label: '6E - Euro FX', price: 1.085 },
+        { value: 'CME:6J1!', label: '6J - Japanese Yen', price: 0.0067 },
+        { value: 'CME:6B1!', label: '6B - British Pound', price: 1.265 },
+        { value: 'CME:BTC1!', label: 'BTC - Bitcoin Futures', price: 43250 },
+        { value: 'CME:ETH1!', label: 'ETH - Ethereum Futures', price: 2580 },
+        { value: 'NYMEX:RB1!', label: 'RB - Gasoline', price: 2.42 }
+      ],
+      bonds: [
+        { value: 'TVC:US10Y', label: 'US 10Y Treasury', price: 4.42 },
+        { value: 'TVC:US30Y', label: 'US 30Y Treasury', price: 4.55 },
+        { value: 'TVC:US05Y', label: 'US 5Y Treasury', price: 4.28 },
+        { value: 'TVC:US02Y', label: 'US 2Y Treasury', price: 4.72 },
+        { value: 'TVC:DE10Y', label: 'Germany 10Y Bund', price: 2.45 },
+        { value: 'TVC:UK10Y', label: 'UK 10Y Gilt', price: 4.18 },
+        { value: 'TVC:JP10Y', label: 'Japan 10Y JGB', price: 0.92 },
+        { value: 'TVC:FR10Y', label: 'France 10Y OAT', price: 2.85 },
+        { value: 'TVC:IT10Y', label: 'Italy 10Y BTP', price: 3.72 },
+        { value: 'TVC:ES10Y', label: 'Spain 10Y Bond', price: 3.25 },
+        { value: 'TVC:AU10Y', label: 'Australia 10Y', price: 4.15 },
+        { value: 'TVC:CA10Y', label: 'Canada 10Y', price: 3.45 },
+        { value: 'TVC:CN10Y', label: 'China 10Y', price: 2.28 },
+        { value: 'TVC:IN10Y', label: 'India 10Y', price: 7.15 },
+        { value: 'TVC:BR10Y', label: 'Brazil 10Y', price: 11.85 }
+      ],
+      etfs: [
+        { value: 'AMEX:SPY', label: 'SPY - S&P 500 ETF', price: 525 },
+        { value: 'AMEX:QQQ', label: 'QQQ - Nasdaq 100', price: 445 },
+        { value: 'AMEX:IWM', label: 'IWM - Russell 2000', price: 205 },
+        { value: 'AMEX:VTI', label: 'VTI - Total Stock', price: 258 },
+        { value: 'AMEX:VOO', label: 'VOO - S&P 500', price: 478 },
+        { value: 'AMEX:VEA', label: 'VEA - Developed Markets', price: 48.5 },
+        { value: 'AMEX:VWO', label: 'VWO - Emerging Markets', price: 42.8 },
+        { value: 'AMEX:BND', label: 'BND - Total Bond', price: 72.5 },
+        { value: 'AMEX:AGG', label: 'AGG - US Aggregate Bond', price: 98.2 },
+        { value: 'AMEX:GLD', label: 'GLD - Gold', price: 218 },
+        { value: 'AMEX:SLV', label: 'SLV - Silver', price: 28.5 },
+        { value: 'AMEX:USO', label: 'USO - Oil', price: 78.5 },
+        { value: 'AMEX:XLF', label: 'XLF - Financials', price: 42.8 },
+        { value: 'AMEX:XLK', label: 'XLK - Technology', price: 215 },
+        { value: 'AMEX:XLE', label: 'XLE - Energy', price: 92.5 },
+        { value: 'AMEX:XLV', label: 'XLV - Healthcare', price: 145 },
+        { value: 'AMEX:XLI', label: 'XLI - Industrials', price: 118 },
+        { value: 'AMEX:XLP', label: 'XLP - Consumer Staples', price: 78 },
+        { value: 'AMEX:XLU', label: 'XLU - Utilities', price: 65 },
+        { value: 'AMEX:ARKK', label: 'ARKK - ARK Innovation', price: 48.5 },
+        { value: 'AMEX:BITO', label: 'BITO - Bitcoin ETF', price: 22.8 },
+        { value: 'AMEX:GBTC', label: 'GBTC - Grayscale Bitcoin', price: 58.5 },
+        { value: 'AMEX:ETHE', label: 'ETHE - Grayscale Ethereum', price: 28.5 },
+        { value: 'AMEX:SOXX', label: 'SOXX - Semiconductor', price: 785 },
+        { value: 'AMEX:SMH', label: 'SMH - VanEck Semiconductor', price: 245 },
+        { value: 'AMEX:IBIT', label: 'IBIT - iShares Bitcoin', price: 38.5 },
+        { value: 'AMEX:FBTC', label: 'FBTC - Fidelity Bitcoin', price: 52.8 },
+        { value: 'AMEX:ETHA', label: 'ETHA - iShares Ethereum', price: 28.5 },
+        { value: 'AMEX:SOL', label: 'SOL - VanEck Solana', price: 185 },
+        { value: 'AMEX:HODL', label: 'HODL - VanEck Bitcoin', price: 88.5 }
+      ]
+    };
+
+    let currentAssetCategory = 'crypto';
+    let tradeChartWidget = null;
+
+    function switchAssetCategory(category) {
+      currentAssetCategory = category;
+      
+      // Update button styles
+      document.querySelectorAll('.asset-cat-btn').forEach(btn => {
+        btn.classList.remove('active');
+        btn.classList.add('text-gray-600', 'bg-gray-100');
+      });
+      document.getElementById('cat-' + category).classList.add('active');
+      document.getElementById('cat-' + category).classList.remove('text-gray-600', 'bg-gray-100');
+      
+      // Populate symbol dropdown
+      populateSymbolDropdown();
+      
+      // Update chart
+      updateChartSymbol();
+    }
+
+    function populateSymbolDropdown() {
+      const select = document.getElementById('tradeSymbol');
+      const symbols = assetSymbols[currentAssetCategory];
+      
+      select.innerHTML = symbols.map(s => 
+        `<option value="${s.value}" data-price="${s.price}">${s.label}</option>`
+      ).join('');
+    }
+
+    function updateChartSymbol() {
+      const select = document.getElementById('tradeSymbol');
+      const symbol = select.value;
+      const selectedOption = select.options[select.selectedIndex];
+      const price = parseFloat(selectedOption.dataset.price) || 43250;
+      
+      currentPrice = price;
+      document.getElementById('currentPrice').textContent = '$' + price.toLocaleString();
+      
+      // Update TradingView chart
+      if (tradeChartWidget) {
+        tradeChartWidget.remove();
+      }
+      
+      tradeChartWidget = new TradingView.widget({
+        width: "100%",
+        height: 250,
+        symbol: symbol,
+        interval: "15",
+        timezone: "Etc/UTC",
+        theme: "light",
+        style: "1",
+        locale: "en",
+        enable_publishing: false,
+        hide_top_toolbar: true,
+        hide_legend: true,
+        save_image: false,
+        container_id: "tradeChart"
+      });
+    }
+
+    function switchTradeTab(tab) {
+      document.querySelectorAll('.trade-tab').forEach(btn => {
+        btn.classList.remove('active');
+        btn.classList.add('text-gray-600');
+      });
+      document.getElementById('trade-tab-' + tab).classList.add('active');
+      document.getElementById('trade-tab-' + tab).classList.remove('text-gray-600');
+      
+      document.querySelectorAll('[id^="trades-"]').forEach(el => el.classList.add('hidden'));
+      document.getElementById('trades-' + tab).classList.remove('hidden');
+    }
+
+    function openNewTradeModal() {
+      document.getElementById('newTradeModal').classList.remove('hidden');
+      document.getElementById('newTradeModal').classList.add('flex');
+    }
+
+    function closeNewTradeModal() {
+      document.getElementById('newTradeModal').classList.add('hidden');
+      document.getElementById('newTradeModal').classList.remove('flex');
+    }
+
+    function setOrderType(type) {
+      orderType = type;
+      document.querySelectorAll('.order-type-btn').forEach(btn => btn.classList.remove('active'));
+      document.getElementById('order-' + type).classList.add('active');
+      document.getElementById('limitPriceField').classList.toggle('hidden', type === 'market');
+    }
+
+    function updateLeverageDisplay() {
+      document.getElementById('leverageValue').textContent = document.getElementById('leverage').value + 'x';
+    }
+
+    function toggleTP() {
+      document.getElementById('tpFields').classList.toggle('hidden', !document.getElementById('tpEnabled').checked);
+    }
+
+    function toggleSL() {
+      document.getElementById('slFields').classList.toggle('hidden', !document.getElementById('slEnabled').checked);
+    }
+
+    function calculateTPFromPercent() {
+      const percent = parseFloat(document.getElementById('tpPercent').value) || 0;
+      const tpPrice = currentPrice * (1 + percent / 100);
+      document.getElementById('tpPrice').value = tpPrice.toFixed(2);
+      calculateRR();
+    }
+
+    function calculateSLFromPercent() {
+      const percent = parseFloat(document.getElementById('slPercent').value) || 0;
+      const slPrice = currentPrice * (1 - percent / 100);
+      document.getElementById('slPrice').value = slPrice.toFixed(2);
+      calculateRR();
+    }
+
+    function calculateRR() {
+      const investment = parseFloat(document.getElementById('investmentAmount').value) || 0;
+      const tpPrice = parseFloat(document.getElementById('tpPrice').value) || 0;
+      const slPrice = parseFloat(document.getElementById('slPrice').value) || 0;
+      const leverage = parseInt(document.getElementById('leverage').value) || 1;
+
+      if (tpPrice && slPrice && investment) {
+        const tpDistance = Math.abs(tpPrice - currentPrice);
+        const slDistance = Math.abs(slPrice - currentPrice);
+        const rr = (tpDistance / slDistance).toFixed(2);
+        document.getElementById('rrRatio').textContent = '1:' + rr;
+
+        const profit = (investment * leverage * tpDistance / currentPrice).toFixed(2);
+        const loss = (investment * leverage * slDistance / currentPrice).toFixed(2);
+        document.getElementById('potentialProfit').textContent = '$' + profit;
+        document.getElementById('potentialLoss').textContent = '$' + loss;
+      }
+    }
+
+    async function placeTrade(direction) {
+      const symbol = document.getElementById('tradeSymbol').value;
+      const amount = parseFloat(document.getElementById('investmentAmount').value);
+      const leverage = parseInt(document.getElementById('leverage').value);
+      
+      if (!amount || amount < 10) {
+        alert('Minimum investment is $10');
+        return;
+      }
+
+      if (amount > (currentUser.availableCash || 0)) {
+        alert('Insufficient balance');
+        return;
+      }
+
+      const trade = {
+        id: Date.now().toString(),
+        userId: currentUser.id,
+        symbol: symbol,
+        type: direction.toUpperCase(),
+        orderType: orderType.toUpperCase(),
+        amount: amount,
+        leverage: leverage,
+        entryPrice: currentPrice,
+        currentPrice: currentPrice,
+        tpPrice: document.getElementById('tpEnabled').checked ? parseFloat(document.getElementById('tpPrice').value) : null,
+        slPrice: document.getElementById('slEnabled').checked ? parseFloat(document.getElementById('slPrice').value) : null,
+        status: 'open',
+        pnl: 0,
+        pnlPercent: 0,
+        openedAt: new Date().toISOString()
+      };
+
+      // Save trade
+      let trades = JSON.parse(localStorage.getItem('eso_trades') || '[]');
+      trades.push(trade);
+      localStorage.setItem('eso_trades', JSON.stringify(trades));
+      localStorage.setItem('elitestockoptions_trades', JSON.stringify(trades));
+
+      if (window.ESO_DB && window.ESO_DB.isReady()) {
+        await window.ESO_DB.createTrade(trade);
+      }
+
+      // Update balance in both session and shared users storage
+      // Deduct from BOTH total balance AND available cash
+      currentUser.balance -= amount;
+      currentUser.availableCash -= amount;
+      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+      
+      // Also update in shared users storage for admin/dashboard sync
+      let allUsers = JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
+      const userIndex = allUsers.findIndex(u => u.id === currentUser.id);
+      if (userIndex !== -1) {
+        allUsers[userIndex].balance = currentUser.balance;
+        allUsers[userIndex].availableCash = currentUser.availableCash;
+        localStorage.setItem('elitestockoptions_users', JSON.stringify(allUsers));
+        localStorage.setItem('eso_users', JSON.stringify(allUsers));
+      }
+
+      // Add transaction
+      addTransaction('trade', amount, `Opened ${direction.toUpperCase()} position on ${symbol}`);
+
+      alert('Trade placed successfully!');
+      closeNewTradeModal();
+      loadOpenTrades();
+    }
+
+    function addTransaction(type, amount, description) {
+      let transactions = JSON.parse(localStorage.getItem('eso_transactions') || '[]');
+      transactions.unshift({
+        id: Date.now().toString(),
+        userId: currentUser.id,
+        type: type,
+        amount: -amount,
+        description: description,
+        date: new Date().toISOString()
+      });
+      localStorage.setItem('eso_transactions', JSON.stringify(transactions));
+    }
+
+    function loadOpenTrades() {
+      const trades = JSON.parse(localStorage.getItem('eso_trades') || '[]');
+      const openTrades = trades.filter(t => t.userId === currentUser.id && t.status === 'open');
+      
+      document.getElementById('noOpenTrades').classList.toggle('hidden', openTrades.length > 0);
+      
+      if (openTrades.length === 0) return;
+
+      document.getElementById('openTradesTable').innerHTML = openTrades.map(trade => {
+        const pnl = trade.pnl || 0;
+        const pnlClass = pnl >= 0 ? 'text-green-600' : 'text-red-600';
+        const typeClass = trade.type === 'LONG' ? 'text-green-600' : 'text-red-600';
+        
+        return `
+          <tr class="hover:bg-gray-50">
+            <td class="px-6 py-4 font-medium text-gray-900">${trade.symbol}</td>
+            <td class="px-6 py-4 ${typeClass} font-medium">${trade.type}</td>
+            <td class="px-6 py-4">$${trade.amount.toFixed(2)} (${trade.leverage}x)</td>
+            <td class="px-6 py-4">$${trade.entryPrice.toFixed(2)}</td>
+            <td class="px-6 py-4">$${trade.currentPrice.toFixed(2)}</td>
+            <td class="px-6 py-4 text-green-600">${trade.tpPrice ? '$' + trade.tpPrice.toFixed(2) : '--'}</td>
+            <td class="px-6 py-4 text-red-600">${trade.slPrice ? '$' + trade.slPrice.toFixed(2) : '--'}</td>
+            <td class="px-6 py-4 ${pnlClass} font-medium">${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}</td>
+            <td class="px-6 py-4">
+              <button onclick="closeTrade('${trade.id}')" class="text-red-600 hover:text-red-800 font-medium">Close</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    async function closeTrade(tradeId) {
+      let trades = JSON.parse(localStorage.getItem('eso_trades') || '[]');
+      const tradeIndex = trades.findIndex(t => t.id === tradeId);
+      if (tradeIndex === -1) return;
+
+      const trade = trades[tradeIndex];
+      trade.status = 'closed';
+      trade.closedAt = new Date().toISOString();
+      trade.exitPrice = trade.currentPrice;
+      
+      // Calculate final P&L
+      const priceDiff = trade.type === 'LONG' 
+        ? trade.exitPrice - trade.entryPrice 
+        : trade.entryPrice - trade.exitPrice;
+      trade.pnl = trade.amount * trade.leverage * priceDiff / trade.entryPrice;
+      trade.pnlPercent = (trade.pnl / trade.amount * 100).toFixed(2);
+
+      // Update user balance when trade closes
+      // Return original trade amount + profits to both balance and available cash
+      currentUser.balance += trade.amount + trade.pnl;
+      currentUser.availableCash += trade.amount + trade.pnl;
+      
+      // Add profits to profits balance
+      if (trade.pnl > 0) {
+        currentUser.profitsBalance += trade.pnl;
+      }
+      
+      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+      
+      // Also update in shared users storage for admin/dashboard sync
+      let allUsers = JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
+      const userIdx = allUsers.findIndex(u => u.id === currentUser.id);
+      if (userIdx !== -1) {
+        allUsers[userIdx].balance = currentUser.balance;
+        allUsers[userIdx].availableCash = currentUser.availableCash;
+        allUsers[userIdx].profitsBalance = currentUser.profitsBalance;
+        localStorage.setItem('elitestockoptions_users', JSON.stringify(allUsers));
+        localStorage.setItem('eso_users', JSON.stringify(allUsers));
+      }
+
+      trades[tradeIndex] = trade;
+      localStorage.setItem('eso_trades', JSON.stringify(trades));
+      localStorage.setItem('elitestockoptions_trades', JSON.stringify(trades));
+
+      if (window.ESO_DB && window.ESO_DB.isReady()) {
+        await window.ESO_DB.updateTrade(trade.id, {
+          status: trade.status,
+          closedAt: trade.closedAt,
+          exitPrice: trade.exitPrice,
+          pnl: trade.pnl,
+          pnlPercent: Number(trade.pnlPercent || 0),
+          currentPrice: trade.currentPrice
+        });
+      }
+
+      addTransaction('trade', trade.amount + trade.pnl, `Closed ${trade.type} position on ${trade.symbol} | P&L: $${trade.pnl.toFixed(2)}`);
+      
+      loadOpenTrades();
+      loadClosedTrades();
+    }
+
+    function loadClosedTrades() {
+      const trades = JSON.parse(localStorage.getItem('eso_trades') || '[]');
+      const closedTrades = trades.filter(t => t.userId === currentUser.id && t.status === 'closed');
+      
+      document.getElementById('closedTradesTable').innerHTML = closedTrades.map(trade => {
+        const pnlClass = trade.pnl >= 0 ? 'text-green-600' : 'text-red-600';
+        return `
+          <tr class="hover:bg-gray-50">
+            <td class="px-6 py-4 font-medium text-gray-900">${trade.symbol}</td>
+            <td class="px-6 py-4">${trade.type}</td>
+            <td class="px-6 py-4">$${trade.amount.toFixed(2)}</td>
+            <td class="px-6 py-4">$${trade.entryPrice.toFixed(2)}</td>
+            <td class="px-6 py-4">$${trade.exitPrice.toFixed(2)}</td>
+            <td class="px-6 py-4">${new Date(trade.closedAt).toLocaleDateString()}</td>
+            <td class="px-6 py-4 ${pnlClass} font-medium">${trade.pnl >= 0 ? '+' : ''}$${trade.pnl.toFixed(2)} (${trade.pnlPercent}%)</td>
+          </tr>
+        `;
+      }).join('') || '<tr><td colspan="7" class="px-6 py-8 text-center text-gray-500">No closed trades</td></tr>';
+    }
+
+    function loadHistory() {
+      const transactions = JSON.parse(localStorage.getItem('eso_transactions') || '[]');
+      const userTransactions = transactions.filter(t => t.userId === currentUser.id && t.type === 'trade');
+      
+      document.getElementById('historyTable').innerHTML = userTransactions.map(t => `
+        <tr class="hover:bg-gray-50">
+          <td class="px-6 py-4">${new Date(t.date).toLocaleDateString()}</td>
+          <td class="px-6 py-4 capitalize">${t.type}</td>
+          <td class="px-6 py-4">--</td>
+          <td class="px-6 py-4 text-sm">${t.description}</td>
+          <td class="px-6 py-4 ${t.amount >= 0 ? 'text-green-600' : 'text-red-600'}">${t.amount >= 0 ? '+' : ''}$${Math.abs(t.amount).toFixed(2)}</td>
+        </tr>
+      `).join('') || '<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">No history</td></tr>';
+    }
+
+    function logout() {
+      localStorage.removeItem('elitestockoptions_user');
+      window.location.href = '../index.html';
+    }
+
+    initTrades();
+  </script>
+
+<script>
+// Mobile sidebar auto-close fix - Improved version
+document.addEventListener('DOMContentLoaded', function() {
+    const sidebarLinks = document.querySelectorAll('aside a');
+    
+    sidebarLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+            if (window.innerWidth < 1024) {
+                const sidebar = document.querySelector('aside');
+                
+                // Hide sidebar
+                if (sidebar) {
+                    sidebar.classList.add('hidden');
+                    sidebar.classList.remove('flex');
+                }
+                
+                // Remove overlay
+                const overlay = document.querySelector('.fixed.inset-0');
+                if (overlay) overlay.remove();
+                
+                // Enable body scroll
+                document.body.style.overflow = '';
+            }
+        });
+    });
+});
+</script>
+
+<script src="../public/js/back-button.js"></script>
+<script src="../public/js/theme.js"></script>
+<script src="../public/js/smartsupp.js"></script>
+</body>
+</html>

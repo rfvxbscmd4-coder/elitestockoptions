@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deposit - ELITESTOCKOPTIONS</title>
+  <link rel="icon" type="image/png" href="../public/logo.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../public/js/supabase-config.js"></script>
+  <script src="../public/js/supabase-client.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#4f46e5',
+            secondary: '#7c3aed',
+            accent: '#06b6d4'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .gradient-bg { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); }
+    .sidebar-link { transition: all 0.3s ease; }
+    .sidebar-link:hover, .sidebar-link.active {
+      background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+      color: white;
+    }
+    .crypto-card {
+      transition: all 0.3s ease;
+    }
+    .crypto-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 30px -5px rgba(79, 70, 229, 0.2);
+    }
+    .crypto-card.active {
+      border-color: #4f46e5;
+      background: linear-gradient(135deg, #4f46e5/5 0%, #7c3aed/5 100%);
+    }
+    .copy-btn {
+      transition: all 0.2s ease;
+    }
+    .copy-btn:hover {
+      background: #4f46e5;
+      color: white;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <div class="flex h-screen">
+    <!-- Sidebar -->
+    <aside class="w-64 bg-white shadow-xl hidden lg:flex flex-col">
+      <div class="p-6 border-b">
+        <div class="flex items-center space-x-3">
+          <img src="../public/logo.png" alt="ELITESTOCKOPTIONS" class="w-10 h-10 object-contain">
+          <span class="font-bold text-lg text-gray-900">ELITESTOCK</span>
+        </div>
+      </div>
+      <nav class="flex-1 overflow-y-auto py-4">
+        <div class="px-4 mb-2 text-xs font-semibold text-gray-400 uppercase">Main</div>
+        <a href="dashboard.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-home w-5"></i><span>Dashboard</span>
+        </a>
+        <a href="markets.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-chart-bar w-5"></i><span>Markets</span>
+        </a>
+        <a href="my-trades.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-exchange-alt w-5"></i><span>My Trades</span>
+        </a>
+        <div class="px-4 mt-6 mb-2 text-xs font-semibold text-gray-400 uppercase">Finance</div>
+        <a href="deposit.html" class="sidebar-link active flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl">
+          <i class="fas fa-arrow-down w-5"></i><span>Deposit</span>
+        </a>
+        <a href="withdrawal.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-arrow-up w-5"></i><span>Withdraw</span>
+        </a>
+        <a href="transactions.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-list w-5"></i><span>Transactions</span>
+        </a>
+        <div class="px-4 mt-6 mb-2 text-xs font-semibold text-gray-400 uppercase">Account</div>
+        <a href="settings.html" class="sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-cog w-5"></i><span>Settings</span>
+        </a>
+      </nav>
+      <div class="p-4 border-t">
+        <button onclick="logout()" class="flex items-center space-x-3 px-4 py-3 w-full rounded-xl text-red-600 hover:bg-red-50 transition-colors">
+          <i class="fas fa-sign-out-alt w-5"></i><span>Logout</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 overflow-y-auto">
+      <header class="bg-white shadow-sm sticky top-0 z-30">
+        <div class="flex items-center justify-between px-6 py-4">
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900">Deposit</h1>
+            <p class="text-gray-500 text-sm">Add funds to your account</p>
+          </div>
+        </div>
+      </header>
+
+      <div class="p-6">
+        <!-- Balance Card -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-gray-500 text-sm">Current Balance</p>
+              <p class="text-3xl font-bold text-gray-900" id="currentBalance">$0.00</p>
+            </div>
+            <div class="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center">
+              <i class="fas fa-wallet text-green-600 text-2xl"></i>
+            </div>
+          </div>
+        </div>
+
+        <!-- Select Cryptocurrency -->
+        <h2 class="text-lg font-bold text-gray-900 mb-4">Select Cryptocurrency</h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-8" id="cryptoGrid">
+          <!-- Populated by JS -->
+        </div>
+
+        <!-- Deposit Address Section -->
+        <div id="depositSection" class="hidden">
+          <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <!-- QR Code -->
+              <div class="text-center">
+                <h3 class="font-semibold text-gray-900 mb-4">Scan QR Code</h3>
+                <div class="inline-block p-4 bg-white rounded-xl shadow-lg border border-gray-100">
+                  <div id="qrcode"></div>
+                </div>
+                <p class="text-sm text-gray-500 mt-4">Scan this code with your wallet app</p>
+              </div>
+
+              <!-- Address -->
+              <div>
+                <h3 class="font-semibold text-gray-900 mb-4">Deposit Address</h3>
+                <div class="bg-gray-50 rounded-xl p-4 mb-4">
+                  <div class="flex items-center justify-between">
+                    <code id="walletAddress" class="text-sm break-all text-gray-700"></code>
+                    <button onclick="copyAddress()" class="copy-btn ml-4 p-2 rounded-lg border border-gray-200">
+                      <i class="fas fa-copy"></i>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="space-y-4">
+                  <div class="flex items-center space-x-3 p-3 bg-amber-50 rounded-lg">
+                    <i class="fas fa-exclamation-triangle text-amber-500"></i>
+                    <p class="text-sm text-amber-800">Send only <span id="selectedCryptoName">Bitcoin</span> to this address</p>
+                  </div>
+                  <div class="flex items-center space-x-3 p-3 bg-blue-50 rounded-lg">
+                    <i class="fas fa-info-circle text-blue-500"></i>
+                    <p class="text-sm text-blue-800">Minimum deposit: <span id="minDeposit">$10</span></p>
+                  </div>
+                  <div class="flex items-center space-x-3 p-3 bg-green-50 rounded-lg">
+                    <i class="fas fa-clock text-green-500"></i>
+                    <p class="text-sm text-green-800">Pending until received</p>
+                  </div>
+                </div>
+
+                <!-- Deposit Amount Form -->
+                <form id="depositForm" class="mt-6 space-y-4">
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Deposit Amount (USD)</label>
+                    <input type="number" id="depositAmount" min="10" required 
+                      class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      placeholder="Enter amount you sent">
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Transaction ID (TxHash)</label>
+                    <input type="text" id="txHash" required 
+                      class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      placeholder="Enter blockchain transaction ID">
+                  </div>
+                  <button type="submit" class="gradient-bg w-full py-3 text-white rounded-xl font-semibold hover:opacity-90 transition-opacity">
+                    <i class="fas fa-paper-plane mr-2"></i>Submit Deposit Request
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pending Deposits -->
+        <div class="mt-8">
+          <h2 class="text-lg font-bold text-gray-900 mb-4">Pending Deposits</h2>
+          <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="w-full">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Date</th>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Cryptocurrency</th>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Amount</th>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">TxHash</th>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
+                  </tr>
+                </thead>
+                <tbody id="pendingDepositsTable">
+                  <!-- Populated by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    let currentUser = JSON.parse(localStorage.getItem('elitestockoptions_user') || localStorage.getItem('eso_currentUser'));
+    if (!currentUser) window.location.href = 'login.html';
+
+    // Sync balance from shared users store (supports both new and legacy keys)
+    const allUsers = JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
+    const serverUser = allUsers.find(u => u.id === currentUser.id);
+    if (serverUser) {
+      currentUser.balance = serverUser.balance || 0;
+      currentUser.availableCash = serverUser.availableCash || 0;
+      currentUser.profitsBalance = serverUser.profitsBalance || 0;
+      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+    }
+
+    let selectedCrypto = null;
+    let adminWallets = [];
+
+    const cryptoList = [
+      { id: 'btc', name: 'Bitcoin', symbol: 'BTC', icon: 'fab fa-bitcoin', color: 'text-orange-500' },
+      { id: 'eth', name: 'Ethereum', symbol: 'ETH', icon: 'fab fa-ethereum', color: 'text-purple-500' },
+      { id: 'usdt', name: 'Tether', symbol: 'USDT', icon: 'fas fa-dollar-sign', color: 'text-green-500' },
+      { id: 'bnb', name: 'BNB', symbol: 'BNB', icon: 'fas fa-coins', color: 'text-yellow-500' },
+      { id: 'sol', name: 'Solana', symbol: 'SOL', icon: 'fas fa-sun', color: 'text-cyan-500' },
+      { id: 'xrp', name: 'XRP', symbol: 'XRP', icon: 'fas fa-water', color: 'text-blue-500' }
+    ];
+
+    async function initDeposit() {
+      document.getElementById('currentBalance').textContent = '$' + (currentUser.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
+
+      const primaryWallets = JSON.parse(localStorage.getItem('eso_adminWallets') || '[]');
+      const secondaryWallets = JSON.parse(localStorage.getItem('elitestockoptions_adminWallets') || '[]');
+      if (!primaryWallets.length && secondaryWallets.length) {
+        localStorage.setItem('eso_adminWallets', JSON.stringify(secondaryWallets));
+      } else if (primaryWallets.length && !secondaryWallets.length) {
+        localStorage.setItem('elitestockoptions_adminWallets', JSON.stringify(primaryWallets));
+      }
+      
+      // Load admin wallets from Supabase (fallback to local)
+      if (window.ESO_DB && window.ESO_DB.isReady()) {
+        const remoteWallets = await window.ESO_DB.getWallets();
+        if (Array.isArray(remoteWallets) && remoteWallets.length) {
+          adminWallets = remoteWallets;
+          localStorage.setItem('eso_adminWallets', JSON.stringify(remoteWallets));
+          localStorage.setItem('elitestockoptions_adminWallets', JSON.stringify(remoteWallets));
+        } else {
+          adminWallets = JSON.parse(localStorage.getItem('eso_adminWallets') || localStorage.getItem('elitestockoptions_adminWallets') || '[]');
+        }
+      } else {
+        adminWallets = JSON.parse(localStorage.getItem('eso_adminWallets') || localStorage.getItem('elitestockoptions_adminWallets') || '[]');
+      }
+      
+      renderCryptoGrid();
+      loadPendingDeposits();
+    }
+
+    function renderCryptoGrid() {
+      const grid = document.getElementById('cryptoGrid');
+      grid.innerHTML = cryptoList.map(crypto => {
+        const wallet = adminWallets.find(w => (w.cryptoId || '').toLowerCase() === crypto.id.toLowerCase());
+        const hasWallet = wallet && wallet.address;
+        
+        return `
+          <div onclick="selectCrypto('${crypto.id}')" 
+               class="crypto-card cursor-pointer bg-white rounded-xl p-4 border-2 border-gray-100 text-center ${!hasWallet ? 'opacity-50 cursor-not-allowed' : ''}"
+               id="crypto-${crypto.id}">
+            <i class="${crypto.icon} ${crypto.color} text-3xl mb-2"></i>
+            <p class="font-semibold text-gray-900">${crypto.symbol}</p>
+            <p class="text-xs text-gray-500">${crypto.name}</p>
+            ${!hasWallet ? '<p class="text-xs text-red-500 mt-1">Unavailable</p>' : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function selectCrypto(cryptoId) {
+      const wallet = adminWallets.find(w => (w.cryptoId || '').toLowerCase() === cryptoId.toLowerCase());
+      if (!wallet || !wallet.address) {
+        alert('This cryptocurrency is currently unavailable for deposits. Please try another.');
+        return;
+      }
+
+      selectedCrypto = cryptoList.find(c => c.id === cryptoId);
+      
+      // Update UI
+      document.querySelectorAll('.crypto-card').forEach(card => {
+        card.classList.remove('active', 'border-primary');
+        card.classList.add('border-gray-100');
+      });
+      document.getElementById('crypto-' + cryptoId).classList.add('active', 'border-primary');
+      document.getElementById('crypto-' + cryptoId).classList.remove('border-gray-100');
+
+      // Show deposit section
+      document.getElementById('depositSection').classList.remove('hidden');
+      document.getElementById('selectedCryptoName').textContent = selectedCrypto.name;
+      document.getElementById('walletAddress').textContent = wallet.address;
+
+      // Generate QR code
+      document.getElementById('qrcode').innerHTML = '';
+      new QRCode(document.getElementById('qrcode'), {
+        text: wallet.address,
+        width: 150,
+        height: 150,
+        colorDark: '#000000',
+        colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
+      });
+
+      // Scroll to deposit section
+      document.getElementById('depositSection').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function copyAddress() {
+      const address = document.getElementById('walletAddress').textContent;
+      navigator.clipboard.writeText(address).then(() => {
+        alert('Address copied to clipboard!');
+      });
+    }
+
+    function addPendingTransactionFromDeposit(deposit) {
+      let transactions = JSON.parse(localStorage.getItem('eso_transactions') || '[]');
+      transactions.unshift({
+        id: `dep_tx_${deposit.id}`,
+        userId: deposit.userId,
+        type: 'deposit',
+        amount: deposit.amount,
+        description: `Deposit request submitted (${deposit.cryptoSymbol})`,
+        date: deposit.createdAt,
+        status: 'pending',
+        referenceType: 'deposit',
+        referenceId: deposit.id
+      });
+      localStorage.setItem('eso_transactions', JSON.stringify(transactions));
+    }
+
+    document.getElementById('depositForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      
+      const amount = parseFloat(document.getElementById('depositAmount').value);
+      const txHash = document.getElementById('txHash').value;
+      
+      if (amount < 10) {
+        alert('Minimum deposit is $10');
+        return;
+      }
+
+      const deposit = {
+        id: Date.now().toString(),
+        userId: currentUser.id,
+        cryptoId: selectedCrypto.id,
+        cryptoName: selectedCrypto.name,
+        cryptoSymbol: selectedCrypto.symbol,
+        amount: amount,
+        txHash: txHash,
+        status: 'pending',
+        createdAt: new Date().toISOString()
+      };
+
+      // Save deposit request
+      if (window.ESO_DB && window.ESO_DB.isReady()) {
+        await window.ESO_DB.createDeposit(deposit);
+      }
+      let deposits = JSON.parse(localStorage.getItem('eso_deposits') || '[]');
+      deposits.push(deposit);
+      localStorage.setItem('eso_deposits', JSON.stringify(deposits));
+      addPendingTransactionFromDeposit(deposit);
+
+      alert('Deposit request submitted! Pending until received.');
+      document.getElementById('depositForm').reset();
+      loadPendingDeposits();
+    });
+
+    async function loadPendingDeposits() {
+      let deposits = JSON.parse(localStorage.getItem('eso_deposits') || '[]');
+
+      if (window.ESO_DB && window.ESO_DB.isReady()) {
+        const remoteDeposits = await window.ESO_DB.getDeposits();
+        if (Array.isArray(remoteDeposits)) {
+          deposits = remoteDeposits;
+          localStorage.setItem('eso_deposits', JSON.stringify(remoteDeposits));
+        }
+      }
+
+      const userDeposits = deposits.filter(d => d.userId === currentUser.id).slice(0, 10);
+      
+      const tbody = document.getElementById('pendingDepositsTable');
+      if (userDeposits.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">No pending deposits</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = userDeposits.map(d => {
+        const statusColors = {
+          pending: 'bg-amber-100 text-amber-800',
+          approved: 'bg-green-100 text-green-800',
+          rejected: 'bg-red-100 text-red-800'
+        };
+        return `
+          <tr class="hover:bg-gray-50">
+            <td class="px-6 py-4">${new Date(d.createdAt).toLocaleDateString()}</td>
+            <td class="px-6 py-4 font-medium">${d.cryptoSymbol}</td>
+            <td class="px-6 py-4">$${d.amount.toFixed(2)}</td>
+            <td class="px-6 py-4 text-sm font-mono text-gray-500">${d.txHash.substring(0, 20)}...</td>
+            <td class="px-6 py-4">
+              <span class="px-3 py-1 rounded-full text-xs font-medium ${statusColors[d.status] || statusColors.pending}">
+                ${d.status.charAt(0).toUpperCase() + d.status.slice(1)}
+              </span>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function logout() {
+      localStorage.removeItem('elitestockoptions_user');
+      window.location.href = '../index.html';
+    }
+
+    initDeposit();
+  </script>
+<script src="../public/js/back-button.js"></script>
+<script src="../public/js/theme.js"></script>
+<script src="../public/js/smartsupp.js"></script>
+</body>
+</html>
