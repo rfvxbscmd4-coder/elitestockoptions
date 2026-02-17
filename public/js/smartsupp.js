@@ -59,13 +59,12 @@
       setTimeout(tryOpen, 250);
       setTimeout(tryOpen, 800);
 
-      if (!smartsuppScriptLoaded) {
-        setTimeout(function () {
-          if (!smartsuppScriptLoaded) {
-            alert('Support chat script is not loading on this page yet. Check Smartsupp dashboard domain allowlist and Safari privacy settings, then refresh.');
-          }
-        }, 1200);
-      }
+      setTimeout(function () {
+        const hasWidget = !!document.querySelector('iframe[src*="smartsupp"], [id*="smartsupp"], [class*="smartsupp"]');
+        if (!smartsuppScriptLoaded || !hasWidget) {
+          openFallbackSupportPanel();
+        }
+      }, 1200);
     };
 
     btn.onclick = openSupport;
@@ -79,7 +78,6 @@
   window._smartsupp = window._smartsupp || {};
   window._smartsupp.key = key;
 
-  if (!window.smartsupp) {
     const queueFn = function () {
       queueFn._.push(arguments);
     };
@@ -105,6 +103,35 @@
   script.onerror = function () {
     smartsuppScriptLoaded = false;
   };
+        function openFallbackSupportPanel() {
+          if (document.getElementById('supportFallbackPanel')) return;
+
+          const panel = document.createElement('div');
+          panel.id = 'supportFallbackPanel';
+          panel.className = 'fixed inset-0 z-[2147483647] bg-black/50 flex items-center justify-center p-4';
+          panel.innerHTML = `
+            <div class="bg-white rounded-2xl max-w-md w-full p-6">
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="text-lg font-bold text-gray-900">Support</h3>
+                <button id="supportFallbackClose" class="p-2 rounded-lg hover:bg-gray-100"><i class="fas fa-times"></i></button>
+              </div>
+              <p class="text-sm text-gray-600 mb-4">Live chat did not open. Please check Smartsupp domain settings or contact support directly.</p>
+              <div class="space-y-3">
+                <a href="https://www.smartsupp.com/en/contact-us/" target="_blank" rel="noopener noreferrer" class="block text-center px-4 py-3 rounded-xl bg-indigo-600 text-white font-semibold">Open Smartsupp Support</a>
+                <a href="mailto:support@elitestockoptions.com" class="block text-center px-4 py-3 rounded-xl border border-gray-200 text-gray-700 font-semibold">Email Support</a>
+              </div>
+            </div>
+          `;
+
+          panel.addEventListener('click', function (e) {
+            if (e.target === panel) panel.remove();
+          });
+
+          document.body.appendChild(panel);
+          document.getElementById('supportFallbackClose')?.addEventListener('click', function () {
+            panel.remove();
+          });
+        }
 
   document.head.appendChild(script);
 
