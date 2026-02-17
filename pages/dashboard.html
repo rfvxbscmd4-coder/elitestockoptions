@@ -454,10 +454,9 @@
       if (!currentUser?.id) return;
       if (!(window.ESO_DB && window.ESO_DB.isReady())) return;
 
-      const remoteTrades = await window.ESO_DB.getTrades();
-      if (Array.isArray(remoteTrades)) {
-        saveTradesStore(remoteTrades);
-      }
+      const timeout = new Promise(resolve => setTimeout(() => resolve(null), 1500));
+      const remoteTrades = await Promise.race([window.ESO_DB.getTrades(), timeout]);
+      if (Array.isArray(remoteTrades)) saveTradesStore(remoteTrades);
     }
 
     // Initialize dashboard
@@ -500,9 +499,11 @@
       // Load TradingView chart
       loadTradingViewChart();
 
-      // Load open trades
-      await syncRemoteTradesToLocal();
+      // Load open trades immediately from local cache first
       loadOpenTrades();
+
+      // Refresh trades from remote in background
+      syncRemoteTradesToLocal().then(loadOpenTrades).catch(() => {});
 
       // Load recent activity
       loadRecentActivity();
