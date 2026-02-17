@@ -1327,18 +1327,51 @@
 
       const newTp = prompt('New Take Profit price (current: ' + (trade.tpPrice || 'none') + '):', trade.tpPrice || '');
       const newSl = prompt('New Stop Loss price (current: ' + (trade.slPrice || 'none') + '):', trade.slPrice || '');
+      const newCurrentPrice = prompt('Set current market price to influence profit/loss (current: ' + (trade.currentPrice || trade.entryPrice || 0) + '). Leave blank to keep:', trade.currentPrice || trade.entryPrice || '');
+      const forcedPnlInput = prompt('Force unrealized P&L in USD (use positive for profit, negative for loss). Leave blank to skip:', trade.pnl || '');
       
       if (newTp !== null) trade.tpPrice = newTp ? parseFloat(newTp) : null;
       if (newSl !== null) trade.slPrice = newSl ? parseFloat(newSl) : null;
+
+      if (newCurrentPrice !== null && newCurrentPrice !== '') {
+        const parsedPrice = parseFloat(newCurrentPrice);
+        if (!isNaN(parsedPrice) && parsedPrice > 0) {
+          trade.currentPrice = parsedPrice;
+          const priceDiff = (trade.type === 'LONG' || trade.type === 'long')
+            ? (trade.currentPrice - trade.entryPrice)
+            : (trade.entryPrice - trade.currentPrice);
+          trade.pnl = trade.amount * trade.leverage * priceDiff / trade.entryPrice;
+          trade.pnlPercent = Number(((trade.pnl / trade.amount) * 100).toFixed(2));
+        }
+      }
+
+      if (forcedPnlInput !== null && forcedPnlInput !== '') {
+        const forcedPnl = parseFloat(forcedPnlInput);
+        if (!isNaN(forcedPnl)) {
+          trade.pnl = forcedPnl;
+          trade.pnlPercent = Number(((forcedPnl / (trade.amount || 1)) * 100).toFixed(2));
+
+          const leverage = trade.leverage || 1;
+          const entryPrice = trade.entryPrice || 1;
+          const priceDelta = (forcedPnl * entryPrice) / ((trade.amount || 1) * leverage);
+          const impliedPrice = (trade.type === 'LONG' || trade.type === 'long')
+            ? (entryPrice + priceDelta)
+            : (entryPrice - priceDelta);
+          trade.currentPrice = impliedPrice > 0 ? impliedPrice : 0.00000001;
+        }
+      }
       
       saveTradesStore(trades);
       if (window.ESO_DB && window.ESO_DB.isReady()) {
         await window.ESO_DB.updateTrade(trade.id, {
           tpPrice: trade.tpPrice,
-          slPrice: trade.slPrice
+          slPrice: trade.slPrice,
+          currentPrice: trade.currentPrice,
+          pnl: trade.pnl,
+          pnlPercent: Number(trade.pnlPercent || 0)
         });
       }
-      showToast('Trade modified successfully!');
+      showToast(`Trade updated. Current P&L: $${(trade.pnl || 0).toFixed(2)}`);
       loadTrades();
     }
 
