@@ -361,6 +361,17 @@
       }
 
       if (user) {
+        if (user.isAdmin) {
+          localStorage.setItem('elitestockoptions_admin_user', JSON.stringify({
+            id: user.id,
+            email: user.email,
+            isAdmin: true,
+            loginAt: new Date().toISOString()
+          }));
+          window.location.href = '../admin.html';
+          return;
+        }
+
         localStorage.setItem('elitestockoptions_user', JSON.stringify(user));
         window.location.href = 'dashboard.html';
       } else {
