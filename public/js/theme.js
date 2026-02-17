@@ -110,10 +110,74 @@
     updateToggleIcon();
   }
 
+  function ensureSidebarLogoutLast() {
+    const sidebar = document.querySelector('aside');
+    if (!sidebar) return;
+
+    const nav = sidebar.querySelector('nav');
+    if (!nav) return;
+
+    let logoutButton = nav.querySelector('button[onclick*="logout"], a[onclick*="logout"]');
+    if (!logoutButton) {
+      logoutButton = sidebar.querySelector('button[onclick*="logout"], a[onclick*="logout"]');
+    }
+
+    if (!logoutButton) {
+      logoutButton = document.createElement('button');
+      logoutButton.type = 'button';
+      logoutButton.setAttribute('onclick', 'logout()');
+      logoutButton.innerHTML = '<i class="fas fa-sign-out-alt w-5"></i><span>Logout</span>';
+    }
+
+    logoutButton.className = 'sidebar-link flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-red-600 hover:bg-red-50 transition-colors w-full';
+    logoutButton.setAttribute('data-global-logout-nav', '1');
+
+    nav.appendChild(logoutButton);
+
+    sidebar.querySelectorAll(':scope > div').forEach(block => {
+      if (!block.className || !String(block.className).includes('border-t')) return;
+      const hasInteractive = block.querySelector('button, a, input, select, textarea');
+      const hasText = (block.textContent || '').trim().length > 0;
+      if (!hasInteractive && !hasText) block.remove();
+    });
+  }
+
+  function ensureMobileLogoutLast() {
+    const mobileMenu = document.getElementById('mobileMenu');
+    if (!mobileMenu) return;
+
+    const mobileNav = mobileMenu.querySelector('nav');
+    if (!mobileNav) return;
+
+    const existing = mobileNav.querySelector('[data-global-mobile-logout="1"]');
+    if (existing) {
+      mobileNav.appendChild(existing);
+      return;
+    }
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.setAttribute('data-global-mobile-logout', '1');
+    btn.className = 'w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-red-600 hover:bg-red-50';
+    btn.innerHTML = '<i class="fas fa-sign-out-alt w-5"></i><span>Logout</span>';
+    btn.onclick = function () {
+      if (typeof window.logout === 'function') {
+        window.logout();
+      }
+      if (typeof window.toggleMobileMenu === 'function') {
+        window.toggleMobileMenu();
+      }
+    };
+
+    mobileNav.appendChild(btn);
+  }
+
   function initTheme() {
     injectThemeStyles();
     applyTheme(getStoredTheme());
     createToggle();
+    ensureSidebarLogoutLast();
+    ensureMobileLogoutLast();
   }
 
   if (document.readyState === 'loading') {
