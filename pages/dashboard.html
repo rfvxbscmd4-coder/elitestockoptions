@@ -587,6 +587,20 @@
       }
       if (!remoteUser) return null;
 
+      const localUsers = JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
+      if (Array.isArray(localUsers)) {
+        const remoteEmail = String(remoteUser.email || '').toLowerCase();
+        const deduped = localUsers.filter(u => {
+          const sameId = String(u.id || '') === String(remoteUser.id || '');
+          const sameEmail = remoteEmail && String(u.email || '').toLowerCase() === remoteEmail;
+          const sameAuth = remoteUser.auth_id && String(u.auth_id || '') === String(remoteUser.auth_id || '');
+          return !(sameId || sameEmail || sameAuth);
+        });
+        deduped.push({ ...remoteUser });
+        localStorage.setItem('elitestockoptions_users', JSON.stringify(deduped));
+        localStorage.setItem('eso_users', JSON.stringify(deduped));
+      }
+
       currentUser.id = remoteUser.id || currentUser.id;
       currentUser.auth_id = remoteUser.auth_id || currentUser.auth_id;
       currentUser.fullName = remoteUser.fullName || currentUser.fullName;
