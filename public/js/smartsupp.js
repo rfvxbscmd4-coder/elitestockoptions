@@ -8,6 +8,14 @@
   let tawkLoaded = false;
   let tawkLoading = false;
 
+  function getCurrentUser() {
+    try {
+      return JSON.parse(localStorage.getItem('elitestockoptions_user') || localStorage.getItem('eso_currentUser') || 'null');
+    } catch (_) {
+      return null;
+    }
+  }
+
   function injectSupportStyles() {
     if (document.getElementById('globalSupportButtonStyles')) return;
 
@@ -44,15 +52,19 @@
 
   function setVisitorData() {
     try {
-      const currentUser = JSON.parse(localStorage.getItem('elitestockoptions_user') || localStorage.getItem('eso_currentUser') || 'null');
+      const currentUser = getCurrentUser();
       if (!currentUser) return;
       if (!window.Tawk_API) return;
 
+      const visitor = {
+        name: currentUser.fullName || currentUser.name || '',
+        email: currentUser.email || ''
+      };
+
+      window.Tawk_API.visitor = visitor;
+
       if (currentUser.email) {
-        window.Tawk_API.setAttributes({
-          name: currentUser.fullName || currentUser.name || '',
-          email: currentUser.email
-        }, function () {});
+        window.Tawk_API.setAttributes(visitor, function () {});
       }
     } catch (_) {}
   }
@@ -87,6 +99,20 @@
       tawkLoading = true;
       window.Tawk_API = window.Tawk_API || {};
       window.Tawk_LoadStart = new Date();
+
+      const currentUser = getCurrentUser();
+      if (currentUser?.email) {
+        window.Tawk_API.visitor = {
+          name: currentUser.fullName || currentUser.name || '',
+          email: currentUser.email
+        };
+      }
+
+      window.Tawk_API.onLoad = function () {
+        tawkLoaded = true;
+        tawkLoading = false;
+        setVisitorData();
+      };
 
       const script = document.createElement('script');
       script.async = true;
