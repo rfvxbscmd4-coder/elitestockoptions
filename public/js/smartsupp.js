@@ -148,13 +148,11 @@
     return `https://tawk.to/chat/${encodeURIComponent(tawkPropertyId)}/${encodeURIComponent(tawkWidgetId)}`;
   }
 
-  function tryOpenDirectChat() {
+  function tryOpenDirectChatInCurrentTab() {
     const url = getDirectChatUrl();
     if (!url) return false;
 
     try {
-      const opened = window.open(url, '_blank', 'noopener,noreferrer');
-      if (opened) return true;
       window.location.href = url;
       return true;
     } catch (_) {
@@ -226,7 +224,7 @@
         try {
           console.warn('[Support Chat] loader error:', error?.message || error);
         } catch (_) {}
-        if (tryOpenDirectChat()) {
+        if (tryOpenDirectChatInCurrentTab()) {
           return;
         }
         openFallbackSupportPanel('Live chat is temporarily unavailable. Please try again in a moment.');
