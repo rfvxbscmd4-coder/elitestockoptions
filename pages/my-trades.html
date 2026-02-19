@@ -727,7 +727,12 @@
         
         return `
           <tr class="hover:bg-gray-50">
-            <td class="px-6 py-4 font-medium text-gray-900">${trade.symbol}</td>
+            <td class="px-6 py-4 font-medium text-gray-900">
+              <div class="flex items-center space-x-2">
+                ${window.ESO_ASSETS ? window.ESO_ASSETS.renderLogo(trade.symbol, trade.symbol, 'fas fa-chart-line', 'bg-gray-200') : ''}
+                <span>${trade.symbol}</span>
+              </div>
+            </td>
             <td class="px-6 py-4 ${typeClass} font-medium">${trade.type}</td>
             <td class="px-6 py-4">$${trade.amount.toFixed(2)} (${trade.leverage}x)</td>
             <td class="px-6 py-4">$${trade.entryPrice.toFixed(2)}</td>
@@ -812,7 +817,12 @@
         const pnlClass = trade.pnl >= 0 ? 'text-green-600' : 'text-red-600';
         return `
           <tr class="hover:bg-gray-50">
-            <td class="px-6 py-4 font-medium text-gray-900">${trade.symbol}</td>
+            <td class="px-6 py-4 font-medium text-gray-900">
+              <div class="flex items-center space-x-2">
+                ${window.ESO_ASSETS ? window.ESO_ASSETS.renderLogo(trade.symbol, trade.symbol, 'fas fa-chart-line', 'bg-gray-200') : ''}
+                <span>${trade.symbol}</span>
+              </div>
+            </td>
             <td class="px-6 py-4">${trade.type}</td>
             <td class="px-6 py-4">$${trade.amount.toFixed(2)}</td>
             <td class="px-6 py-4">$${trade.entryPrice.toFixed(2)}</td>
@@ -876,6 +886,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <script src="../public/js/back-button.js"></script>
+<script src="../public/js/asset-logos.js"></script>
 <script src="../public/js/theme.js"></script>
 <script src="../public/js/smartsupp.js"></script>
 </body>
