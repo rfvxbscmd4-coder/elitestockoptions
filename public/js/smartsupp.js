@@ -7,6 +7,7 @@
 
   let tawkLoaded = false;
   let tawkLoading = false;
+  let lastSupportOpenAt = 0;
 
   function getCurrentUser() {
     try {
@@ -142,6 +143,25 @@
     });
   }
 
+  function getDirectChatUrl() {
+    if (!tawkPropertyId || !tawkWidgetId) return '';
+    return `https://tawk.to/chat/${encodeURIComponent(tawkPropertyId)}/${encodeURIComponent(tawkWidgetId)}`;
+  }
+
+  function tryOpenDirectChat() {
+    const url = getDirectChatUrl();
+    if (!url) return false;
+
+    try {
+      const opened = window.open(url, '_blank', 'noopener,noreferrer');
+      if (opened) return true;
+      window.location.href = url;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   function openFallbackSupportPanel(message) {
     if (document.getElementById('supportFallbackPanel')) return;
 
@@ -180,6 +200,12 @@
   }
 
   function openSupport(event) {
+    const now = Date.now();
+    if (now - lastSupportOpenAt < 700) {
+      return;
+    }
+    lastSupportOpenAt = now;
+
     if (event) {
       event.preventDefault();
       event.stopPropagation();
@@ -200,6 +226,9 @@
         try {
           console.warn('[Support Chat] loader error:', error?.message || error);
         } catch (_) {}
+        if (tryOpenDirectChat()) {
+          return;
+        }
         openFallbackSupportPanel('Live chat is temporarily unavailable. Please try again in a moment.');
       });
   }
