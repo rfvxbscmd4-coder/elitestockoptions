@@ -428,7 +428,7 @@
     let baseTop = 0;
 
     btn.addEventListener('pointerdown', function (event) {
-      if (event.button !== 0) return;
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
 
       const rect = btn.getBoundingClientRect();
       applySupportPosition(btn, rect.left, rect.top);
@@ -465,6 +465,8 @@
         const rect = btn.getBoundingClientRect();
         saveSupportPosition(rect.left, rect.top);
         suppressNextOpen = true;
+      } else {
+        openSupport(event);
       }
 
       dragging = false;
