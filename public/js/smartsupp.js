@@ -3,6 +3,8 @@
   if (!key || key === 'PASTE_YOUR_SMARTSUPP_KEY_HERE') return;
 
   let smartsuppScriptLoaded = false;
+  let loaderRequested = false;
+  let loaderPromise = null;
   let openInProgress = false;
 
   function openFallbackSupportPanel() {
@@ -48,6 +50,62 @@
     }
   }
 
+  function setSmartsuppVisitor() {
+    try {
+      const currentUser = JSON.parse(localStorage.getItem('elitestockoptions_user') || localStorage.getItem('eso_currentUser') || 'null');
+      if (!currentUser) return;
+      const displayName = currentUser.fullName || currentUser.name || '';
+      if (displayName) window.smartsupp('name', displayName);
+      if (currentUser.email) window.smartsupp('email', currentUser.email);
+    } catch (_) {}
+  }
+
+  function waitForSmartsuppReady(timeoutMs = 7000) {
+    return new Promise((resolve, reject) => {
+      const started = Date.now();
+      const tick = () => {
+        const ready = smartsuppScriptLoaded || !!document.querySelector('iframe[src*="smartsupp"], [id*="smartsupp"], [class*="smartsupp"]');
+        if (ready) {
+          resolve(true);
+          return;
+        }
+        if (Date.now() - started >= timeoutMs) {
+          reject(new Error('Smartsupp loader timeout'));
+          return;
+        }
+        setTimeout(tick, 250);
+      };
+      tick();
+    });
+  }
+
+  function ensureSmartsuppLoaded() {
+    if (smartsuppScriptLoaded) return Promise.resolve(true);
+    if (loaderPromise) return loaderPromise;
+
+    loaderPromise = new Promise((resolve, reject) => {
+      if (!loaderRequested) {
+        loaderRequested = true;
+        const script = document.createElement('script');
+        script.async = true;
+        script.src = 'https://www.smartsuppchat.com/loader.js?';
+        script.charset = 'utf-8';
+        script.onload = function () {
+          smartsuppScriptLoaded = true;
+          setSmartsuppVisitor();
+          resolve(true);
+        };
+        script.onerror = function () {
+          smartsuppScriptLoaded = false;
+          reject(new Error('Smartsupp script failed to load'));
+        };
+        document.head.appendChild(script);
+      }
+    }).catch(() => false);
+
+    return loaderPromise;
+  }
+
   function openSupport(event) {
     if (event) {
       event.preventDefault();
@@ -56,17 +114,19 @@
     if (openInProgress) return;
     openInProgress = true;
 
-    tryOpenSmartsupp();
-    setTimeout(tryOpenSmartsupp, 180);
-    setTimeout(tryOpenSmartsupp, 600);
-
-    setTimeout(function () {
-      const hasWidget = !!document.querySelector('iframe[src*="smartsupp"], [id*="smartsupp"], [class*="smartsupp"]');
-      if (!smartsuppScriptLoaded && !hasWidget) {
+    ensureSmartsuppLoaded()
+      .then(() => waitForSmartsuppReady(7000))
+      .then(() => {
+        tryOpenSmartsupp();
+        setTimeout(tryOpenSmartsupp, 250);
+        setTimeout(tryOpenSmartsupp, 900);
+      })
+      .catch(() => {
         openFallbackSupportPanel();
-      }
-      openInProgress = false;
-    }, 1200);
+      })
+      .finally(() => {
+        openInProgress = false;
+      });
   }
 
   function createSupportButton() {
@@ -126,24 +186,7 @@
     window.smartsupp = queueFn;
   }
 
-  const script = document.createElement('script');
-  script.async = true;
-  script.src = 'https://www.smartsuppchat.com/loader.js?';
-  script.charset = 'utf-8';
-  script.onload = function () {
-    smartsuppScriptLoaded = true;
-    try {
-      const currentUser = JSON.parse(localStorage.getItem('elitestockoptions_user') || localStorage.getItem('eso_currentUser') || 'null');
-      if (!currentUser) return;
-      const displayName = currentUser.fullName || currentUser.name || '';
-      if (displayName) window.smartsupp('name', displayName);
-      if (currentUser.email) window.smartsupp('email', currentUser.email);
-    } catch (_) {}
-  };
-  script.onerror = function () {
-    smartsuppScriptLoaded = false;
-  };
-  document.head.appendChild(script);
+  ensureSmartsuppLoaded();
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', createSupportButton);
