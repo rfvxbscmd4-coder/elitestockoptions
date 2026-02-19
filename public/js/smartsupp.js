@@ -368,7 +368,23 @@
       event.stopPropagation();
     }
 
-    openInlineChatPanel();
+    ensureTawkLoaded()
+      .then(() => {
+        try {
+          if (window.Tawk_API && typeof window.Tawk_API.showWidget === 'function') {
+            window.Tawk_API.showWidget();
+          }
+          if (window.Tawk_API && typeof window.Tawk_API.maximize === 'function') {
+            window.Tawk_API.maximize();
+          }
+        } catch (_) {}
+      })
+      .catch((error) => {
+        try {
+          console.warn('[Support Chat] loader error:', error?.message || error);
+        } catch (_) {}
+        openFallbackSupportPanel('Live chat is temporarily unavailable. Please try again in a moment.');
+      });
   }
 
   function clampSupportPosition(btn, x, y) {
