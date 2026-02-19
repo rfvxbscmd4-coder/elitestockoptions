@@ -156,7 +156,7 @@
           <h3 class="text-lg font-bold text-gray-900">Support Chat Unavailable</h3>
           <button id="supportFallbackClose" class="p-2 rounded-lg hover:bg-gray-100"><i class="fas fa-times"></i></button>
         </div>
-        <p class="text-sm text-gray-600 mb-3">${message || 'Live support could not start right now.'}</p>
+        <p class="text-sm text-gray-600 mb-3">${message || 'Live chat is temporarily unavailable. Please try again in a moment.'}</p>
         ${helperHint}
         <div class="space-y-3">
           <button id="supportFallbackRetry" type="button" class="block w-full text-center px-4 py-3 rounded-xl bg-indigo-600 text-white font-semibold">Retry Live Chat</button>
@@ -197,8 +197,10 @@
         } catch (_) {}
       })
       .catch((error) => {
-        const message = error?.message || 'Support chat is unavailable.';
-        openFallbackSupportPanel(message);
+        try {
+          console.warn('[Support Chat] loader error:', error?.message || error);
+        } catch (_) {}
+        openFallbackSupportPanel('Live chat is temporarily unavailable. Please try again in a moment.');
       });
   }
 
