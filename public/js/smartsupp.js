@@ -36,20 +36,14 @@
         padding: 11px 15px;
         font-size: 14px;
         font-weight: 700;
-        cursor: grab;
+        cursor: pointer;
         pointer-events: auto;
-        touch-action: none;
-        user-select: none;
-        -webkit-user-select: none;
+        touch-action: manipulation;
         display: inline-flex;
         align-items: center;
         background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
         color: #ffffff;
         box-shadow: 0 10px 25px rgba(0,0,0,0.24);
-      }
-      #globalSupportButton.dragging {
-        cursor: grabbing;
-        opacity: 0.95;
       }
       #globalSupportButton:hover { opacity: 0.95; }
       #globalSupportButton i { margin-right: 8px; }
@@ -347,6 +341,22 @@
     });
   }
 
+  function getDirectChatUrl() {
+    if (!tawkPropertyId || !tawkWidgetId) return '';
+    return `https://tawk.to/chat/${encodeURIComponent(tawkPropertyId)}/${encodeURIComponent(tawkWidgetId)}`;
+  }
+
+  function openDirectChatInCurrentTab() {
+    const url = getDirectChatUrl();
+    if (!url) return false;
+    try {
+      window.location.href = url;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   function openFallbackSupportPanel(message) {
     if (document.getElementById('supportFallbackPanel')) return;
 
@@ -417,6 +427,9 @@
         try {
           console.warn('[Support Chat] loader error:', error?.message || error);
         } catch (_) {}
+        if (openDirectChatInCurrentTab()) {
+          return;
+        }
         openFallbackSupportPanel('Live chat is temporarily unavailable. Please try again in a moment.');
       });
   }
@@ -530,11 +543,10 @@
     btn.setAttribute('aria-label', 'Open support chat');
     btn.title = 'Open support chat';
 
-    setupDraggableSupportButton(btn);
     btn.addEventListener('click', openSupport, { passive: false });
+    btn.addEventListener('touchend', openSupport, { passive: false });
 
     document.body.appendChild(btn);
-    restoreSupportPosition(btn);
   }
 
   if (document.readyState === 'loading') {
