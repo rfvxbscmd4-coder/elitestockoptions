@@ -10,6 +10,7 @@
   let lastSupportOpenAt = 0;
   let suppressNextOpen = false;
   const SUPPORT_POS_KEY = 'eso_support_button_position';
+  const SUPPORT_PANEL_POS_KEY = 'eso_support_panel_position';
 
   function getCurrentUser() {
     try {
@@ -54,6 +55,63 @@
       #globalSupportButton i { margin-right: 8px; }
       @media (max-width: 640px) {
         #globalSupportButton { font-size: 13px; padding: 10px 13px; }
+      }
+
+      #supportInlinePanel {
+        position: fixed;
+        right: max(14px, env(safe-area-inset-right));
+        bottom: max(14px, env(safe-area-inset-bottom));
+        width: min(92vw, 380px);
+        height: min(70vh, 560px);
+        border-radius: 14px;
+        background: #ffffff;
+        overflow: hidden;
+        z-index: 2147483647;
+        border: 1px solid rgba(100, 116, 139, 0.3);
+        box-shadow: 0 20px 45px rgba(0, 0, 0, 0.28);
+        display: flex;
+        flex-direction: column;
+      }
+      #supportInlinePanel.support-panel-full {
+        top: max(8px, env(safe-area-inset-top));
+        left: max(8px, env(safe-area-inset-left));
+        right: max(8px, env(safe-area-inset-right));
+        bottom: max(8px, env(safe-area-inset-bottom));
+        width: auto;
+        height: auto;
+      }
+      #supportInlineHeader {
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+        color: #ffffff;
+        padding: 0 10px 0 12px;
+        cursor: move;
+        user-select: none;
+      }
+      #supportInlineActions {
+        display: inline-flex;
+        gap: 6px;
+      }
+      .support-inline-btn {
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        border: 0;
+        background: rgba(255, 255, 255, 0.15);
+        color: #ffffff;
+        cursor: pointer;
+      }
+      .support-inline-btn:hover {
+        background: rgba(255, 255, 255, 0.25);
+      }
+      #supportInlineFrame {
+        width: 100%;
+        height: calc(100% - 44px);
+        border: 0;
+        background: #ffffff;
       }
     `;
     document.head.appendChild(style);
@@ -151,40 +209,141 @@
     });
   }
 
-  function openFallbackSupportPanel(message) {
-    if (document.getElementById('supportFallbackPanel')) return;
+  function clampPanelPosition(panel, x, y) {
+    const maxX = Math.max(8, window.innerWidth - panel.offsetWidth - 8);
+    const maxY = Math.max(8, window.innerHeight - panel.offsetHeight - 8);
+    return {
+      x: Math.min(Math.max(8, x), maxX),
+      y: Math.min(Math.max(8, y), maxY)
+    };
+  }
 
-    const helperHint = '<p class="text-xs text-gray-500 mb-4">If live chat is blocked by browser/network privacy settings, retry or email support below.</p>';
+  function applyPanelPosition(panel, x, y) {
+    const clamped = clampPanelPosition(panel, x, y);
+    panel.style.left = `${clamped.x}px`;
+    panel.style.top = `${clamped.y}px`;
+    panel.style.right = 'auto';
+    panel.style.bottom = 'auto';
+  }
 
+  function savePanelPosition(x, y) {
+    try {
+      localStorage.setItem(SUPPORT_PANEL_POS_KEY, JSON.stringify({ x, y }));
+    } catch (_) {}
+  }
+
+  function restorePanelPosition(panel) {
+    try {
+      const saved = JSON.parse(localStorage.getItem(SUPPORT_PANEL_POS_KEY) || 'null');
+      if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
+        applyPanelPosition(panel, saved.x, saved.y);
+      }
+    } catch (_) {}
+  }
+
+  function setupDraggableInlinePanel(panel, dragHandle) {
+    let pointerId = null;
+    let dragging = false;
+    let startX = 0;
+    let startY = 0;
+    let baseLeft = 0;
+    let baseTop = 0;
+
+    dragHandle.addEventListener('pointerdown', function (event) {
+      if (panel.classList.contains('support-panel-full')) return;
+      if (event.button !== 0) return;
+
+      const rect = panel.getBoundingClientRect();
+      applyPanelPosition(panel, rect.left, rect.top);
+      pointerId = event.pointerId;
+      dragging = false;
+      startX = event.clientX;
+      startY = event.clientY;
+      baseLeft = rect.left;
+      baseTop = rect.top;
+      dragHandle.setPointerCapture?.(pointerId);
+    });
+
+    dragHandle.addEventListener('pointermove', function (event) {
+      if (pointerId !== event.pointerId) return;
+      const deltaX = event.clientX - startX;
+      const deltaY = event.clientY - startY;
+      if (!dragging && Math.hypot(deltaX, deltaY) < 5) return;
+      dragging = true;
+      applyPanelPosition(panel, baseLeft + deltaX, baseTop + deltaY);
+      event.preventDefault();
+    });
+
+    function finishDrag(event) {
+      if (pointerId !== event.pointerId) return;
+      dragHandle.releasePointerCapture?.(pointerId);
+      pointerId = null;
+      if (dragging) {
+        const rect = panel.getBoundingClientRect();
+        savePanelPosition(rect.left, rect.top);
+      }
+      dragging = false;
+    }
+
+    dragHandle.addEventListener('pointerup', finishDrag);
+    dragHandle.addEventListener('pointercancel', finishDrag);
+  }
+
+  function openInlineChatPanel() {
+    if (!tawkPropertyId || !tawkWidgetId) {
+      window.location.href = 'mailto:support@elitestockoptions.net';
+      return;
+    }
+
+    const existing = document.getElementById('supportInlinePanel');
+    if (existing) {
+      existing.style.display = 'flex';
+      return;
+    }
+
+    const directUrl = `https://tawk.to/chat/${encodeURIComponent(tawkPropertyId)}/${encodeURIComponent(tawkWidgetId)}`;
     const panel = document.createElement('div');
-    panel.id = 'supportFallbackPanel';
-    panel.className = 'fixed inset-0 z-[2147483647] bg-black/50 flex items-center justify-center p-4';
+    panel.id = 'supportInlinePanel';
     panel.innerHTML = `
-      <div class="bg-white rounded-2xl max-w-md w-full p-6">
-        <div class="flex items-center justify-between mb-3">
-          <h3 class="text-lg font-bold text-gray-900">Support Chat Unavailable</h3>
-          <button id="supportFallbackClose" class="p-2 rounded-lg hover:bg-gray-100"><i class="fas fa-times"></i></button>
-        </div>
-        <p class="text-sm text-gray-600 mb-3">${message || 'Live chat is temporarily unavailable. Please try again in a moment.'}</p>
-        ${helperHint}
-        <div class="space-y-3">
-          <button id="supportFallbackRetry" type="button" class="block w-full text-center px-4 py-3 rounded-xl bg-indigo-600 text-white font-semibold">Retry Live Chat</button>
-          <a href="mailto:support@elitestockoptions.net" class="block text-center px-4 py-3 rounded-xl border border-gray-200 text-gray-700 font-semibold">Email Support</a>
+      <div id="supportInlineHeader">
+        <div class="text-sm font-semibold"><i class="fas fa-headset mr-2"></i>Support Chat</div>
+        <div id="supportInlineActions">
+          <button id="supportInlineExpand" class="support-inline-btn" type="button" aria-label="Toggle full screen"><i class="fas fa-expand"></i></button>
+          <button id="supportInlineClose" class="support-inline-btn" type="button" aria-label="Close chat"><i class="fas fa-times"></i></button>
         </div>
       </div>
+      <iframe id="supportInlineFrame" src="${directUrl}" title="Support Chat"></iframe>
     `;
 
-    panel.addEventListener('click', function (e) {
-      if (e.target === panel) panel.remove();
+    document.body.appendChild(panel);
+    restorePanelPosition(panel);
+
+    const header = document.getElementById('supportInlineHeader');
+    const expandBtn = document.getElementById('supportInlineExpand');
+    const closeBtn = document.getElementById('supportInlineClose');
+
+    if (header) {
+      setupDraggableInlinePanel(panel, header);
+    }
+
+    expandBtn?.addEventListener('click', function () {
+      panel.classList.toggle('support-panel-full');
+      if (!panel.classList.contains('support-panel-full')) {
+        const rect = panel.getBoundingClientRect();
+        savePanelPosition(rect.left, rect.top);
+      }
     });
 
-    document.body.appendChild(panel);
-    document.getElementById('supportFallbackClose')?.addEventListener('click', function () {
-      panel.remove();
+    closeBtn?.addEventListener('click', function () {
+      panel.style.display = 'none';
     });
-    document.getElementById('supportFallbackRetry')?.addEventListener('click', function () {
-      panel.remove();
-      openSupport();
+
+    window.addEventListener('resize', function () {
+      if (panel.classList.contains('support-panel-full')) return;
+      const rect = panel.getBoundingClientRect();
+      applyPanelPosition(panel, rect.left, rect.top);
+      const next = panel.getBoundingClientRect();
+      savePanelPosition(next.left, next.top);
     });
   }
 
@@ -209,23 +368,7 @@
       event.stopPropagation();
     }
 
-    ensureTawkLoaded()
-      .then(() => {
-        try {
-          if (window.Tawk_API && typeof window.Tawk_API.showWidget === 'function') {
-            window.Tawk_API.showWidget();
-          }
-          if (window.Tawk_API && typeof window.Tawk_API.maximize === 'function') {
-            window.Tawk_API.maximize();
-          }
-        } catch (_) {}
-      })
-      .catch((error) => {
-        try {
-          console.warn('[Support Chat] loader error:', error?.message || error);
-        } catch (_) {}
-        openFallbackSupportPanel('Live chat is temporarily unavailable. Please try again in a moment.');
-      });
+    openInlineChatPanel();
   }
 
   function clampSupportPosition(btn, x, y) {
