@@ -1,6 +1,9 @@
 window.ESO_SUPABASE_URL = 'https://dmncqeczdpxnladdramd.supabase.co';
 window.ESO_SUPABASE_ANON_KEY = 'sb_publishable_azANVZBlpJd2dPXy159Fxg_OsO7hkKJ';
-window.ESO_SMARTSUPP_KEY = 'd258f195df6b89c5a8613da0ea66c14d5227b899';
+window.ESO_CHAT_PROVIDER = 'tawk';
+window.ESO_TAWK_PROPERTY_ID = ''; // e.g. 67c0abcdef1234567890abcd
+window.ESO_TAWK_WIDGET_ID = '';   // e.g. 1il0abcdef
+window.ESO_SMARTSUPP_KEY = 'd258f195df6b89c5a8613da0ea66c14d5227b899'; // deprecated
 
 (function sanitizeUserSession() {
 	try {

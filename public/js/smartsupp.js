@@ -1,150 +1,15 @@
 (function () {
-  const key = (window.ESO_SMARTSUPP_KEY || '').trim();
-  if (!key || key === 'PASTE_YOUR_SMARTSUPP_KEY_HERE') return;
+  const provider = String(window.ESO_CHAT_PROVIDER || 'tawk').toLowerCase();
+  const tawkPropertyId = String(window.ESO_TAWK_PROPERTY_ID || '').trim();
+  const tawkWidgetId = String(window.ESO_TAWK_WIDGET_ID || '').trim();
 
-  let smartsuppScriptLoaded = false;
-  let loaderRequested = false;
-  let loaderPromise = null;
-  let openInProgress = false;
-  let loaderHardError = false;
+  if (provider !== 'tawk') return;
 
-  function openFallbackSupportPanel() {
-    if (document.getElementById('supportFallbackPanel')) return;
+  let tawkLoaded = false;
+  let tawkLoading = false;
 
-    const panel = document.createElement('div');
-    panel.id = 'supportFallbackPanel';
-    panel.className = 'fixed inset-0 z-[2147483647] bg-black/50 flex items-center justify-center p-4';
-    panel.innerHTML = `
-      <div class="bg-white rounded-2xl max-w-md w-full p-6">
-        <div class="flex items-center justify-between mb-3">
-          <h3 class="text-lg font-bold text-gray-900">Support</h3>
-          <button id="supportFallbackClose" class="p-2 rounded-lg hover:bg-gray-100"><i class="fas fa-times"></i></button>
-        </div>
-        <p class="text-sm text-gray-600 mb-3">Live chat did not open yet. This is usually caused by mobile content blockers or Smartsupp site settings.</p>
-        <ul class="text-xs text-gray-500 mb-4 list-disc pl-5 space-y-1">
-          <li>Disable Safari content blocker for this site and retry</li>
-          <li>Ensure domain is allowed in Smartsupp settings</li>
-          <li>Keep this page open for 10-20s then retry</li>
-        </ul>
-        <div class="space-y-3">
-          <button id="supportFallbackRetry" class="block w-full text-center px-4 py-3 rounded-xl bg-indigo-600 text-white font-semibold">Try Opening Chat Again</button>
-          <a href="https://www.smartsupp.com/en/contact-us/" target="_blank" rel="noopener noreferrer" class="block text-center px-4 py-3 rounded-xl bg-indigo-600 text-white font-semibold">Open Smartsupp Support</a>
-          <a href="mailto:support@elitestockoptions.com" class="block text-center px-4 py-3 rounded-xl border border-gray-200 text-gray-700 font-semibold">Email Support</a>
-        </div>
-      </div>
-    `;
-
-    panel.addEventListener('click', function (e) {
-      if (e.target === panel) panel.remove();
-    });
-
-    document.body.appendChild(panel);
-    document.getElementById('supportFallbackRetry')?.addEventListener('click', function () {
-      panel.remove();
-      openSupport();
-    });
-    document.getElementById('supportFallbackClose')?.addEventListener('click', function () {
-      panel.remove();
-    });
-  }
-
-  function tryOpenSmartsupp() {
-    if (typeof window.smartsupp !== 'function') return false;
-
-    try {
-      window.smartsupp('chat:show');
-      window.smartsupp('chat:open');
-      window.smartsupp('api', 'open');
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  function setSmartsuppVisitor() {
-    try {
-      const currentUser = JSON.parse(localStorage.getItem('elitestockoptions_user') || localStorage.getItem('eso_currentUser') || 'null');
-      if (!currentUser) return;
-      const displayName = currentUser.fullName || currentUser.name || '';
-      if (displayName) window.smartsupp('name', displayName);
-      if (currentUser.email) window.smartsupp('email', currentUser.email);
-    } catch (_) {}
-  }
-
-  function waitForSmartsuppReady(timeoutMs = 20000) {
-    return new Promise((resolve, reject) => {
-      const started = Date.now();
-      const tick = () => {
-        const ready = smartsuppScriptLoaded || !!document.querySelector('iframe[src*="smartsupp"], [id*="smartsupp"], [class*="smartsupp"]');
-        if (ready) {
-          resolve(true);
-          return;
-        }
-        if (Date.now() - started >= timeoutMs) {
-          reject(new Error('Smartsupp loader timeout'));
-          return;
-        }
-        setTimeout(tick, 250);
-      };
-      tick();
-    });
-  }
-
-  function ensureSmartsuppLoaded() {
-    if (smartsuppScriptLoaded) return Promise.resolve(true);
-    if (loaderPromise) return loaderPromise;
-
-    loaderPromise = new Promise((resolve, reject) => {
-      if (!loaderRequested) {
-        loaderRequested = true;
-        const script = document.createElement('script');
-        script.async = true;
-        script.src = 'https://www.smartsuppchat.com/loader.js?';
-        script.charset = 'utf-8';
-        script.onload = function () {
-          smartsuppScriptLoaded = true;
-          setSmartsuppVisitor();
-          resolve(true);
-        };
-        script.onerror = function () {
-          smartsuppScriptLoaded = false;
-          loaderHardError = true;
-          reject(new Error('Smartsupp script failed to load'));
-        };
-        document.head.appendChild(script);
-      }
-    }).catch(() => false);
-
-    return loaderPromise;
-  }
-
-  function openSupport(event) {
-    if (event) {
-      event.preventDefault();
-      event.stopPropagation();
-    }
-    if (openInProgress) return;
-    openInProgress = true;
-
-    ensureSmartsuppLoaded()
-      .then(() => waitForSmartsuppReady(20000))
-      .then(() => {
-        tryOpenSmartsupp();
-        setTimeout(tryOpenSmartsupp, 250);
-        setTimeout(tryOpenSmartsupp, 900);
-      })
-      .catch(() => {
-        if (loaderHardError || !smartsuppScriptLoaded) {
-          openFallbackSupportPanel();
-        }
-      })
-      .finally(() => {
-        openInProgress = false;
-      });
-  }
-
-  function createSupportButton() {
-    if (document.getElementById('globalSupportButton')) return;
+  function injectSupportStyles() {
+    if (document.getElementById('globalSupportButtonStyles')) return;
 
     const style = document.createElement('style');
     style.id = 'globalSupportButtonStyles';
@@ -175,6 +40,134 @@
       }
     `;
     document.head.appendChild(style);
+  }
+
+  function setVisitorData() {
+    try {
+      const currentUser = JSON.parse(localStorage.getItem('elitestockoptions_user') || localStorage.getItem('eso_currentUser') || 'null');
+      if (!currentUser) return;
+      if (!window.Tawk_API) return;
+
+      if (currentUser.email) {
+        window.Tawk_API.setAttributes({
+          name: currentUser.fullName || currentUser.name || '',
+          email: currentUser.email
+        }, function () {});
+      }
+    } catch (_) {}
+  }
+
+  function ensureTawkLoaded() {
+    return new Promise((resolve, reject) => {
+      if (tawkLoaded || (window.Tawk_API && typeof window.Tawk_API.maximize === 'function')) {
+        tawkLoaded = true;
+        resolve(true);
+        return;
+      }
+
+      if (!tawkPropertyId || !tawkWidgetId) {
+        reject(new Error('Missing Tawk.to property/widget config'));
+        return;
+      }
+
+      if (tawkLoading) {
+        const wait = setInterval(() => {
+          if (tawkLoaded || (window.Tawk_API && typeof window.Tawk_API.maximize === 'function')) {
+            clearInterval(wait);
+            resolve(true);
+          }
+        }, 250);
+        setTimeout(() => {
+          clearInterval(wait);
+          reject(new Error('Tawk.to load timeout'));
+        }, 12000);
+        return;
+      }
+
+      tawkLoading = true;
+      window.Tawk_API = window.Tawk_API || {};
+      window.Tawk_LoadStart = new Date();
+
+      const script = document.createElement('script');
+      script.async = true;
+      script.src = `https://embed.tawk.to/${encodeURIComponent(tawkPropertyId)}/${encodeURIComponent(tawkWidgetId)}`;
+      script.charset = 'UTF-8';
+      script.setAttribute('crossorigin', '*');
+
+      script.onload = function () {
+        tawkLoaded = true;
+        tawkLoading = false;
+        setTimeout(setVisitorData, 300);
+        resolve(true);
+      };
+
+      script.onerror = function () {
+        tawkLoaded = false;
+        tawkLoading = false;
+        reject(new Error('Tawk.to script failed to load'));
+      };
+
+      document.head.appendChild(script);
+    });
+  }
+
+  function openFallbackSupportPanel(message) {
+    if (document.getElementById('supportFallbackPanel')) return;
+
+    const panel = document.createElement('div');
+    panel.id = 'supportFallbackPanel';
+    panel.className = 'fixed inset-0 z-[2147483647] bg-black/50 flex items-center justify-center p-4';
+    panel.innerHTML = `
+      <div class="bg-white rounded-2xl max-w-md w-full p-6">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-lg font-bold text-gray-900">Support Chat Setup Needed</h3>
+          <button id="supportFallbackClose" class="p-2 rounded-lg hover:bg-gray-100"><i class="fas fa-times"></i></button>
+        </div>
+        <p class="text-sm text-gray-600 mb-3">${message || 'Live support could not start right now.'}</p>
+        <p class="text-xs text-gray-500 mb-4">Please set <strong>ESO_TAWK_PROPERTY_ID</strong> and <strong>ESO_TAWK_WIDGET_ID</strong> in config.</p>
+        <div class="space-y-3">
+          <a href="https://dashboard.tawk.to/" target="_blank" rel="noopener noreferrer" class="block text-center px-4 py-3 rounded-xl bg-indigo-600 text-white font-semibold">Open Tawk Dashboard</a>
+          <a href="mailto:support@elitestockoptions.com" class="block text-center px-4 py-3 rounded-xl border border-gray-200 text-gray-700 font-semibold">Email Support</a>
+        </div>
+      </div>
+    `;
+
+    panel.addEventListener('click', function (e) {
+      if (e.target === panel) panel.remove();
+    });
+
+    document.body.appendChild(panel);
+    document.getElementById('supportFallbackClose')?.addEventListener('click', function () {
+      panel.remove();
+    });
+  }
+
+  function openSupport(event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+
+    ensureTawkLoaded()
+      .then(() => {
+        try {
+          if (window.Tawk_API && typeof window.Tawk_API.showWidget === 'function') {
+            window.Tawk_API.showWidget();
+          }
+          if (window.Tawk_API && typeof window.Tawk_API.maximize === 'function') {
+            window.Tawk_API.maximize();
+          }
+        } catch (_) {}
+      })
+      .catch((error) => {
+        openFallbackSupportPanel(error?.message || 'Support chat is unavailable.');
+      });
+  }
+
+  function createSupportButton() {
+    if (document.getElementById('globalSupportButton')) return;
+
+    injectSupportStyles();
 
     const btn = document.createElement('button');
     btn.id = 'globalSupportButton';
@@ -189,22 +182,11 @@
     document.body.appendChild(btn);
   }
 
-  window._smartsupp = window._smartsupp || {};
-  window._smartsupp.key = key;
-
-  if (typeof window.smartsupp !== 'function') {
-    const queueFn = function () {
-      queueFn._.push(arguments);
-    };
-    queueFn._ = [];
-    window.smartsupp = queueFn;
-  }
-
-  ensureSmartsuppLoaded();
-
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', createSupportButton);
   } else {
     createSupportButton();
   }
+
+  ensureTawkLoaded().catch(() => {});
 })();
