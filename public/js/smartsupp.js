@@ -6,6 +6,7 @@
   let loaderRequested = false;
   let loaderPromise = null;
   let openInProgress = false;
+  let loaderHardError = false;
 
   function openFallbackSupportPanel() {
     if (document.getElementById('supportFallbackPanel')) return;
@@ -19,8 +20,14 @@
           <h3 class="text-lg font-bold text-gray-900">Support</h3>
           <button id="supportFallbackClose" class="p-2 rounded-lg hover:bg-gray-100"><i class="fas fa-times"></i></button>
         </div>
-        <p class="text-sm text-gray-600 mb-4">Live chat is still loading. Please try again in a moment or contact support directly.</p>
+        <p class="text-sm text-gray-600 mb-3">Live chat did not open yet. This is usually caused by mobile content blockers or Smartsupp site settings.</p>
+        <ul class="text-xs text-gray-500 mb-4 list-disc pl-5 space-y-1">
+          <li>Disable Safari content blocker for this site and retry</li>
+          <li>Ensure domain is allowed in Smartsupp settings</li>
+          <li>Keep this page open for 10-20s then retry</li>
+        </ul>
         <div class="space-y-3">
+          <button id="supportFallbackRetry" class="block w-full text-center px-4 py-3 rounded-xl bg-indigo-600 text-white font-semibold">Try Opening Chat Again</button>
           <a href="https://www.smartsupp.com/en/contact-us/" target="_blank" rel="noopener noreferrer" class="block text-center px-4 py-3 rounded-xl bg-indigo-600 text-white font-semibold">Open Smartsupp Support</a>
           <a href="mailto:support@elitestockoptions.com" class="block text-center px-4 py-3 rounded-xl border border-gray-200 text-gray-700 font-semibold">Email Support</a>
         </div>
@@ -32,6 +39,10 @@
     });
 
     document.body.appendChild(panel);
+    document.getElementById('supportFallbackRetry')?.addEventListener('click', function () {
+      panel.remove();
+      openSupport();
+    });
     document.getElementById('supportFallbackClose')?.addEventListener('click', function () {
       panel.remove();
     });
@@ -60,7 +71,7 @@
     } catch (_) {}
   }
 
-  function waitForSmartsuppReady(timeoutMs = 7000) {
+  function waitForSmartsuppReady(timeoutMs = 20000) {
     return new Promise((resolve, reject) => {
       const started = Date.now();
       const tick = () => {
@@ -97,6 +108,7 @@
         };
         script.onerror = function () {
           smartsuppScriptLoaded = false;
+          loaderHardError = true;
           reject(new Error('Smartsupp script failed to load'));
         };
         document.head.appendChild(script);
@@ -115,14 +127,16 @@
     openInProgress = true;
 
     ensureSmartsuppLoaded()
-      .then(() => waitForSmartsuppReady(7000))
+      .then(() => waitForSmartsuppReady(20000))
       .then(() => {
         tryOpenSmartsupp();
         setTimeout(tryOpenSmartsupp, 250);
         setTimeout(tryOpenSmartsupp, 900);
       })
       .catch(() => {
-        openFallbackSupportPanel();
+        if (loaderHardError || !smartsuppScriptLoaded) {
+          openFallbackSupportPanel();
+        }
       })
       .finally(() => {
         openInProgress = false;
