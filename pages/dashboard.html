@@ -575,9 +575,38 @@
       if (Array.isArray(remoteTrades)) saveTradesStore(remoteTrades);
     }
 
+    async function syncRemoteUserToLocal() {
+      if (!(window.ESO_DB && window.ESO_DB.isReady())) return null;
+
+      const authUser = await window.ESO_DB.getAuthUser();
+      if (!authUser) return null;
+
+      let remoteUser = await window.ESO_DB.findUserByAuthId(authUser.id);
+      if (!remoteUser && currentUser?.email) {
+        remoteUser = await window.ESO_DB.findUserByEmail(currentUser.email);
+      }
+      if (!remoteUser) return null;
+
+      currentUser.id = remoteUser.id || currentUser.id;
+      currentUser.auth_id = remoteUser.auth_id || currentUser.auth_id;
+      currentUser.fullName = remoteUser.fullName || currentUser.fullName;
+      currentUser.email = remoteUser.email || currentUser.email;
+      currentUser.plan = remoteUser.plan || currentUser.plan;
+      currentUser.balance = Number(remoteUser.balance || 0);
+      currentUser.availableCash = Number(remoteUser.availableCash || 0);
+      currentUser.profitsBalance = Number(remoteUser.profitsBalance || 0);
+      currentUser.kycStatus = remoteUser.kycStatus || currentUser.kycStatus;
+
+      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+      localStorage.setItem('eso_currentUser', JSON.stringify(currentUser));
+      return remoteUser;
+    }
+
     // Initialize dashboard
     async function initDashboard() {
       if (!currentUser?.id) return;
+
+      await syncRemoteUserToLocal();
 
       // Sync balance from shared users storage (new + legacy keys) to current session
       const serverUser = resolveDashboardUserFromStore();
@@ -634,6 +663,11 @@
 
       if (!tradesRefreshTimer && currentUser?.id) {
         tradesRefreshTimer = setInterval(async () => {
+          await syncRemoteUserToLocal();
+          document.getElementById('totalBalance').textContent = '$' + (currentUser.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
+          document.getElementById('availableCash').textContent = '$' + (currentUser.availableCash || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
+          document.getElementById('profitsBalance').textContent = '$' + (currentUser.profitsBalance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
+
           await syncRemoteTradesToLocal();
           loadOpenTrades();
           loadUserNotifications();
