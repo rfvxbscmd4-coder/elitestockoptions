@@ -143,23 +143,6 @@
     });
   }
 
-  function getDirectChatUrl() {
-    if (!tawkPropertyId || !tawkWidgetId) return '';
-    return `https://tawk.to/chat/${encodeURIComponent(tawkPropertyId)}/${encodeURIComponent(tawkWidgetId)}`;
-  }
-
-  function tryOpenDirectChatInCurrentTab() {
-    const url = getDirectChatUrl();
-    if (!url) return false;
-
-    try {
-      window.location.href = url;
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
   function openFallbackSupportPanel(message) {
     if (document.getElementById('supportFallbackPanel')) return;
 
@@ -224,9 +207,6 @@
         try {
           console.warn('[Support Chat] loader error:', error?.message || error);
         } catch (_) {}
-        if (tryOpenDirectChatInCurrentTab()) {
-          return;
-        }
         openFallbackSupportPanel('Live chat is temporarily unavailable. Please try again in a moment.');
       });
   }
