@@ -107,12 +107,25 @@
         reject(new Error('Tawk.to script failed to load'));
       };
 
-      document.head.appendChild(script);
+      const firstScript = document.getElementsByTagName('script')[0];
+      if (firstScript && firstScript.parentNode) {
+        firstScript.parentNode.insertBefore(script, firstScript);
+      } else {
+        document.head.appendChild(script);
+      }
     });
   }
 
-  function openFallbackSupportPanel(message) {
+  function openFallbackSupportPanel(message, isConfigIssue) {
     if (document.getElementById('supportFallbackPanel')) return;
+
+    const configHint = isConfigIssue
+      ? '<p class="text-xs text-gray-500 mb-4">Please set <strong>ESO_TAWK_PROPERTY_ID</strong> and <strong>ESO_TAWK_WIDGET_ID</strong> in config.</p>'
+      : '<p class="text-xs text-gray-500 mb-4">The Tawk script looks blocked by browser/network (commonly ad blockers, private DNS, or strict privacy mode).</p>';
+
+    const directChatUrl = (tawkPropertyId && tawkWidgetId)
+      ? `https://tawk.to/chat/${encodeURIComponent(tawkPropertyId)}/${encodeURIComponent(tawkWidgetId)}`
+      : 'https://dashboard.tawk.to/';
 
     const panel = document.createElement('div');
     panel.id = 'supportFallbackPanel';
@@ -120,13 +133,14 @@
     panel.innerHTML = `
       <div class="bg-white rounded-2xl max-w-md w-full p-6">
         <div class="flex items-center justify-between mb-3">
-          <h3 class="text-lg font-bold text-gray-900">Support Chat Setup Needed</h3>
+          <h3 class="text-lg font-bold text-gray-900">Support Chat Unavailable</h3>
           <button id="supportFallbackClose" class="p-2 rounded-lg hover:bg-gray-100"><i class="fas fa-times"></i></button>
         </div>
         <p class="text-sm text-gray-600 mb-3">${message || 'Live support could not start right now.'}</p>
-        <p class="text-xs text-gray-500 mb-4">Please set <strong>ESO_TAWK_PROPERTY_ID</strong> and <strong>ESO_TAWK_WIDGET_ID</strong> in config.</p>
+        ${configHint}
         <div class="space-y-3">
           <a href="https://dashboard.tawk.to/" target="_blank" rel="noopener noreferrer" class="block text-center px-4 py-3 rounded-xl bg-indigo-600 text-white font-semibold">Open Tawk Dashboard</a>
+          <a href="${directChatUrl}" target="_blank" rel="noopener noreferrer" class="block text-center px-4 py-3 rounded-xl bg-emerald-600 text-white font-semibold">Open Chat In New Tab</a>
           <a href="mailto:support@elitestockoptions.com" class="block text-center px-4 py-3 rounded-xl border border-gray-200 text-gray-700 font-semibold">Email Support</a>
         </div>
       </div>
@@ -160,7 +174,9 @@
         } catch (_) {}
       })
       .catch((error) => {
-        openFallbackSupportPanel(error?.message || 'Support chat is unavailable.');
+        const message = error?.message || 'Support chat is unavailable.';
+        const isConfigIssue = /Missing Tawk\.to property\/widget config/i.test(message);
+        openFallbackSupportPanel(message, isConfigIssue);
       });
   }
 
