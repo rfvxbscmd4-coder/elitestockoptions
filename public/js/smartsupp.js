@@ -357,6 +357,18 @@
     }
   }
 
+  function openDirectChatInNewTab() {
+    const url = getDirectChatUrl();
+    if (!url) return false;
+    try {
+      const tab = window.open(url, '_blank', 'noopener,noreferrer');
+      if (tab) return true;
+      return openDirectChatInCurrentTab();
+    } catch (_) {
+      return openDirectChatInCurrentTab();
+    }
+  }
+
   function openFallbackSupportPanel(message) {
     if (document.getElementById('supportFallbackPanel')) return;
 
@@ -412,26 +424,11 @@
       event.stopPropagation();
     }
 
-    ensureTawkLoaded(3500)
-      .then(() => {
-        try {
-          if (window.Tawk_API && typeof window.Tawk_API.showWidget === 'function') {
-            window.Tawk_API.showWidget();
-          }
-          if (window.Tawk_API && typeof window.Tawk_API.maximize === 'function') {
-            window.Tawk_API.maximize();
-          }
-        } catch (_) {}
-      })
-      .catch((error) => {
-        try {
-          console.warn('[Support Chat] loader error:', error?.message || error);
-        } catch (_) {}
-        if (openDirectChatInCurrentTab()) {
-          return;
-        }
-        openFallbackSupportPanel('Live chat is temporarily unavailable. Please try again in a moment.');
-      });
+    if (openDirectChatInNewTab()) {
+      return;
+    }
+
+    openFallbackSupportPanel('Live chat is temporarily unavailable. Please try again in a moment.');
   }
 
   function clampSupportPosition(btn, x, y) {
