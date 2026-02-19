@@ -1290,17 +1290,6 @@
           
           saveUsers(users);
           
-          // Also update current user session if they're logged in
-          const currentUser = JSON.parse(localStorage.getItem('elitestockoptions_user'));
-          if (currentUser && currentUser.id === trade.userId) {
-            currentUser.balance += trade.amount + trade.pnl;
-            currentUser.availableCash += trade.amount + trade.pnl;
-            if (trade.pnl > 0) {
-              currentUser.profitsBalance = (currentUser.profitsBalance || 0) + trade.pnl;
-            }
-            localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
-          }
-          
           addTransaction(trade.userId, 'trade', trade.amount + trade.pnl, `Admin closed ${trade.type} position on ${trade.symbol} | P&L: $${trade.pnl.toFixed(2)}`);
         }
         
@@ -1436,14 +1425,6 @@
           await window.ESO_DB.upsertUser(user);
         }
         
-        // Also update current user session if they're logged in (same browser)
-        const currentUser = JSON.parse(localStorage.getItem('elitestockoptions_user'));
-        if (currentUser && currentUser.id === deposit.userId) {
-          currentUser.balance = (currentUser.balance || 0) + deposit.amount;
-          currentUser.availableCash = (currentUser.availableCash || 0) + deposit.amount;
-          localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
-        }
-        
         showToast(`Deposit approved! Added $${deposit.amount} to ${user.email}'s balance. New balance: $${user.balance}`, 'success');
       } else {
         showToast('User not found in database!', 'error');
@@ -1563,18 +1544,6 @@
             user.balance = (user.balance || 0) + withdrawal.amount;
           }
           saveUsers(users);
-
-          const currentUser = JSON.parse(localStorage.getItem('elitestockoptions_user'));
-          if (currentUser && currentUser.id === withdrawal.userId) {
-            if (withdrawal.source === 'available') {
-              currentUser.availableCash = (currentUser.availableCash || 0) + withdrawal.amount;
-            } else if (withdrawal.source === 'profits') {
-              currentUser.profitsBalance = (currentUser.profitsBalance || 0) + withdrawal.amount;
-            } else {
-              currentUser.balance = (currentUser.balance || 0) + withdrawal.amount;
-            }
-            localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
-          }
         }
 
         upsertTransactionStatusByReference({
@@ -1697,8 +1666,6 @@
       let users = getUsers();
       const user = users.find(u => u.id === userId);
       if (!user) return;
-
-      const activeSessionSnapshot = localStorage.getItem('elitestockoptions_user');
       const previousBalance = user.balance || 0;
 
       let changeAmount = 0;
@@ -1733,10 +1700,6 @@
         await window.ESO_DB.upsertUser(user);
       }
       addTransaction(userId, 'admin_adjustment', changeAmount, `Balance ${action} by admin: ${reason || 'No reason'}`);
-
-      if (activeSessionSnapshot !== null) {
-        localStorage.setItem('elitestockoptions_user', activeSessionSnapshot);
-      }
       
       showToast(`Balance updated successfully!`);
       document.getElementById('balanceForm').reset();
