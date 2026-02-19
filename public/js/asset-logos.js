@@ -14,6 +14,22 @@
     NFLX: 'netflix.com'
   };
 
+  const BOND_FLAG_BY_PREFIX = {
+    US: 'us',
+    DE: 'de',
+    FR: 'fr',
+    IT: 'it',
+    ES: 'es',
+    GB: 'gb',
+    UK: 'gb',
+    JP: 'jp',
+    AU: 'au',
+    CA: 'ca',
+    CN: 'cn',
+    IN: 'in',
+    BR: 'br'
+  };
+
   function normalizeSymbol(raw) {
     if (!raw) return '';
     const withNoExchange = String(raw).split(':').pop() || '';
@@ -39,6 +55,21 @@
     ].includes(base);
   }
 
+  function bondFlagCandidate(raw) {
+    const symbol = normalizeSymbol(raw);
+    const base = extractBaseSymbol(raw);
+
+    const token = symbol || base;
+    const countryPrefix = token.match(/^(US|DE|FR|IT|ES|GB|UK|JP|AU|CA|CN|IN|BR)/);
+    if (!countryPrefix) return null;
+
+    if (!/(\d+Y|\d+W)$/i.test(token)) return null;
+
+    const cc = BOND_FLAG_BY_PREFIX[countryPrefix[1]];
+    if (!cc) return null;
+    return `https://flagcdn.com/w40/${cc}.png`;
+  }
+
   function stockTicker(raw) {
     const base = extractBaseSymbol(raw);
     if (!base) return '';
@@ -50,6 +81,9 @@
     const ticker = stockTicker(raw);
 
     const candidates = [];
+
+    const bondFlag = bondFlagCandidate(raw);
+    if (bondFlag) candidates.push(bondFlag);
 
     if (likelyCrypto(base)) {
       candidates.push(`${CRYPTO_ICON_BASE}/${base.toLowerCase()}.png`);

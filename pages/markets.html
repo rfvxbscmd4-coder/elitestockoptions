@@ -469,7 +469,7 @@
           <tr class="asset-row border-b border-gray-100" onclick="openChart('${category}', '${asset.symbol}')">
             <td class="px-6 py-4">
               <div class="flex items-center gap-3">
-                ${window.ESO_ASSETS ? window.ESO_ASSETS.renderLogo(asset.symbol, asset.name, asset.icon, asset.color) : `<div class="w-10 h-10 rounded-xl bg-gradient-to-br ${asset.color} flex items-center justify-center"><i class="${asset.icon} text-white"></i></div>`}
+                ${window.ESO_ASSETS ? window.ESO_ASSETS.renderLogo(asset.tvSymbol || asset.symbol, asset.name, asset.icon, asset.color) : `<div class="w-10 h-10 rounded-xl bg-gradient-to-br ${asset.color} flex items-center justify-center"><i class="${asset.icon} text-white"></i></div>`}
                 <div>
                   <p class="font-medium text-gray-900">${asset.name}</p>
                   <p class="text-sm text-gray-500">${asset.symbol}</p>
@@ -511,7 +511,7 @@
       document.getElementById('chart-asset-symbol').textContent = asset.symbol;
       if (window.ESO_ASSETS) {
         const logoHtml = window.ESO_ASSETS
-          .renderLogo(asset.symbol, asset.name, asset.icon, asset.color)
+          .renderLogo(asset.tvSymbol || asset.symbol, asset.name, asset.icon, asset.color)
           .replace('w-8 h-8', 'w-12 h-12')
           .replace('w-6 h-6', 'w-8 h-8');
         document.getElementById('chart-asset-icon').innerHTML = logoHtml;
