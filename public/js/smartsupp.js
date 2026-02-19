@@ -136,7 +136,7 @@
     } catch (_) {}
   }
 
-  function ensureTawkLoaded() {
+  function ensureTawkLoaded(timeoutMs = 12000) {
     return new Promise((resolve, reject) => {
       if (tawkLoaded || (window.Tawk_API && typeof window.Tawk_API.maximize === 'function')) {
         tawkLoaded = true;
@@ -159,7 +159,7 @@
         setTimeout(() => {
           clearInterval(wait);
           reject(new Error('Tawk.to load timeout'));
-        }, 12000);
+        }, timeoutMs);
         return;
       }
 
@@ -402,7 +402,7 @@
       event.stopPropagation();
     }
 
-    ensureTawkLoaded()
+    ensureTawkLoaded(3500)
       .then(() => {
         try {
           if (window.Tawk_API && typeof window.Tawk_API.showWidget === 'function') {
@@ -543,5 +543,5 @@
     createSupportButton();
   }
 
-  ensureTawkLoaded().catch(() => {});
+  ensureTawkLoaded(3500).catch(() => {});
 })();
