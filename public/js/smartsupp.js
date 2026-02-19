@@ -160,7 +160,7 @@
         ${helperHint}
         <div class="space-y-3">
           <button id="supportFallbackRetry" type="button" class="block w-full text-center px-4 py-3 rounded-xl bg-indigo-600 text-white font-semibold">Retry Live Chat</button>
-          <a href="mailto:support@elitestockoptions.com" class="block text-center px-4 py-3 rounded-xl border border-gray-200 text-gray-700 font-semibold">Email Support</a>
+          <a href="mailto:support@elitestockoptions.net" class="block text-center px-4 py-3 rounded-xl border border-gray-200 text-gray-700 font-semibold">Email Support</a>
         </div>
       </div>
     `;
