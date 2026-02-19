@@ -362,15 +362,15 @@
     if (!url) return false;
     try {
       const tab = window.open(url, '_blank', 'noopener,noreferrer');
-      if (tab) return true;
-      return openDirectChatInCurrentTab();
+      return !!tab;
     } catch (_) {
-      return openDirectChatInCurrentTab();
+      return false;
     }
   }
 
   function openFallbackSupportPanel(message) {
     if (document.getElementById('supportFallbackPanel')) return;
+    const directChatUrl = getDirectChatUrl();
 
     const panel = document.createElement('div');
     panel.id = 'supportFallbackPanel';
@@ -383,7 +383,8 @@
         </div>
         <p class="text-sm text-gray-600 mb-4">${message || 'Live chat is temporarily unavailable. Please try again in a moment.'}</p>
         <div class="space-y-3">
-          <button id="supportFallbackRetry" type="button" class="block w-full text-center px-4 py-3 rounded-xl bg-indigo-600 text-white font-semibold">Retry Live Chat</button>
+          ${directChatUrl ? `<a href="${directChatUrl}" target="_blank" rel="noopener noreferrer" class="block text-center px-4 py-3 rounded-xl bg-indigo-600 text-white font-semibold">Open Support Chat</a>` : ''}
+          <button id="supportFallbackRetry" type="button" class="block w-full text-center px-4 py-3 rounded-xl border border-gray-200 text-gray-700 font-semibold">Retry Live Chat</button>
           <a href="mailto:support@elitestockoptions.net" class="block text-center px-4 py-3 rounded-xl border border-gray-200 text-gray-700 font-semibold">Email Support</a>
         </div>
       </div>
