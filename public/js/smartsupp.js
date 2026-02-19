@@ -8,6 +8,8 @@
   let tawkLoaded = false;
   let tawkLoading = false;
   let lastSupportOpenAt = 0;
+  let suppressNextOpen = false;
+  const SUPPORT_POS_KEY = 'eso_support_button_position';
 
   function getCurrentUser() {
     try {
@@ -33,14 +35,20 @@
         padding: 11px 15px;
         font-size: 14px;
         font-weight: 700;
-        cursor: pointer;
+        cursor: grab;
         pointer-events: auto;
-        touch-action: manipulation;
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
         display: inline-flex;
         align-items: center;
         background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
         color: #ffffff;
         box-shadow: 0 10px 25px rgba(0,0,0,0.24);
+      }
+      #globalSupportButton.dragging {
+        cursor: grabbing;
+        opacity: 0.95;
       }
       #globalSupportButton:hover { opacity: 0.95; }
       #globalSupportButton i { margin-right: 8px; }
@@ -181,6 +189,15 @@
   }
 
   function openSupport(event) {
+    if (suppressNextOpen) {
+      suppressNextOpen = false;
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      return;
+    }
+
     const now = Date.now();
     if (now - lastSupportOpenAt < 700) {
       return;
@@ -211,6 +228,101 @@
       });
   }
 
+  function clampSupportPosition(btn, x, y) {
+    const maxX = Math.max(8, window.innerWidth - btn.offsetWidth - 8);
+    const maxY = Math.max(8, window.innerHeight - btn.offsetHeight - 8);
+    return {
+      x: Math.min(Math.max(8, x), maxX),
+      y: Math.min(Math.max(8, y), maxY)
+    };
+  }
+
+  function applySupportPosition(btn, x, y) {
+    const clamped = clampSupportPosition(btn, x, y);
+    btn.style.left = `${clamped.x}px`;
+    btn.style.top = `${clamped.y}px`;
+    btn.style.right = 'auto';
+    btn.style.bottom = 'auto';
+  }
+
+  function saveSupportPosition(x, y) {
+    try {
+      localStorage.setItem(SUPPORT_POS_KEY, JSON.stringify({ x, y }));
+    } catch (_) {}
+  }
+
+  function restoreSupportPosition(btn) {
+    try {
+      const saved = JSON.parse(localStorage.getItem(SUPPORT_POS_KEY) || 'null');
+      if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
+        applySupportPosition(btn, saved.x, saved.y);
+      }
+    } catch (_) {}
+  }
+
+  function setupDraggableSupportButton(btn) {
+    let dragging = false;
+    let pointerId = null;
+    let startX = 0;
+    let startY = 0;
+    let baseLeft = 0;
+    let baseTop = 0;
+
+    btn.addEventListener('pointerdown', function (event) {
+      if (event.button !== 0) return;
+
+      const rect = btn.getBoundingClientRect();
+      applySupportPosition(btn, rect.left, rect.top);
+
+      dragging = false;
+      pointerId = event.pointerId;
+      startX = event.clientX;
+      startY = event.clientY;
+      baseLeft = rect.left;
+      baseTop = rect.top;
+
+      btn.setPointerCapture?.(pointerId);
+    });
+
+    btn.addEventListener('pointermove', function (event) {
+      if (pointerId !== event.pointerId) return;
+
+      const deltaX = event.clientX - startX;
+      const deltaY = event.clientY - startY;
+      if (!dragging && Math.hypot(deltaX, deltaY) < 5) return;
+
+      dragging = true;
+      btn.classList.add('dragging');
+      applySupportPosition(btn, baseLeft + deltaX, baseTop + deltaY);
+      event.preventDefault();
+    });
+
+    function finishDrag(event) {
+      if (pointerId !== event.pointerId) return;
+      btn.releasePointerCapture?.(pointerId);
+      pointerId = null;
+
+      if (dragging) {
+        const rect = btn.getBoundingClientRect();
+        saveSupportPosition(rect.left, rect.top);
+        suppressNextOpen = true;
+      }
+
+      dragging = false;
+      btn.classList.remove('dragging');
+    }
+
+    btn.addEventListener('pointerup', finishDrag);
+    btn.addEventListener('pointercancel', finishDrag);
+
+    window.addEventListener('resize', function () {
+      const rect = btn.getBoundingClientRect();
+      applySupportPosition(btn, rect.left, rect.top);
+      const next = btn.getBoundingClientRect();
+      saveSupportPosition(next.left, next.top);
+    });
+  }
+
   function createSupportButton() {
     if (document.getElementById('globalSupportButton')) return;
 
@@ -223,10 +335,11 @@
     btn.setAttribute('aria-label', 'Open support chat');
     btn.title = 'Open support chat';
 
+    setupDraggableSupportButton(btn);
     btn.addEventListener('click', openSupport, { passive: false });
-    btn.addEventListener('touchend', openSupport, { passive: false });
 
     document.body.appendChild(btn);
+    restoreSupportPosition(btn);
   }
 
   if (document.readyState === 'loading') {
