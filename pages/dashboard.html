@@ -462,6 +462,30 @@
       localStorage.setItem('elitestockoptions_trades', JSON.stringify(trades));
     }
 
+    function resolveDashboardUserFromStore() {
+      if (!currentUser) return null;
+      const allUsers = JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
+      if (!Array.isArray(allUsers) || !allUsers.length) return null;
+
+      const byId = allUsers.find(u => String(u.id || '') === String(currentUser.id || ''));
+      if (byId) return byId;
+
+      const currentEmail = String(currentUser.email || '').toLowerCase();
+      const currentAuthId = String(currentUser.auth_id || '');
+      const byEmail = allUsers.filter(u => String(u.email || '').toLowerCase() === currentEmail);
+      if (!byEmail.length) return null;
+
+      const byAuth = byEmail.find(u => String(u.auth_id || '') === currentAuthId && currentAuthId);
+      if (byAuth) return byAuth;
+
+      const withAuth = byEmail.filter(u => !!u.auth_id);
+      if (withAuth.length) {
+        return withAuth.sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0))[0];
+      }
+
+      return byEmail.sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0))[0];
+    }
+
     function getUserNotifications() {
       if (!currentUser?.id) return [];
       const notifications = JSON.parse(localStorage.getItem(`eso_notifications_${currentUser.id}`) || '[]');
@@ -556,14 +580,16 @@
       if (!currentUser?.id) return;
 
       // Sync balance from shared users storage (new + legacy keys) to current session
-      const allUsers = JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
-      const serverUser = allUsers.find(u => u.id === currentUser.id);
+      const serverUser = resolveDashboardUserFromStore();
       if (serverUser) {
         // Update current session with server values
+        currentUser.id = serverUser.id || currentUser.id;
+        currentUser.auth_id = serverUser.auth_id || currentUser.auth_id;
         currentUser.balance = serverUser.balance || 0;
         currentUser.availableCash = serverUser.availableCash || 0;
         currentUser.profitsBalance = serverUser.profitsBalance || 0;
         currentUser.plan = serverUser.plan || currentUser.plan;
+        currentUser.kycStatus = serverUser.kycStatus || currentUser.kycStatus;
         localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
       }
 

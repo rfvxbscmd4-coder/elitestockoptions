@@ -55,18 +55,44 @@ window.ESO_SMARTSUPP_KEY = 'd258f195df6b89c5a8613da0ea66c14d5227b899';
 			|| Number(currentUser.availableCash || 0) !== Number(storeUser.availableCash || 0)
 			|| Number(currentUser.profitsBalance || 0) !== Number(storeUser.profitsBalance || 0)
 			|| String(currentUser.plan || '') !== String(storeUser.plan || '')
-			|| String(currentUser.kycStatus || '') !== String(storeUser.kycStatus || '');
+			|| String(currentUser.kycStatus || '') !== String(storeUser.kycStatus || '')
+			|| String(currentUser.id || '') !== String(storeUser.id || '')
+			|| String(currentUser.auth_id || '') !== String(storeUser.auth_id || '');
+	}
+
+	function resolveLatestUser(currentUser, users) {
+		if (!currentUser || !Array.isArray(users) || !users.length) return null;
+
+		const byId = users.find(u => String(u.id || '') === String(currentUser.id || ''));
+		if (byId && !byId.isAdmin) return byId;
+
+		const currentEmail = String(currentUser.email || '').toLowerCase();
+		const currentAuthId = String(currentUser.auth_id || '');
+		if (!currentEmail) return null;
+
+		const emailMatches = users.filter(u => String(u.email || '').toLowerCase() === currentEmail && !u.isAdmin);
+		if (!emailMatches.length) return null;
+
+		const authMatch = emailMatches.find(u => String(u.auth_id || '') === currentAuthId && currentAuthId);
+		if (authMatch) return authMatch;
+
+		const withAuth = emailMatches.filter(u => !!u.auth_id);
+		if (withAuth.length) {
+			return withAuth.sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0))[0];
+		}
+
+		return emailMatches.sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0))[0];
 	}
 
 	function syncUserSessionFromStore() {
 		const currentUser = safeParse(localStorage.getItem(USER_KEY), null);
-		if (!currentUser || currentUser.isAdmin || !currentUser.id) return;
+		if (!currentUser || currentUser.isAdmin) return;
 
 		const users = safeParse(localStorage.getItem(USERS_KEY), null)
 			|| safeParse(localStorage.getItem(LEGACY_USERS_KEY), []);
 		if (!Array.isArray(users) || !users.length) return;
 
-		const latestUser = users.find(u => String(u.id) === String(currentUser.id));
+		const latestUser = resolveLatestUser(currentUser, users);
 		if (!latestUser || latestUser.isAdmin) return;
 		if (!hasFinancialChange(currentUser, latestUser)) return;
 
