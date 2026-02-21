@@ -3,6 +3,26 @@ window.ESO_SUPABASE_ANON_KEY = 'sb_publishable_azANVZBlpJd2dPXy159Fxg_OsO7hkKJ';
 window.ESO_CHAT_PROVIDER = 'tawk';
 window.ESO_TAWK_PROPERTY_ID = '6996ed8f4f011d1c3d8f5058';
 window.ESO_TAWK_WIDGET_ID = 'default';
+window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
+
+(function enforceCanonicalHost() {
+	try {
+		const canonicalHost = String(window.ESO_CANONICAL_HOST || '').trim();
+		if (!canonicalHost) return;
+
+		const currentHost = String(window.location.hostname || '').trim().toLowerCase();
+		if (!currentHost || currentHost === canonicalHost.toLowerCase()) return;
+
+		const isLocal = currentHost === 'localhost' || currentHost === '127.0.0.1' || currentHost.endsWith('.local');
+		if (isLocal) return;
+
+		const knownHosts = new Set(['elitestockoptions.net', 'www.elitestockoptions.net']);
+		if (!knownHosts.has(currentHost)) return;
+
+		const target = `${window.location.protocol}//${canonicalHost}${window.location.pathname}${window.location.search}${window.location.hash}`;
+		window.location.replace(target);
+	} catch (_) {}
+})();
 
 (function sanitizeUserSession() {
 	try {
