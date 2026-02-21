@@ -1581,7 +1581,7 @@
       `).join('') : '<p class="text-gray-500 text-center py-4">No bonuses granted yet</p>';
     }
 
-    document.getElementById('bonusForm').addEventListener('submit', async function(e) {
+    document.getElementById('bonusForm').addEventListener('submit', function(e) {
       e.preventDefault();
       
       const userId = document.getElementById('bonusUser').value;
@@ -1612,21 +1612,6 @@
         date: new Date().toISOString()
       });
       localStorage.setItem('eso_bonuses', JSON.stringify(bonuses));
-
-      if (window.ESO_DB && window.ESO_DB.isReady()) {
-        await window.ESO_DB.createBonus({
-          id: bonuses[0].id,
-          userId: bonuses[0].userId,
-          userAuthId: bonuses[0].userAuthId,
-          userEmail: bonuses[0].userEmail,
-          amount: bonuses[0].amount,
-          type: bonuses[0].type,
-          pending: bonuses[0].pending,
-          claimed: bonuses[0].claimed,
-          message: bonuses[0].message,
-          date: bonuses[0].date
-        });
-      }
 
       // Send notification
       const lockText = type === 'custom' ? ' Requirement not met yet.' : ' You can claim it from your dashboard.';

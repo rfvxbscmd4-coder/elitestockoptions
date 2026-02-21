@@ -296,44 +296,6 @@
         if (error) throw error;
         return true;
       });
-    },
-
-    async getBonuses() {
-      const client = getClient();
-      if (!client) return null;
-      return safe(async () => {
-        const { data, error } = await client
-          .from('eso_bonuses')
-          .select('*')
-          .order('date', { ascending: false });
-        if (error) throw error;
-        return data || [];
-      });
-    },
-
-    async createBonus(bonus) {
-      const client = getClient();
-      if (!client) return null;
-      return safe(async () => {
-        const { error } = await client
-          .from('eso_bonuses')
-          .insert(bonus);
-        if (error) throw error;
-        return true;
-      });
-    },
-
-    async markBonusesClaimed(ids, claimedAt) {
-      const client = getClient();
-      if (!client || !Array.isArray(ids) || !ids.length) return null;
-      return safe(async () => {
-        const { error } = await client
-          .from('eso_bonuses')
-          .update({ claimed: true, pending: false, claimedAt: claimedAt || new Date().toISOString() })
-          .in('id', ids);
-        if (error) throw error;
-        return true;
-      });
     }
   };
 
