@@ -427,8 +427,8 @@
         <div class="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <i class="fas fa-gift text-amber-500 text-2xl"></i>
         </div>
-        <h3 id="bonusModalTitle" class="text-xl font-bold text-gray-900 mb-2">Daily Bonus</h3>
-        <p id="bonusModalMessage" class="text-gray-600 mb-4">Come back tomorrow to claim your daily trading bonus!</p>
+        <h3 id="bonusModalTitle" class="text-xl font-bold text-gray-900 mb-2">Bonus Status</h3>
+        <p id="bonusModalMessage" class="text-gray-600 mb-4">Checking your available bonuses...</p>
         <div id="bonusModalList" class="space-y-2 mb-4 text-left"></div>
         <button id="bonusModalAction" onclick="closeBonusModal()" class="btn-primary px-6 py-2 text-white rounded-xl">Got it</button>
       </div>
@@ -551,7 +551,7 @@
 
     function getPendingClaimableBonuses() {
       return getUserBonuses().filter(b => {
-        const isPending = b.pending === true || b.claimed === false;
+        const isPending = b.claimed !== true && b.pending !== false;
         const isCustom = String(b.type || '').toLowerCase() === 'custom';
         return isPending && !isCustom;
       });
@@ -588,7 +588,7 @@
 
       let changed = false;
       bonuses.forEach(bonus => {
-        const isPending = bonus.pending === true || bonus.claimed === false;
+        const isPending = bonus.claimed !== true && bonus.pending !== false;
         if (!isPending) return;
 
         const bonusId = String(bonus.id || '');
@@ -934,7 +934,7 @@
       const actionEl = document.getElementById('bonusModalAction');
 
       const userBonuses = getUserBonuses();
-      const pendingBonuses = userBonuses.filter(b => b.pending === true || b.claimed === false);
+      const pendingBonuses = userBonuses.filter(b => b.claimed !== true && b.pending !== false);
       const lockedCustom = pendingBonuses.filter(b => String(b.type || '').toLowerCase() === 'custom');
       const claimable = pendingBonuses.filter(b => String(b.type || '').toLowerCase() !== 'custom');
 
