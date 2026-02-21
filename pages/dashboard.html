@@ -266,8 +266,9 @@
             </a>
             
             <button onclick="claimBonus()" class="quick-action bg-white rounded-2xl p-4 text-center shadow-sm border border-gray-100 hover:border-primary">
-              <div class="w-12 h-12 bg-amber-500 rounded-xl flex items-center justify-center mx-auto mb-3">
+              <div class="relative w-12 h-12 bg-amber-500 rounded-xl flex items-center justify-center mx-auto mb-3">
                 <i class="fas fa-gift text-white"></i>
+                <span id="pendingBonusBadge" class="hidden absolute -top-2 -right-2 min-w-[18px] h-[18px] px-1 bg-red-500 text-white rounded-full text-[10px] font-semibold leading-[18px] text-center"></span>
               </div>
               <p class="text-sm font-medium text-gray-900">Claim Bonus</p>
             </button>
@@ -548,6 +549,28 @@
         .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
     }
 
+    function getPendingClaimableBonuses() {
+      return getUserBonuses().filter(b => {
+        const isPending = b.pending === true || b.claimed === false;
+        const isCustom = String(b.type || '').toLowerCase() === 'custom';
+        return isPending && !isCustom;
+      });
+    }
+
+    function updatePendingBonusBadge() {
+      const badge = document.getElementById('pendingBonusBadge');
+      if (!badge) return;
+
+      const count = getPendingClaimableBonuses().length;
+      if (count > 0) {
+        badge.classList.remove('hidden');
+        badge.textContent = count > 99 ? '99+' : String(count);
+      } else {
+        badge.classList.add('hidden');
+        badge.textContent = '';
+      }
+    }
+
     function saveBonusesStore(bonuses) {
       localStorage.setItem('eso_bonuses', JSON.stringify(Array.isArray(bonuses) ? bonuses : []));
     }
@@ -597,6 +620,7 @@
 
     function loadUserNotifications() {
       syncBonusNotifications();
+      updatePendingBonusBadge();
       const notifications = getUserNotifications();
       const unreadCount = notifications.filter(n => !n.read).length;
       const badge = document.getElementById('notificationBadge');
@@ -970,6 +994,7 @@
         });
         saveUserNotifications(notifications);
         loadUserNotifications();
+        updatePendingBonusBadge();
 
         titleEl.textContent = 'Bonus Claimed';
         messageEl.textContent = `You claimed $${credited.toFixed(2)} successfully.` + (lockedCustom.length ? " Custom bonus can't be claimed yet, requirement not met." : '');
@@ -989,6 +1014,7 @@
 
       document.getElementById('bonusModal').classList.remove('hidden');
       document.getElementById('bonusModal').classList.add('flex');
+      updatePendingBonusBadge();
     }
 
     function closeBonusModal() {
