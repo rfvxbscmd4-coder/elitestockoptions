@@ -1071,12 +1071,12 @@
     }
 
     function getUserEmail(userId) {
-      const user = getUsers().find(u => u.id === userId);
+      const user = getUsers().find(u => String(u.id || '') === String(userId || ''));
       return user ? user.email : 'Unknown';
     }
 
     function getUserName(userId) {
-      const user = getUsers().find(u => u.id === userId);
+      const user = getUsers().find(u => String(u.id || '') === String(userId || ''));
       return user ? (user.fullName || user.name || user.email) : 'Unknown';
     }
 
@@ -1608,7 +1608,7 @@
 
       // Update user balance
       let users = getUsers();
-      const user = users.find(u => u.id === userId);
+      const user = users.find(u => String(u.id || '') === String(userId || ''));
       if (user) {
         user.balance = (user.balance || 0) + amount;
         user.availableCash = (user.availableCash || 0) + amount;
@@ -2069,16 +2069,29 @@
     });
 
     function sendNotificationToUser(userId, title, message, type = 'info') {
-      let userNotifs = JSON.parse(localStorage.getItem(`eso_notifications_${userId}`) || '[]');
-      userNotifs.unshift({
-        id: Date.now().toString(),
+      const users = getUsers();
+      const target = users.find(u => String(u.id || '') === String(userId || ''));
+
+      const keys = new Set([`eso_notifications_${userId}`]);
+      if (target?.id) keys.add(`eso_notifications_${target.id}`);
+      if (target?.auth_id) keys.add(`eso_notifications_${target.auth_id}`);
+      if (target?.email) keys.add(`eso_notifications_${String(target.email).toLowerCase()}`);
+
+      const payload = {
+        id: Date.now().toString() + '_' + Math.random().toString(36).slice(2, 7),
         title: title,
         message: message,
         type: type,
         read: false,
         createdAt: new Date().toISOString()
+      };
+
+      keys.forEach(key => {
+        let userNotifs = JSON.parse(localStorage.getItem(key) || '[]');
+        if (!Array.isArray(userNotifs)) userNotifs = [];
+        userNotifs.unshift(payload);
+        localStorage.setItem(key, JSON.stringify(userNotifs));
       });
-      localStorage.setItem(`eso_notifications_${userId}`, JSON.stringify(userNotifs));
     }
 
     function loadNotifications() {

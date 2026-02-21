@@ -426,9 +426,10 @@
         <div class="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <i class="fas fa-gift text-amber-500 text-2xl"></i>
         </div>
-        <h3 class="text-xl font-bold text-gray-900 mb-2">Daily Bonus</h3>
-        <p class="text-gray-600 mb-4">Come back tomorrow to claim your daily trading bonus!</p>
-        <button onclick="closeBonusModal()" class="btn-primary px-6 py-2 text-white rounded-xl">Got it</button>
+        <h3 id="bonusModalTitle" class="text-xl font-bold text-gray-900 mb-2">Daily Bonus</h3>
+        <p id="bonusModalMessage" class="text-gray-600 mb-4">Come back tomorrow to claim your daily trading bonus!</p>
+        <div id="bonusModalList" class="space-y-2 mb-4 text-left"></div>
+        <button id="bonusModalAction" onclick="closeBonusModal()" class="btn-primary px-6 py-2 text-white rounded-xl">Got it</button>
       </div>
     </div>
   </div>
@@ -487,17 +488,104 @@
     }
 
     function getUserNotifications() {
-      if (!currentUser?.id) return [];
-      const notifications = JSON.parse(localStorage.getItem(`eso_notifications_${currentUser.id}`) || '[]');
-      return Array.isArray(notifications) ? notifications : [];
+      if (!currentUser) return [];
+
+      const keys = new Set();
+      if (currentUser.id) keys.add(`eso_notifications_${currentUser.id}`);
+      if (currentUser.auth_id) keys.add(`eso_notifications_${currentUser.auth_id}`);
+      if (currentUser.email) keys.add(`eso_notifications_${String(currentUser.email).toLowerCase()}`);
+
+      const merged = [];
+      const seen = new Set();
+      keys.forEach(key => {
+        const notifications = JSON.parse(localStorage.getItem(key) || '[]');
+        if (!Array.isArray(notifications)) return;
+        notifications.forEach(notification => {
+          const dedupeKey = String(notification.id || '') + '|' + String(notification.createdAt || notification.date || '');
+          if (seen.has(dedupeKey)) return;
+          seen.add(dedupeKey);
+          merged.push(notification);
+        });
+      });
+
+      return merged.sort((a, b) => new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0));
     }
 
     function saveUserNotifications(notifications) {
-      if (!currentUser?.id) return;
-      localStorage.setItem(`eso_notifications_${currentUser.id}`, JSON.stringify(notifications));
+      if (!currentUser) return;
+      const normalized = Array.isArray(notifications) ? notifications : [];
+      if (currentUser.id) localStorage.setItem(`eso_notifications_${currentUser.id}`, JSON.stringify(normalized));
+      if (currentUser.auth_id) localStorage.setItem(`eso_notifications_${currentUser.auth_id}`, JSON.stringify(normalized));
+      if (currentUser.email) localStorage.setItem(`eso_notifications_${String(currentUser.email).toLowerCase()}`, JSON.stringify(normalized));
+    }
+
+    function resolveCurrentUserIds() {
+      const ids = new Set();
+      if (currentUser?.id) ids.add(String(currentUser.id));
+      if (currentUser?.auth_id) ids.add(String(currentUser.auth_id));
+
+      const allUsers = JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
+      const email = String(currentUser?.email || '').toLowerCase();
+      if (email && Array.isArray(allUsers)) {
+        allUsers
+          .filter(u => String(u.email || '').toLowerCase() === email)
+          .forEach(u => {
+            if (u?.id) ids.add(String(u.id));
+            if (u?.auth_id) ids.add(String(u.auth_id));
+          });
+      }
+
+      return ids;
+    }
+
+    function getUserBonuses() {
+      const bonuses = JSON.parse(localStorage.getItem('eso_bonuses') || '[]');
+      if (!Array.isArray(bonuses) || !currentUser) return [];
+
+      const ids = resolveCurrentUserIds();
+      return bonuses
+        .filter(b => ids.has(String(b.userId || '')))
+        .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+    }
+
+    function syncBonusNotifications() {
+      const bonuses = getUserBonuses();
+      if (!bonuses.length) return;
+
+      const notifications = getUserNotifications();
+      const existingBonusRefs = new Set(
+        notifications
+          .filter(n => n.meta && n.meta.source === 'admin_bonus' && n.meta.bonusId)
+          .map(n => String(n.meta.bonusId))
+      );
+
+      let changed = false;
+      bonuses.forEach(bonus => {
+        const bonusId = String(bonus.id || '');
+        if (!bonusId || existingBonusRefs.has(bonusId)) return;
+
+        notifications.unshift({
+          id: `bonus_notif_${bonusId}`,
+          title: 'Bonus Received!',
+          message: `You received a $${Number(bonus.amount || 0).toFixed(2)} ${bonus.type || 'custom'} bonus${bonus.message ? ` — ${bonus.message}` : ''}`,
+          type: 'success',
+          read: false,
+          createdAt: bonus.date || new Date().toISOString(),
+          meta: {
+            source: 'admin_bonus',
+            bonusId: bonusId
+          }
+        });
+        changed = true;
+      });
+
+      if (changed) {
+        saveUserNotifications(notifications);
+      }
     }
 
     function loadUserNotifications() {
+      syncBonusNotifications();
       const notifications = getUserNotifications();
       const unreadCount = notifications.filter(n => !n.read).length;
       const badge = document.getElementById('notificationBadge');
@@ -805,6 +893,33 @@
     }
 
     function claimBonus() {
+      const bonuses = getUserBonuses();
+      const titleEl = document.getElementById('bonusModalTitle');
+      const messageEl = document.getElementById('bonusModalMessage');
+      const listEl = document.getElementById('bonusModalList');
+      const actionEl = document.getElementById('bonusModalAction');
+
+      if (bonuses.length) {
+        titleEl.textContent = 'Custom Bonus History';
+        messageEl.textContent = `You have ${bonuses.length} admin bonus${bonuses.length > 1 ? 'es' : ''}. Bonuses are already credited to your balance.`;
+        listEl.innerHTML = bonuses.slice(0, 5).map(b => `
+          <div class="p-3 rounded-xl bg-amber-50 border border-amber-100">
+            <div class="flex items-center justify-between">
+              <p class="font-semibold text-gray-900 text-sm capitalize">${b.type || 'Bonus'}</p>
+              <p class="font-bold text-amber-700">+$${Number(b.amount || 0).toFixed(2)}</p>
+            </div>
+            <p class="text-xs text-gray-500 mt-1">${new Date(b.date || Date.now()).toLocaleString()}</p>
+            ${b.message ? `<p class="text-xs text-gray-600 mt-1">${b.message}</p>` : ''}
+          </div>
+        `).join('');
+        actionEl.textContent = 'Close';
+      } else {
+        titleEl.textContent = 'Daily Bonus';
+        messageEl.textContent = 'Come back tomorrow to claim your daily trading bonus!';
+        listEl.innerHTML = '';
+        actionEl.textContent = 'Got it';
+      }
+
       document.getElementById('bonusModal').classList.remove('hidden');
       document.getElementById('bonusModal').classList.add('flex');
     }
