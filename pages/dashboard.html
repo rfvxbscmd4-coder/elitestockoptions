@@ -548,6 +548,10 @@
         .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
     }
 
+    function saveBonusesStore(bonuses) {
+      localStorage.setItem('eso_bonuses', JSON.stringify(Array.isArray(bonuses) ? bonuses : []));
+    }
+
     function syncBonusNotifications() {
       const bonuses = getUserBonuses();
       if (!bonuses.length) return;
@@ -561,14 +565,21 @@
 
       let changed = false;
       bonuses.forEach(bonus => {
+        const isPending = bonus.pending === true || bonus.claimed === false;
+        if (!isPending) return;
+
         const bonusId = String(bonus.id || '');
         if (!bonusId || existingBonusRefs.has(bonusId)) return;
 
+        const isCustom = String(bonus.type || '').toLowerCase() === 'custom';
+
         notifications.unshift({
           id: `bonus_notif_${bonusId}`,
-          title: 'Bonus Received!',
-          message: `You received a $${Number(bonus.amount || 0).toFixed(2)} ${bonus.type || 'custom'} bonus${bonus.message ? ` — ${bonus.message}` : ''}`,
-          type: 'success',
+          title: isCustom ? 'Custom Bonus Pending' : 'Bonus Available',
+          message: isCustom
+            ? `A $${Number(bonus.amount || 0).toFixed(2)} custom bonus is pending. Can't be claimed yet, requirement not met.${bonus.message ? ` — ${bonus.message}` : ''}`
+            : `A $${Number(bonus.amount || 0).toFixed(2)} ${bonus.type || 'bonus'} is available to claim.${bonus.message ? ` — ${bonus.message}` : ''}`,
+          type: isCustom ? 'warning' : 'success',
           read: false,
           createdAt: bonus.date || new Date().toISOString(),
           meta: {
@@ -898,10 +909,83 @@
       const listEl = document.getElementById('bonusModalList');
       const actionEl = document.getElementById('bonusModalAction');
 
-      titleEl.textContent = 'Bonus Locked';
-      messageEl.textContent = "Can't be claimed yet, requirement not met.";
-      listEl.innerHTML = '';
-      actionEl.textContent = 'Got it';
+      const userBonuses = getUserBonuses();
+      const pendingBonuses = userBonuses.filter(b => b.pending === true || b.claimed === false);
+      const lockedCustom = pendingBonuses.filter(b => String(b.type || '').toLowerCase() === 'custom');
+      const claimable = pendingBonuses.filter(b => String(b.type || '').toLowerCase() !== 'custom');
+
+      if (claimable.length > 0) {
+        const claimableIds = new Set(claimable.map(b => String(b.id || '')));
+        const totalAmount = claimable.reduce((sum, b) => sum + Number(b.amount || 0), 0);
+
+        const allBonuses = JSON.parse(localStorage.getItem('eso_bonuses') || '[]');
+        const updatedBonuses = (Array.isArray(allBonuses) ? allBonuses : []).map(b => {
+          if (claimableIds.has(String(b.id || ''))) {
+            return {
+              ...b,
+              claimed: true,
+              pending: false,
+              claimedAt: new Date().toISOString()
+            };
+          }
+          return b;
+        });
+        saveBonusesStore(updatedBonuses);
+
+        const credited = Number(totalAmount || 0);
+        currentUser.balance = Number(currentUser.balance || 0) + credited;
+        currentUser.availableCash = Number(currentUser.availableCash || 0) + credited;
+        currentUser.profitsBalance = Number(currentUser.profitsBalance || 0) + credited;
+        localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+        localStorage.setItem('eso_currentUser', JSON.stringify(currentUser));
+
+        const users = JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
+        if (Array.isArray(users)) {
+          const userIds = resolveCurrentUserIds();
+          const updatedUsers = users.map(u => {
+            if (!userIds.has(String(u.id || '')) && !userIds.has(String(u.auth_id || ''))) return u;
+            return {
+              ...u,
+              balance: Number(currentUser.balance || 0),
+              availableCash: Number(currentUser.availableCash || 0),
+              profitsBalance: Number(currentUser.profitsBalance || 0)
+            };
+          });
+          localStorage.setItem('elitestockoptions_users', JSON.stringify(updatedUsers));
+          localStorage.setItem('eso_users', JSON.stringify(updatedUsers));
+        }
+
+        document.getElementById('totalBalance').textContent = '$' + (currentUser.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
+        document.getElementById('availableCash').textContent = '$' + (currentUser.availableCash || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
+        document.getElementById('profitsBalance').textContent = '$' + (currentUser.profitsBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
+
+        const notifications = getUserNotifications();
+        notifications.unshift({
+          id: `bonus_claim_${Date.now()}`,
+          title: 'Bonus Claimed',
+          message: `You successfully claimed $${credited.toFixed(2)} from ${claimable.length} bonus${claimable.length > 1 ? 'es' : ''}.`,
+          type: 'success',
+          read: false,
+          createdAt: new Date().toISOString()
+        });
+        saveUserNotifications(notifications);
+        loadUserNotifications();
+
+        titleEl.textContent = 'Bonus Claimed';
+        messageEl.textContent = `You claimed $${credited.toFixed(2)} successfully.` + (lockedCustom.length ? " Custom bonus can't be claimed yet, requirement not met." : '');
+        listEl.innerHTML = '';
+        actionEl.textContent = 'Done';
+      } else if (lockedCustom.length > 0) {
+        titleEl.textContent = 'Bonus Locked';
+        messageEl.textContent = "Can't be claimed yet, requirement not met.";
+        listEl.innerHTML = '';
+        actionEl.textContent = 'Got it';
+      } else {
+        titleEl.textContent = 'No Bonus Available';
+        messageEl.textContent = 'There is no claimable bonus at the moment.';
+        listEl.innerHTML = '';
+        actionEl.textContent = 'Got it';
+      }
 
       document.getElementById('bonusModal').classList.remove('hidden');
       document.getElementById('bonusModal').classList.add('flex');

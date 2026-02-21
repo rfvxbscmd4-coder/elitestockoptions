@@ -1586,8 +1586,7 @@
       
       const userId = document.getElementById('bonusUser').value;
       const amount = parseFloat(document.getElementById('bonusAmount').value);
-      const selectedType = document.getElementById('bonusType').value;
-      const type = 'custom';
+      const type = document.getElementById('bonusType').value;
       const message = document.getElementById('bonusMessage').value;
 
       if (!userId || !amount) {
@@ -1602,27 +1601,16 @@
         userId: userId,
         amount: amount,
         type: type,
-        sourceType: selectedType,
+        pending: true,
+        claimed: false,
         message: message,
         date: new Date().toISOString()
       });
       localStorage.setItem('eso_bonuses', JSON.stringify(bonuses));
 
-      // Update user balance
-      let users = getUsers();
-      const user = users.find(u => String(u.id || '') === String(userId || ''));
-      if (user) {
-        user.balance = (user.balance || 0) + amount;
-        user.availableCash = (user.availableCash || 0) + amount;
-        user.profitsBalance = (user.profitsBalance || 0) + amount;
-        saveUsers(users);
-      }
-
-      // Add transaction
-      addTransaction(userId, 'bonus', amount, `custom bonus granted by admin: ${message || 'No message'}`);
-
       // Send notification
-      sendNotificationToUser(userId, 'Custom Bonus Set', `A custom bonus of $${amount} has been set by admin. Claim requirement not met yet. ${message || ''}`.trim(), 'info');
+      const lockText = type === 'custom' ? ' Requirement not met yet.' : ' You can claim it from your dashboard.';
+      sendNotificationToUser(userId, 'Bonus Available', `A $${amount} ${type} bonus has been added for your account.${lockText}${message ? ` ${message}` : ''}`.trim(), 'info');
 
       showToast(`Bonus of $${amount} granted successfully!`);
       document.getElementById('bonusForm').reset();
