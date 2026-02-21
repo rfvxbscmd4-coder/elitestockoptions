@@ -558,6 +558,30 @@
         .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
     }
 
+    async function syncRemoteBonusesToLocal() {
+      if (!(window.ESO_DB && window.ESO_DB.isReady())) return;
+      const remoteBonuses = await window.ESO_DB.getBonuses();
+      if (!Array.isArray(remoteBonuses)) return;
+
+      const localBonuses = JSON.parse(localStorage.getItem('eso_bonuses') || '[]');
+      const merged = [...(Array.isArray(localBonuses) ? localBonuses : [])];
+      const seen = new Set(merged.map(b => String(b.id || '')));
+
+      remoteBonuses.forEach(b => {
+        const id = String(b.id || '');
+        if (!id) return;
+        const index = merged.findIndex(x => String(x.id || '') === id);
+        if (index >= 0) {
+          merged[index] = { ...merged[index], ...b };
+        } else if (!seen.has(id)) {
+          seen.add(id);
+          merged.push(b);
+        }
+      });
+
+      saveBonusesStore(merged.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)));
+    }
+
     function getPendingClaimableBonuses() {
       return getUserBonuses().filter(b => {
         const isPending = b.claimed !== true && b.pending !== false;
@@ -753,6 +777,7 @@
       if (!currentUser?.id) return;
 
       await syncRemoteUserToLocal();
+      await syncRemoteBonusesToLocal();
 
       // Sync balance from shared users storage (new + legacy keys) to current session
       const serverUser = resolveDashboardUserFromStore();
@@ -810,6 +835,7 @@
       if (!tradesRefreshTimer && currentUser?.id) {
         tradesRefreshTimer = setInterval(async () => {
           await syncRemoteUserToLocal();
+          await syncRemoteBonusesToLocal();
           document.getElementById('totalBalance').textContent = '$' + (currentUser.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
           document.getElementById('availableCash').textContent = '$' + (currentUser.availableCash || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
           document.getElementById('profitsBalance').textContent = '$' + (currentUser.profitsBalance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
@@ -964,6 +990,10 @@
           return b;
         });
         saveBonusesStore(updatedBonuses);
+
+        if (window.ESO_DB && window.ESO_DB.isReady()) {
+          await window.ESO_DB.markBonusesClaimed(Array.from(claimableIds), new Date().toISOString());
+        }
 
         const credited = Number(totalAmount || 0);
         currentUser.balance = Number(currentUser.balance || 0) + credited;

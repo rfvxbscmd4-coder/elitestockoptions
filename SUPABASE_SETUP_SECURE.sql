@@ -77,6 +77,20 @@ create table if not exists public.eso_trades (
   "closedAt" timestamptz
 );
 
+create table if not exists public.eso_bonuses (
+  id text primary key,
+  "userId" text not null,
+  "userAuthId" text,
+  "userEmail" text,
+  amount numeric not null,
+  type text not null,
+  pending boolean default true,
+  claimed boolean default false,
+  message text,
+  date timestamptz default now(),
+  "claimedAt" timestamptz
+);
+
 -- Helper function for admin checks
 create or replace function public.eso_is_admin(uid uuid)
 returns boolean
@@ -94,6 +108,7 @@ alter table public.eso_admin_wallets enable row level security;
 alter table public.eso_deposits enable row level security;
 alter table public.eso_withdrawals enable row level security;
 alter table public.eso_trades enable row level security;
+alter table public.eso_bonuses enable row level security;
 
 -- USERS policies
 drop policy if exists "users_select_self_or_admin" on public.eso_users;
@@ -202,6 +217,53 @@ with check (
   or exists (
     select 1 from public.eso_users u
     where u.id = "userId" and u.auth_id = auth.uid()
+  )
+);
+
+-- BONUSES policies
+drop policy if exists "bonuses_select_own_or_admin" on public.eso_bonuses;
+create policy "bonuses_select_own_or_admin"
+on public.eso_bonuses for select
+using (
+  public.eso_is_admin(auth.uid())
+  or exists (
+    select 1 from public.eso_users u
+    where (
+      (u.id = "userId")
+      or (coalesce(u.auth_id::text, '') = coalesce("userAuthId", ''))
+      or (lower(coalesce(u.email, '')) = lower(coalesce("userEmail", '')))
+    ) and u.auth_id = auth.uid()
+  )
+);
+
+drop policy if exists "bonuses_insert_admin_only" on public.eso_bonuses;
+create policy "bonuses_insert_admin_only"
+on public.eso_bonuses for insert
+with check (public.eso_is_admin(auth.uid()));
+
+drop policy if exists "bonuses_update_own_or_admin" on public.eso_bonuses;
+create policy "bonuses_update_own_or_admin"
+on public.eso_bonuses for update
+using (
+  public.eso_is_admin(auth.uid())
+  or exists (
+    select 1 from public.eso_users u
+    where (
+      (u.id = "userId")
+      or (coalesce(u.auth_id::text, '') = coalesce("userAuthId", ''))
+      or (lower(coalesce(u.email, '')) = lower(coalesce("userEmail", '')))
+    ) and u.auth_id = auth.uid()
+  )
+)
+with check (
+  public.eso_is_admin(auth.uid())
+  or exists (
+    select 1 from public.eso_users u
+    where (
+      (u.id = "userId")
+      or (coalesce(u.auth_id::text, '') = coalesce("userAuthId", ''))
+      or (lower(coalesce(u.email, '')) = lower(coalesce("userEmail", '')))
+    ) and u.auth_id = auth.uid()
   )
 );
 
