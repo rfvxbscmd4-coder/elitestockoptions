@@ -893,32 +893,15 @@
     }
 
     function claimBonus() {
-      const bonuses = getUserBonuses();
       const titleEl = document.getElementById('bonusModalTitle');
       const messageEl = document.getElementById('bonusModalMessage');
       const listEl = document.getElementById('bonusModalList');
       const actionEl = document.getElementById('bonusModalAction');
 
-      if (bonuses.length) {
-        titleEl.textContent = 'Custom Bonus History';
-        messageEl.textContent = `You have ${bonuses.length} admin bonus${bonuses.length > 1 ? 'es' : ''}. Bonuses are already credited to your balance.`;
-        listEl.innerHTML = bonuses.slice(0, 5).map(b => `
-          <div class="p-3 rounded-xl bg-amber-50 border border-amber-100">
-            <div class="flex items-center justify-between">
-              <p class="font-semibold text-gray-900 text-sm capitalize">${b.type || 'Bonus'}</p>
-              <p class="font-bold text-amber-700">+$${Number(b.amount || 0).toFixed(2)}</p>
-            </div>
-            <p class="text-xs text-gray-500 mt-1">${new Date(b.date || Date.now()).toLocaleString()}</p>
-            ${b.message ? `<p class="text-xs text-gray-600 mt-1">${b.message}</p>` : ''}
-          </div>
-        `).join('');
-        actionEl.textContent = 'Close';
-      } else {
-        titleEl.textContent = 'Daily Bonus';
-        messageEl.textContent = 'Come back tomorrow to claim your daily trading bonus!';
-        listEl.innerHTML = '';
-        actionEl.textContent = 'Got it';
-      }
+      titleEl.textContent = 'Bonus Locked';
+      messageEl.textContent = "Can't be claimed yet, requirement not met.";
+      listEl.innerHTML = '';
+      actionEl.textContent = 'Got it';
 
       document.getElementById('bonusModal').classList.remove('hidden');
       document.getElementById('bonusModal').classList.add('flex');
