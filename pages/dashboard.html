@@ -544,8 +544,17 @@
       if (!Array.isArray(bonuses) || !currentUser) return [];
 
       const ids = resolveCurrentUserIds();
+      const currentEmail = String(currentUser.email || '').toLowerCase();
+      const currentAuthId = String(currentUser.auth_id || '');
       return bonuses
-        .filter(b => ids.has(String(b.userId || '')))
+        .filter(b => {
+          const bonusUserId = String(b.userId || '');
+          const bonusEmail = String(b.userEmail || '').toLowerCase();
+          const bonusAuthId = String(b.userAuthId || '');
+          return ids.has(bonusUserId)
+            || (!!currentEmail && bonusEmail === currentEmail)
+            || (!!currentAuthId && bonusAuthId === currentAuthId);
+        })
         .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
     }
 

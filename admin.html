@@ -1596,9 +1596,14 @@
 
       // Add bonus record
       let bonuses = JSON.parse(localStorage.getItem('eso_bonuses') || '[]');
+      let users = getUsers();
+      const selectedUser = users.find(u => String(u.id || '') === String(userId || '')) || null;
+
       bonuses.unshift({
         id: Date.now().toString(),
         userId: userId,
+        userAuthId: selectedUser?.auth_id || '',
+        userEmail: selectedUser?.email || '',
         amount: amount,
         type: type,
         pending: true,
@@ -1610,7 +1615,7 @@
 
       // Send notification
       const lockText = type === 'custom' ? ' Requirement not met yet.' : ' You can claim it from your dashboard.';
-      sendNotificationToUser(userId, 'Bonus Available', `A $${amount} ${type} bonus has been added for your account.${lockText}${message ? ` ${message}` : ''}`.trim(), 'info');
+      sendNotificationToUser(userId, 'Bonus Available', `A $${amount} ${type} bonus has been added for your account.${lockText}${message ? ` ${message}` : ''}`.trim(), 'info', selectedUser);
 
       showToast(`Bonus of $${amount} granted successfully!`);
       document.getElementById('bonusForm').reset();
@@ -2058,9 +2063,9 @@
       loadNotifications();
     });
 
-    function sendNotificationToUser(userId, title, message, type = 'info') {
+    function sendNotificationToUser(userId, title, message, type = 'info', userHint = null) {
       const users = getUsers();
-      const target = users.find(u => String(u.id || '') === String(userId || ''));
+      const target = userHint || users.find(u => String(u.id || '') === String(userId || ''));
 
       const keys = new Set([`eso_notifications_${userId}`]);
       if (target?.id) keys.add(`eso_notifications_${target.id}`);
