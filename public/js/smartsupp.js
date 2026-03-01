@@ -425,34 +425,11 @@
       event.stopPropagation();
     }
 
-    if (!tawkPropertyId || !tawkWidgetId) {
-      window.location.href = 'mailto:support@elitestockoptions.net';
+    if (openDirectChatInNewTab()) {
       return;
     }
 
-    ensureTawkLoaded(8000)
-      .then(function () {
-        const api = window.Tawk_API || {};
-
-        if (typeof api.showWidget === 'function') {
-          api.showWidget();
-        }
-
-        if (typeof api.maximize === 'function') {
-          api.maximize();
-          return;
-        }
-
-        if (openDirectChatInCurrentTab()) {
-          return;
-        }
-
-        openFallbackSupportPanel('Live chat is temporarily unavailable. Please try again in a moment.');
-      })
-      .catch(function () {
-        if (openDirectChatInCurrentTab()) return;
-        openFallbackSupportPanel('Live chat is temporarily unavailable. Please try again in a moment.');
-      });
+    openFallbackSupportPanel('Live chat is temporarily unavailable. Please try again in a moment.');
   }
 
   function clampSupportPosition(btn, x, y) {
