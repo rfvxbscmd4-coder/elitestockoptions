@@ -434,34 +434,23 @@
       .then(function () {
         const api = window.Tawk_API || {};
 
-        const openWidget = function () {
-          if (typeof api.showWidget === 'function') {
-            api.showWidget();
-          }
-          if (typeof api.maximize === 'function') {
-            api.maximize();
-            return true;
-          }
-          return false;
-        };
+        if (typeof api.showWidget === 'function') {
+          api.showWidget();
+        }
 
-        if (openWidget()) return;
+        if (typeof api.maximize === 'function') {
+          api.maximize();
+          return;
+        }
 
-        let attempts = 0;
-        const maxAttempts = 20;
-        const retryTimer = setInterval(function () {
-          attempts += 1;
-          if (openWidget()) {
-            clearInterval(retryTimer);
-            return;
-          }
-          if (attempts >= maxAttempts) {
-            clearInterval(retryTimer);
-            openFallbackSupportPanel('Live chat is temporarily unavailable. Please try again in a moment.');
-          }
-        }, 200);
+        if (openDirectChatInCurrentTab()) {
+          return;
+        }
+
+        openFallbackSupportPanel('Live chat is temporarily unavailable. Please try again in a moment.');
       })
       .catch(function () {
+        if (openDirectChatInCurrentTab()) return;
         openFallbackSupportPanel('Live chat is temporarily unavailable. Please try again in a moment.');
       });
   }
