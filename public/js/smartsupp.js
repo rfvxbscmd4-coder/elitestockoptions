@@ -130,9 +130,13 @@
     } catch (_) {}
   }
 
+  function isTawkApiReady() {
+    return !!(window.Tawk_API && typeof window.Tawk_API.maximize === 'function');
+  }
+
   function ensureTawkLoaded(timeoutMs = 12000) {
     return new Promise((resolve, reject) => {
-      if (tawkLoaded || (window.Tawk_API && typeof window.Tawk_API.maximize === 'function')) {
+      if (tawkLoaded || isTawkApiReady()) {
         tawkLoaded = true;
         resolve(true);
         return;
@@ -145,19 +149,42 @@
 
       if (tawkLoading) {
         const wait = setInterval(() => {
-          if (tawkLoaded || (window.Tawk_API && typeof window.Tawk_API.maximize === 'function')) {
+          if (tawkLoaded || isTawkApiReady()) {
+            tawkLoaded = true;
             clearInterval(wait);
             resolve(true);
           }
         }, 250);
         setTimeout(() => {
           clearInterval(wait);
+          if (!isTawkApiReady()) {
+            tawkLoading = false;
+          }
           reject(new Error('Tawk.to load timeout'));
         }, timeoutMs);
         return;
       }
 
       tawkLoading = true;
+      let settled = false;
+
+      function finishSuccess() {
+        if (settled) return;
+        settled = true;
+        tawkLoaded = true;
+        tawkLoading = false;
+        setTimeout(setVisitorData, 150);
+        resolve(true);
+      }
+
+      function finishError(message) {
+        if (settled) return;
+        settled = true;
+        tawkLoaded = false;
+        tawkLoading = false;
+        reject(new Error(message));
+      }
+
       window.Tawk_API = window.Tawk_API || {};
       window.Tawk_LoadStart = new Date();
 
@@ -170,9 +197,8 @@
       }
 
       window.Tawk_API.onLoad = function () {
-        tawkLoaded = true;
-        tawkLoading = false;
         setVisitorData();
+        finishSuccess();
       };
 
       const script = document.createElement('script');
@@ -182,16 +208,22 @@
       script.setAttribute('crossorigin', '*');
 
       script.onload = function () {
-        tawkLoaded = true;
-        tawkLoading = false;
-        setTimeout(setVisitorData, 300);
-        resolve(true);
+        const start = Date.now();
+        const readyTimer = setInterval(() => {
+          if (isTawkApiReady()) {
+            clearInterval(readyTimer);
+            finishSuccess();
+            return;
+          }
+          if (Date.now() - start >= timeoutMs) {
+            clearInterval(readyTimer);
+            finishError('Tawk.to API not ready after script load');
+          }
+        }, 200);
       };
 
       script.onerror = function () {
-        tawkLoaded = false;
-        tawkLoading = false;
-        reject(new Error('Tawk.to script failed to load'));
+        finishError('Tawk.to script failed to load');
       };
 
       const firstScript = document.getElementsByTagName('script')[0];
@@ -584,5 +616,5 @@
     createSupportButton();
   }
 
-  ensureTawkLoaded(3500).catch(() => {});
+  ensureTawkLoaded(12000).catch(() => {});
 })();
