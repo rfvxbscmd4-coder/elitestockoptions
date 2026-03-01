@@ -462,7 +462,7 @@
       return;
     }
 
-    ensureTawkLoaded(15000)
+    ensureTawkLoaded(5000)
       .then(function () {
         const tryOpenWidget = function () {
           const api = window.Tawk_API || {};
@@ -487,12 +487,12 @@
           }
           if (tries >= 25) {
             clearInterval(timer);
-            openInlineChatPanel();
+            openFallbackSupportPanel('Live chat is taking longer than expected. Tap "Open Support Chat" below or Retry.');
           }
         }, 200);
       })
       .catch(function () {
-        openInlineChatPanel();
+        openFallbackSupportPanel('Live chat could not be opened right now. Tap "Open Support Chat" below or Retry.');
       });
   }
 
@@ -606,6 +606,7 @@
     btn.title = 'Open support chat';
 
     btn.addEventListener('click', openSupport, { passive: false });
+    btn.addEventListener('touchend', openSupport, { passive: false });
 
     document.body.appendChild(btn);
   }
