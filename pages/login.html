@@ -304,8 +304,19 @@
       return targetUser;
     }
 
+    function readUsersArray(key) {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(key) || '[]');
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (_) {
+        return [];
+      }
+    }
+
     document.getElementById('login-form').addEventListener('submit', async function(e) {
       e.preventDefault();
+
+      try {
 
       if (document.activeElement && typeof document.activeElement.blur === 'function') {
         document.activeElement.blur();
@@ -335,8 +346,8 @@
 
       document.getElementById('email').value = email;
 
-      const newUsers = JSON.parse(localStorage.getItem('elitestockoptions_users') || '[]');
-      const oldUsers = JSON.parse(localStorage.getItem('eso_users') || '[]');
+      const newUsers = readUsersArray('elitestockoptions_users');
+      const oldUsers = readUsersArray('eso_users');
       if (!newUsers.length && oldUsers.length) {
         localStorage.setItem('elitestockoptions_users', JSON.stringify(oldUsers));
       } else if (newUsers.length && !oldUsers.length) {
@@ -344,7 +355,10 @@
       }
 
       // Check for existing user (Supabase first, then local fallback)
-      let users = JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
+      let users = readUsersArray('elitestockoptions_users');
+      if (!users.length) {
+        users = readUsersArray('eso_users');
+      }
       let user = null;
       const supabaseReady = !!(window.ESO_DB && window.ESO_DB.isReady());
 
@@ -460,6 +474,11 @@
             alert('Invalid email or password. Try demo@example.com / demo123');
           }
         }
+      }
+
+      } catch (error) {
+        console.error('Login submit error:', error);
+        alert('Sign in could not be processed right now. Please try again.');
       }
     });
 
