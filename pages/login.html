@@ -307,7 +307,8 @@
     document.getElementById('login-form').addEventListener('submit', async function(e) {
       e.preventDefault();
       
-      const email = document.getElementById('email').value;
+      const emailInput = document.getElementById('email').value || '';
+      const email = emailInput.trim().toLowerCase();
       const password = document.getElementById('password').value;
 
       const newUsers = JSON.parse(localStorage.getItem('elitestockoptions_users') || '[]');
@@ -324,9 +325,42 @@
       const supabaseReady = !!(window.ESO_DB && window.ESO_DB.isReady());
 
       if (supabaseReady) {
-        user = await window.ESO_DB.findUserByCredentials(email, password);
-        if (user) {
-          const normalizedEmail = (user.email || '').toLowerCase();
+        const authUser = await window.ESO_DB.signIn(email, password);
+        if (authUser) {
+          user = await window.ESO_DB.findUserByAuthId(authUser.id);
+          if (!user) {
+            user = await window.ESO_DB.findUserByEmail(email);
+          }
+
+          const localEmailMatch = users.find(u => (u.email || '').toLowerCase() === email);
+
+          if (!user && localEmailMatch) {
+            user = {
+              ...localEmailMatch,
+              auth_id: authUser.id,
+              email
+            };
+          }
+
+          if (!user) {
+            user = {
+              id: authUser.id,
+              auth_id: authUser.id,
+              fullName: (authUser.user_metadata && (authUser.user_metadata.fullName || authUser.user_metadata.name)) || email.split('@')[0],
+              email,
+              phone: '',
+              country: 'US',
+              plan: 'Bronze',
+              balance: 0,
+              availableCash: 0,
+              profitsBalance: 0,
+              kycStatus: 'not_submitted',
+              createdAt: authUser.created_at || new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            };
+          }
+
+          const normalizedEmail = (user.email || email).toLowerCase();
           const legacyUser = users.find(u => (u.email || '').toLowerCase() === normalizedEmail && u.id !== user.id);
 
           if (legacyUser) {
@@ -334,12 +368,12 @@
             mergeFinancialFields(user, legacyUser);
           }
 
-          const idx = users.findIndex(u => u.id === user.id);
+          const idx = users.findIndex(u => String(u.id || '') === String(user.id || ''));
           if (idx >= 0) users[idx] = user;
 
-          const dedupedUsers = users.filter(u => (u.email || '').toLowerCase() !== normalizedEmail || u.id === user.id);
+          const dedupedUsers = users.filter(u => (u.email || '').toLowerCase() !== normalizedEmail || String(u.id || '') === String(user.id || ''));
           if (idx >= 0) {
-            const existingIdx = dedupedUsers.findIndex(u => u.id === user.id);
+            const existingIdx = dedupedUsers.findIndex(u => String(u.id || '') === String(user.id || ''));
             if (existingIdx >= 0) dedupedUsers[existingIdx] = user;
             else dedupedUsers.push(user);
           } else {
@@ -356,8 +390,8 @@
         }
       }
 
-      if (!user && !supabaseReady) {
-        user = users.find(u => u.email === email && u.password === password);
+      if (!user) {
+        user = users.find(u => (u.email || '').toLowerCase() === email && u.password === password);
       }
 
       if (user) {
@@ -389,7 +423,7 @@
           };
           localStorage.setItem('elitestockoptions_user', JSON.stringify(demoUser));
           
-          if (!users.find(u => u.email === 'demo@example.com')) {
+          if (!users.find(u => (u.email || '').toLowerCase() === 'demo@example.com')) {
             users.push(demoUser);
             localStorage.setItem('elitestockoptions_users', JSON.stringify(users));
             localStorage.setItem('eso_users', JSON.stringify(users));
