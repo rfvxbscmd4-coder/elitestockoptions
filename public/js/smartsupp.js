@@ -430,7 +430,7 @@
       return;
     }
 
-    ensureTawkLoaded(15000)
+    ensureTawkLoaded(8000)
       .then(function () {
         const api = window.Tawk_API || {};
 
@@ -457,13 +457,11 @@
           }
           if (attempts >= maxAttempts) {
             clearInterval(retryTimer);
-            if (openDirectChatInNewTab()) return;
             openFallbackSupportPanel('Live chat is temporarily unavailable. Please try again in a moment.');
           }
         }, 200);
       })
       .catch(function () {
-        if (openDirectChatInNewTab()) return;
         openFallbackSupportPanel('Live chat is temporarily unavailable. Please try again in a moment.');
       });
   }
