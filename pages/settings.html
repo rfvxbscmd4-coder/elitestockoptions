@@ -350,6 +350,20 @@
       localStorage.setItem('eso_users', JSON.stringify(users));
     }
 
+    function findSharedUserIndex(users, userLike) {
+      if (!Array.isArray(users) || !userLike) return -1;
+      const targetId = String(userLike.id || '');
+      const targetAuthId = String(userLike.auth_id || '');
+      const targetEmail = (userLike.email || '').toLowerCase();
+
+      return users.findIndex(u => {
+        if (!u) return false;
+        if (targetId && String(u.id || '') === targetId) return true;
+        if (targetAuthId && String(u.auth_id || '') === targetAuthId) return true;
+        return !!targetEmail && (u.email || '').toLowerCase() === targetEmail;
+      });
+    }
+
     // Store KYC files temporarily before submission
     let kycFiles = { front: null, back: null, selfie: null };
 
@@ -589,10 +603,30 @@
       
       // Update in shared users storage
       let users = getSharedUsers();
-      const userIndex = users.findIndex(u => u.id === currentUser.id);
+      const userIndex = findSharedUserIndex(users, currentUser);
       if (userIndex >= 0) {
         users[userIndex].password = newPwd;
+        currentUser.id = users[userIndex].id || currentUser.id;
+        currentUser.auth_id = users[userIndex].auth_id || currentUser.auth_id;
         saveSharedUsers(users);
+      }
+
+      if (supabaseReady && window.ESO_DB) {
+        let remoteProfile = null;
+        const authUser = await window.ESO_DB.getAuthUser();
+
+        if (authUser?.id) {
+          remoteProfile = await window.ESO_DB.findUserByAuthId(authUser.id);
+        }
+        if (!remoteProfile && currentUser.email) {
+          remoteProfile = await window.ESO_DB.findUserByEmail(currentUser.email);
+        }
+
+        const fallbackSharedUser = userIndex >= 0 ? users[userIndex] : null;
+        const userToPersist = { ...(remoteProfile || fallbackSharedUser || currentUser), password: newPwd };
+        if (userToPersist && userToPersist.id) {
+          await window.ESO_DB.upsertUser(userToPersist);
+        }
       }
       
       alert('Password updated successfully!');
