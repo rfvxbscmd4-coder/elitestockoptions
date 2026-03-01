@@ -425,11 +425,43 @@
       event.stopPropagation();
     }
 
-    if (openDirectChatInNewTab()) {
+    if (!tawkPropertyId || !tawkWidgetId) {
+      window.location.href = 'mailto:support@elitestockoptions.net';
       return;
     }
 
-    openFallbackSupportPanel('Live chat is temporarily unavailable. Please try again in a moment.');
+    ensureTawkLoaded(15000)
+      .then(function () {
+        const tryOpenWidget = function () {
+          const api = window.Tawk_API || {};
+          if (typeof api.showWidget === 'function') {
+            api.showWidget();
+          }
+          if (typeof api.maximize === 'function') {
+            api.maximize();
+            return true;
+          }
+          return false;
+        };
+
+        if (tryOpenWidget()) return;
+
+        let tries = 0;
+        const timer = setInterval(function () {
+          tries += 1;
+          if (tryOpenWidget()) {
+            clearInterval(timer);
+            return;
+          }
+          if (tries >= 25) {
+            clearInterval(timer);
+            openInlineChatPanel();
+          }
+        }, 200);
+      })
+      .catch(function () {
+        openInlineChatPanel();
+      });
   }
 
   function clampSupportPosition(btn, x, y) {
@@ -542,7 +574,6 @@
     btn.title = 'Open support chat';
 
     btn.addEventListener('click', openSupport, { passive: false });
-    btn.addEventListener('touchend', openSupport, { passive: false });
 
     document.body.appendChild(btn);
   }
