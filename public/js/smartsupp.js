@@ -8,6 +8,7 @@
   let tawkLoaded = false;
   let tawkLoading = false;
   let lastSupportOpenAt = 0;
+  let supportOpenInProgress = false;
   let suppressNextOpen = false;
   const SUPPORT_POS_KEY = 'eso_support_button_position';
   const SUPPORT_PANEL_POS_KEY = 'eso_support_panel_position';
@@ -44,6 +45,8 @@
         background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
         color: #ffffff;
         box-shadow: 0 10px 25px rgba(0,0,0,0.24);
+        -webkit-tap-highlight-color: transparent;
+        user-select: none;
       }
       #globalSupportButton:hover { opacity: 0.95; }
       #globalSupportButton i { margin-right: 8px; }
@@ -437,6 +440,14 @@
   }
 
   function openSupport(event) {
+    if (supportOpenInProgress) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      return;
+    }
+
     if (suppressNextOpen) {
       suppressNextOpen = false;
       if (event) {
@@ -462,6 +473,14 @@
       return;
     }
 
+    supportOpenInProgress = true;
+    const openTimeout = setTimeout(function () {
+      if (supportOpenInProgress) {
+        supportOpenInProgress = false;
+        openFallbackSupportPanel('Opening support is taking longer than expected. Tap "Open Support Chat" below or Retry.');
+      }
+    }, 7000);
+
     ensureTawkLoaded(5000)
       .then(function () {
         const tryOpenWidget = function () {
@@ -483,15 +502,21 @@
           tries += 1;
           if (tryOpenWidget()) {
             clearInterval(timer);
+            clearTimeout(openTimeout);
+            supportOpenInProgress = false;
             return;
           }
           if (tries >= 25) {
             clearInterval(timer);
+            clearTimeout(openTimeout);
+            supportOpenInProgress = false;
             openFallbackSupportPanel('Live chat is taking longer than expected. Tap "Open Support Chat" below or Retry.');
           }
         }, 200);
       })
       .catch(function () {
+        clearTimeout(openTimeout);
+        supportOpenInProgress = false;
         openFallbackSupportPanel('Live chat could not be opened right now. Tap "Open Support Chat" below or Retry.');
       });
   }
@@ -605,6 +630,7 @@
     btn.setAttribute('aria-label', 'Open support chat');
     btn.title = 'Open support chat';
 
+    btn.addEventListener('pointerup', openSupport, { passive: false });
     btn.addEventListener('click', openSupport, { passive: false });
     btn.addEventListener('touchend', openSupport, { passive: false });
 
