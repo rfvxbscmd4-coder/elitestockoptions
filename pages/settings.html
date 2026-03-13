@@ -512,7 +512,7 @@
       alert('Profile updated successfully!');
     });
 
-    document.getElementById('kycForm').addEventListener('submit', function(e) {
+    document.getElementById('kycForm').addEventListener('submit', async function(e) {
       e.preventDefault();
       
       // Check if all documents are uploaded
@@ -550,13 +550,42 @@
       
       // Update in shared users storage for admin access
       let users = getSharedUsers();
-      const userIndex = users.findIndex(u => u.id === currentUser.id);
+      const userIndex = findSharedUserIndex(users, currentUser);
       if (userIndex >= 0) {
         users[userIndex].kycStatus = 'pending';
         users[userIndex].kycSubmittedAt = currentUser.kycSubmittedAt;
         users[userIndex].kycData = currentUser.kycData;
         users[userIndex].kycDocuments = currentUser.kycDocuments;
+        currentUser.id = users[userIndex].id || currentUser.id;
+        currentUser.auth_id = users[userIndex].auth_id || currentUser.auth_id;
         saveSharedUsers(users);
+      }
+
+      const supabaseReady = !!(window.ESO_DB && window.ESO_DB.isReady());
+      if (supabaseReady && window.ESO_DB) {
+        let remoteProfile = null;
+        const authUser = await window.ESO_DB.getAuthUser();
+
+        if (authUser?.id) {
+          remoteProfile = await window.ESO_DB.findUserByAuthId(authUser.id);
+        }
+        if (!remoteProfile && currentUser.email) {
+          remoteProfile = await window.ESO_DB.findUserByEmail(currentUser.email);
+        }
+
+        const fallbackSharedUser = userIndex >= 0 ? users[userIndex] : null;
+        const userToPersist = {
+          ...(remoteProfile || fallbackSharedUser || currentUser),
+          kycStatus: 'pending',
+          kycSubmittedAt: currentUser.kycSubmittedAt,
+          kycData: currentUser.kycData,
+          kycDocuments: currentUser.kycDocuments,
+          updatedAt: new Date().toISOString()
+        };
+
+        if (userToPersist && userToPersist.id) {
+          await window.ESO_DB.upsertUser(userToPersist);
+        }
       }
       
       updateKycStatus();
