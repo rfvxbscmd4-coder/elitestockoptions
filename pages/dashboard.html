@@ -520,6 +520,17 @@
       if (currentUser.email) localStorage.setItem(`eso_notifications_${String(currentUser.email).toLowerCase()}`, JSON.stringify(normalized));
     }
 
+    function updateKycBanner(statusOverride = null) {
+      const kycStatus = statusOverride || currentUser?.kycStatus || 'not_submitted';
+      const kycBanner = document.getElementById('kycBanner');
+      if (!kycBanner) return;
+      if (kycStatus !== 'verified') {
+        kycBanner.classList.remove('hidden');
+      } else {
+        kycBanner.classList.add('hidden');
+      }
+    }
+
     function resolveCurrentUserIds() {
       const ids = new Set();
       if (currentUser?.id) ids.add(String(currentUser.id));
@@ -782,12 +793,7 @@
 
       // Show/hide KYC banner
       const kycStatus = serverUser?.kycStatus || currentUser.kycStatus || 'not_submitted';
-      const kycBanner = document.getElementById('kycBanner');
-      if (kycStatus !== 'verified') {
-        kycBanner.classList.remove('hidden');
-      } else {
-        kycBanner.classList.add('hidden');
-      }
+      updateKycBanner(kycStatus);
 
       // Load TradingView chart
       loadTradingViewChart();
@@ -810,6 +816,7 @@
       if (!tradesRefreshTimer && currentUser?.id) {
         tradesRefreshTimer = setInterval(async () => {
           await syncRemoteUserToLocal();
+          updateKycBanner(currentUser.kycStatus || 'not_submitted');
           document.getElementById('totalBalance').textContent = '$' + (currentUser.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
           document.getElementById('availableCash').textContent = '$' + (currentUser.availableCash || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
           document.getElementById('profitsBalance').textContent = '$' + (currentUser.profitsBalance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});

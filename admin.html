@@ -1789,26 +1789,34 @@
       document.getElementById('kycDocsModal').classList.remove('flex');
     }
 
-    function approveKyc(userId) {
+    async function approveKyc(userId) {
       let users = getUsers();
       const user = users.find(u => u.id === userId);
       if (user) {
         user.kycStatus = 'verified';
         user.kycVerifiedAt = new Date().toISOString();
+        user.updatedAt = new Date().toISOString();
         saveUsers(users);
+        if (window.ESO_DB && window.ESO_DB.isReady()) {
+          await window.ESO_DB.upsertUser(user);
+        }
         sendNotificationToUser(userId, 'KYC Approved!', 'Your KYC verification has been approved. You now have full access to all features.', 'success');
         showToast('KYC approved!');
         loadKyc();
       }
     }
 
-    function rejectKyc(userId) {
+    async function rejectKyc(userId) {
       if (!confirm('Reject KYC?')) return;
       let users = getUsers();
       const user = users.find(u => u.id === userId);
       if (user) {
         user.kycStatus = 'rejected';
+        user.updatedAt = new Date().toISOString();
         saveUsers(users);
+        if (window.ESO_DB && window.ESO_DB.isReady()) {
+          await window.ESO_DB.upsertUser(user);
+        }
         sendNotificationToUser(userId, 'KYC Rejected', 'Your KYC verification was rejected. Please submit valid documents.', 'error');
         showToast('KYC rejected!');
         loadKyc();
