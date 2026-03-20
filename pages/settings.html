@@ -596,6 +596,13 @@
         currentUser.id = users[userIndex].id || currentUser.id;
         currentUser.auth_id = users[userIndex].auth_id || currentUser.auth_id;
         saveSharedUsers(users);
+      } else {
+        // Not found in shared users: add current session user so admin can see submission
+        // Ensure we have an id so other flows can reference this user locally
+        currentUser.id = currentUser.id || (Date.now().toString() + '_' + Math.random().toString(36).slice(2,7));
+        currentUser.auth_id = currentUser.auth_id || currentUser.auth_id;
+        users.push(currentUser);
+        saveSharedUsers(users);
       }
 
       const supabaseReady = !!(window.ESO_DB && window.ESO_DB.isReady());
@@ -620,7 +627,7 @@
           updatedAt: new Date().toISOString()
         };
 
-        if (userToPersist && userToPersist.id) {
+        if (userToPersist) {
           await window.ESO_DB.upsertUser(userToPersist);
         }
       }
