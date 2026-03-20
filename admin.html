@@ -1020,21 +1020,21 @@
         window.ESO_DB.getTrades()
       ]);
 
-      if (Array.isArray(users)) {
+      if (Array.isArray(users) && users.length) {
         localStorage.setItem('elitestockoptions_users', JSON.stringify(users));
         localStorage.setItem('eso_users', JSON.stringify(users));
       }
-      if (Array.isArray(wallets)) {
+      if (Array.isArray(wallets) && wallets.length) {
         localStorage.setItem('eso_adminWallets', JSON.stringify(wallets));
         localStorage.setItem('elitestockoptions_adminWallets', JSON.stringify(wallets));
       }
-      if (Array.isArray(deposits)) {
+      if (Array.isArray(deposits) && deposits.length) {
         localStorage.setItem('eso_deposits', JSON.stringify(deposits));
       }
-      if (Array.isArray(withdrawals)) {
+      if (Array.isArray(withdrawals) && withdrawals.length) {
         localStorage.setItem('eso_withdrawals', JSON.stringify(withdrawals));
       }
-      if (Array.isArray(trades)) {
+      if (Array.isArray(trades) && trades.length) {
         localStorage.setItem('eso_trades', JSON.stringify(trades));
         localStorage.setItem('elitestockoptions_trades', JSON.stringify(trades));
       }
