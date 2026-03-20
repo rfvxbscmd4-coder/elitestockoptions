@@ -697,6 +697,10 @@
                 <pre id="debugTransactions" class="bg-gray-900 text-amber-400 p-4 rounded-xl text-xs overflow-auto max-h-64"></pre>
               </div>
               <div>
+                <h3 class="font-semibold text-gray-700 mb-2">Upgrades (eso_upgrades)</h3>
+                <pre id="debugUpgrades" class="bg-gray-900 text-pink-400 p-4 rounded-xl text-xs overflow-auto max-h-64"></pre>
+              </div>
+              <div>
                 <h3 class="font-semibold text-gray-700 mb-2">Current Session (elitestockoptions_user)</h3>
                 <pre id="debugSession" class="bg-gray-900 text-purple-400 p-4 rounded-xl text-xs overflow-auto max-h-64"></pre>
               </div>
@@ -966,6 +970,7 @@
       document.getElementById('debugUsers').textContent = JSON.stringify(users, null, 2);
       document.getElementById('debugDeposits').textContent = JSON.stringify(deposits, null, 2);
       document.getElementById('debugTransactions').textContent = JSON.stringify(transactions, null, 2);
+      document.getElementById('debugUpgrades').textContent = JSON.stringify(JSON.parse(localStorage.getItem('eso_upgrades') || '[]'), null, 2);
       document.getElementById('debugSession').textContent = JSON.stringify(session, null, 2);
     }
 
