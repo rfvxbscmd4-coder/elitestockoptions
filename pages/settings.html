@@ -628,7 +628,20 @@
         };
 
         if (userToPersist) {
-          await window.ESO_DB.upsertUser(userToPersist);
+          try {
+            const saved = await window.ESO_DB.upsertUser(userToPersist);
+            // upsertUser returns true on success or null on error (safe wrapper)
+            if (!saved) {
+              const err = window.ESO_DB.getLastError && window.ESO_DB.getLastError();
+              console.error('KYC upsert failed', err);
+              alert('Could not submit KYC to server. Please try again later.');
+            } else {
+              console.log('KYC upsert succeeded');
+            }
+          } catch (e) {
+            console.error('KYC upsert exception', e);
+            alert('Could not submit KYC due to an error. Check console for details.');
+          }
         }
       }
       
