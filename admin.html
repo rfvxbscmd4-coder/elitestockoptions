@@ -1997,8 +1997,48 @@
       let users = getUsers();
       const user = users.find(u => u.id === upgrade.userId);
       if (user) {
+        // Deduct required deposit if available and record transaction
+        const deposit = Number(upgrade.requiredDeposit || 0);
+        if (deposit > 0) {
+          // Prefer deducting from availableCash then balance
+          const available = Number(user.availableCash || 0);
+          if (available >= deposit) {
+            user.availableCash = available - deposit;
+            user.balance = Math.max(0, Number(user.balance || 0) - deposit);
+          } else {
+            // Not enough availableCash: deduct from balance only if possible
+            const bal = Number(user.balance || 0);
+            if (bal >= deposit) {
+              user.balance = bal - deposit;
+              user.availableCash = Math.max(0, available - Math.min(available, deposit));
+            } else {
+              // Insufficient funds: mark upgrade as rejected and notify
+              upgrade.status = 'rejected';
+              localStorage.setItem('eso_upgrades', JSON.stringify(upgrades));
+              sendNotificationToUser(upgrade.userId, 'Upgrade Failed', 'Insufficient funds for upgrade.', 'error');
+              showToast('User has insufficient funds; upgrade rejected');
+              loadUpgrades();
+              return;
+            }
+          }
+        }
+
         user.plan = upgrade.toPlan;
         saveUsers(users);
+
+        // Record transaction for the plan upgrade deduction
+        if (deposit > 0) {
+          addTransaction(upgrade.userId, 'plan_upgrade', -deposit, `Plan upgrade to ${upgrade.toPlan}`, 'completed', 'upgrade', upgrade.id);
+        }
+
+        // Persist user remotely if DB available
+        if (window.ESO_DB && window.ESO_DB.isReady()) {
+          try {
+            await window.ESO_DB.upsertUser(user);
+          } catch (e) {
+            console.warn('Failed to upsert user after upgrade approval', e);
+          }
+        }
       }
 
       sendNotificationToUser(upgrade.userId, 'Plan Upgraded!', `Congratulations! Your plan has been upgraded to ${upgrade.toPlan}.`, 'success');
