@@ -1985,7 +1985,7 @@
       `).join('');
     }
 
-    function approveUpgrade(upgradeId) {
+    async function approveUpgrade(upgradeId) {
       let upgrades = JSON.parse(localStorage.getItem('eso_upgrades') || '[]');
       const upgrade = upgrades.find(u => u.id === upgradeId);
       if (!upgrade) return;
