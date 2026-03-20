@@ -317,12 +317,37 @@
         createdAt: new Date().toISOString()
       };
 
+      // Defensive: ensure currentUser has an id and is present in shared users
+      if (!currentUser.id) {
+        currentUser.id = Date.now().toString() + '_' + Math.random().toString(36).slice(2,7);
+        localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+      }
+
+      // Ensure shared users store contains this session user so admin can see it
+      try {
+        const sharedKey = 'elitestockoptions_users';
+        const legacyKey = 'eso_users';
+        let users = JSON.parse(localStorage.getItem(sharedKey) || localStorage.getItem(legacyKey) || '[]');
+        const exists = users.find(u => String(u.id || '') === String(currentUser.id || '') || (currentUser.email && String(u.email || '').toLowerCase() === String(currentUser.email || '').toLowerCase()));
+        if (!exists) {
+          users.push(currentUser);
+          localStorage.setItem(sharedKey, JSON.stringify(users));
+          localStorage.setItem(legacyKey, JSON.stringify(users));
+        }
+      } catch (e) {
+        console.warn('Could not ensure shared users entry for upgrade submit', e);
+      }
+
       let upgrades = JSON.parse(localStorage.getItem('eso_upgrades') || '[]');
       upgrades.push(upgradeRequest);
+      // Write to both keys to be resilient across legacy/new names
       localStorage.setItem('eso_upgrades', JSON.stringify(upgrades));
+      localStorage.setItem('elitestockoptions_upgrades', JSON.stringify(upgrades));
 
+      console.log('Upgrade request saved', upgradeRequest);
       alert('Upgrade request submitted! Please make a deposit of $' + selectedUpgrade.amount.toLocaleString() + ' to complete the upgrade.');
       closeUpgradeModal();
+      // navigate user to deposit page to complete payment
       window.location.href = 'deposit.html';
     }
 
