@@ -3,6 +3,15 @@
   const SUPABASE_ANON_KEY = window.ESO_SUPABASE_ANON_KEY || 'YOUR_SUPABASE_ANON_KEY';
   let lastError = null;
 
+  function getAuthScope() {
+    const path = String(window.location.pathname || '').toLowerCase();
+    return /(?:^|\/)admin\.html$/.test(path) ? 'admin' : 'user';
+  }
+
+  function getAuthStorageKey() {
+    return `eso-supabase-auth-${getAuthScope()}`;
+  }
+
   function isConfigured() {
     return (
       typeof window.supabase !== 'undefined' &&
@@ -16,7 +25,14 @@
   function getClient() {
     if (!isConfigured()) return null;
     if (!window.__esoSupabaseClient) {
-      window.__esoSupabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      window.__esoSupabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: {
+          storageKey: getAuthStorageKey(),
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true
+        }
+      });
     }
     return window.__esoSupabaseClient;
   }
