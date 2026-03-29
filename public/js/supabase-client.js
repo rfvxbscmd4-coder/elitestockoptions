@@ -170,9 +170,10 @@
       const client = getClient();
       if (!client) return null;
       return safe(async () => {
+        const onConflict = user?.email ? 'email' : 'id';
         const { error } = await client
           .from('eso_users')
-          .upsert(user, { onConflict: 'id' });
+          .upsert(user, { onConflict });
         if (error) throw error;
         return true;
       });
@@ -262,6 +263,16 @@
           .order('createdAt', { ascending: false });
         if (error) throw error;
         return data || [];
+      });
+    },
+
+    async createWithdrawal(withdrawal) {
+      const client = getClient();
+      if (!client) return null;
+      return safe(async () => {
+        const { error } = await client.from('eso_withdrawals').insert(withdrawal);
+        if (error) throw error;
+        return true;
       });
     },
 
@@ -355,6 +366,42 @@
       return safe(async () => {
         const { error } = await client
           .from('eso_upgrades')
+          .update(patch)
+          .eq('id', id);
+        if (error) throw error;
+        return true;
+      });
+    },
+
+    async getLoans() {
+      const client = getClient();
+      if (!client) return null;
+      return safe(async () => {
+        const { data, error } = await client
+          .from('eso_loans')
+          .select('*')
+          .order('createdAt', { ascending: false });
+        if (error) throw error;
+        return data || [];
+      });
+    },
+
+    async createLoan(loan) {
+      const client = getClient();
+      if (!client) return null;
+      return safe(async () => {
+        const { error } = await client.from('eso_loans').insert(loan);
+        if (error) throw error;
+        return true;
+      });
+    },
+
+    async updateLoan(id, patch) {
+      const client = getClient();
+      if (!client) return null;
+      return safe(async () => {
+        const { error } = await client
+          .from('eso_loans')
           .update(patch)
           .eq('id', id);
         if (error) throw error;

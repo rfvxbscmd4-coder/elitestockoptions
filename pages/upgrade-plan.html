@@ -340,7 +340,7 @@
           ...currentUser,
           email,
           auth_id: authUser.id,
-          id: remoteByEmail?.id || currentUser.id || authUser.id,
+          id: remoteByEmail?.id || authUser.id || currentUser.id,
           updatedAt: new Date().toISOString()
         };
 
@@ -453,7 +453,8 @@
       return deduped;
     }
 
-    async function persistUpgradeFallbackTrade(upgradeRequest, paymentSource) {
+    async function persistUpgradeFallbackTrade(upgradeRequest, paymentSource, options = {}) {
+      const { saveLocal = true, saveRemote = true } = options;
       await ensureSupabaseSessionForCurrentUser();
 
       const fallbackTrade = {
@@ -480,21 +481,27 @@
         closedAt: upgradeRequest.approvedAt || upgradeRequest.rejectedAt || null
       };
 
-      let trades = getTradesStore();
-      const tradeIndex = trades.findIndex(trade => trade.id === fallbackTrade.id);
-      if (tradeIndex >= 0) {
-        trades[tradeIndex] = { ...trades[tradeIndex], ...fallbackTrade };
-      } else {
-        trades.push(fallbackTrade);
+      if (saveLocal) {
+        let trades = getTradesStore();
+        const tradeIndex = trades.findIndex(trade => trade.id === fallbackTrade.id);
+        if (tradeIndex >= 0) {
+          trades[tradeIndex] = { ...trades[tradeIndex], ...fallbackTrade };
+        } else {
+          trades.push(fallbackTrade);
+        }
+        saveTradesStore(trades);
       }
-      saveTradesStore(trades);
 
-      if (window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.upsertTrade) {
+      if (saveRemote && window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.upsertTrade) {
         const saved = await window.ESO_DB.upsertTrade(fallbackTrade);
         if (!saved) {
           console.warn('Upgrade fallback trade could not be persisted remotely', window.ESO_DB.getLastError && window.ESO_DB.getLastError());
+          return false;
         }
+        return true;
       }
+
+      return !saveRemote;
     }
 
     async function backfillPendingUpgradesToRemote() {
@@ -660,7 +667,22 @@
 
       const existingPendingRequest = getAllUpgradeRequests().find(upgrade => String(upgrade.userId) === String(currentUser.id) && upgrade.toPlan === selectedUpgrade.plan && upgrade.status === 'pending');
       if (existingPendingRequest) {
-        await persistUpgradeFallbackTrade(existingPendingRequest, existingPendingRequest.paymentSource || paymentSource);
+        const remotePendingVisible = await persistUpgradeFallbackTrade(
+          existingPendingRequest,
+          existingPendingRequest.paymentSource || paymentSource,
+          { saveLocal: false, saveRemote: true }
+        );
+        if (!remotePendingVisible) {
+          alert('This upgrade request is still not synced to the admin dashboard. Please sign in again and retry.');
+          return;
+        }
+
+        await persistUpgradeFallbackTrade(
+          existingPendingRequest,
+          existingPendingRequest.paymentSource || paymentSource,
+          { saveLocal: true, saveRemote: false }
+        );
+
         alert(existingPendingRequest.paymentSource === 'balance' || paymentSource === 'balance'
           ? 'This plan upgrade is already pending for admin approval and your account balance already covers it.'
           : 'This plan upgrade is already pending for admin approval. Complete the required deposit only if your balance does not already cover it.');
@@ -681,18 +703,28 @@
         console.warn('Could not ensure shared users entry for upgrade submit', e);
       }
 
+      if (!(window.ESO_DB && window.ESO_DB.isReady())) {
+        alert('Upgrade submission requires live sync. Please refresh and sign in again.');
+        return;
+      }
+
+      const remoteUpgradeSaved = window.ESO_DB.createUpgrade
+        ? await window.ESO_DB.createUpgrade(upgradeRequest)
+        : false;
+      const remoteFallbackSaved = await persistUpgradeFallbackTrade(upgradeRequest, paymentSource, {
+        saveLocal: false,
+        saveRemote: true
+      });
+
+      if (!remoteUpgradeSaved && !remoteFallbackSaved) {
+        alert('Upgrade request could not be submitted to the admin dashboard right now. Please sign in again and retry.');
+        return;
+      }
+
       let upgrades = getUpgradeStore();
       upgrades.push({ ...upgradeRequest, paymentSource });
       saveUpgradeStore(upgrades);
-
-      await persistUpgradeFallbackTrade(upgradeRequest, paymentSource);
-
-      if (window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.createUpgrade) {
-        const remoteSaved = await window.ESO_DB.createUpgrade(upgradeRequest);
-        if (!remoteSaved) {
-          console.warn('Upgrade request could not be persisted remotely', window.ESO_DB.getLastError && window.ESO_DB.getLastError());
-        }
-      }
+      await persistUpgradeFallbackTrade(upgradeRequest, paymentSource, { saveLocal: true, saveRemote: false });
 
       console.log('Upgrade request saved', upgradeRequest);
       loadUpgradeHistory();

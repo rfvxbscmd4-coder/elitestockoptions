@@ -103,6 +103,18 @@ create table if not exists eso_upgrades (
   "approvedAt" timestamptz,
   "rejectedAt" timestamptz
 );
+
+create table if not exists eso_loans (
+  id text primary key,
+  "userId" text not null,
+  amount numeric not null,
+  period integer not null,
+  purpose text,
+  status text default 'pending',
+  "createdAt" timestamptz default now(),
+  "approvedAt" timestamptz,
+  "rejectedAt" timestamptz
+);
 ```
 
 ## 3) Disable RLS for quick start (development)
@@ -116,9 +128,11 @@ alter table eso_deposits disable row level security;
 alter table eso_withdrawals disable row level security;
 alter table eso_trades disable row level security;
 alter table eso_upgrades disable row level security;
+alter table eso_loans disable row level security;
 ```
 
 For production, enable RLS and add proper policies.
+If you already ran the older secure SQL before this fix, rerun [SUPABASE_SETUP_SECURE.sql](SUPABASE_SETUP_SECURE.sql) so existing users can be matched by authenticated email and so the `eso_loans` table exists.
 
 ## 4) Redeploy to Netlify
 

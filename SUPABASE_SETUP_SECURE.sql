@@ -89,6 +89,18 @@ create table if not exists public.eso_upgrades (
   "rejectedAt" timestamptz
 );
 
+create table if not exists public.eso_loans (
+  id text primary key,
+  "userId" text not null,
+  amount numeric not null,
+  period integer not null,
+  purpose text,
+  status text default 'pending',
+  "createdAt" timestamptz default now(),
+  "approvedAt" timestamptz,
+  "rejectedAt" timestamptz
+);
+
 -- Helper function for admin checks
 create or replace function public.eso_is_admin(uid uuid)
 returns boolean
@@ -101,29 +113,55 @@ as $$
   );
 $$;
 
+create or replace function public.eso_matches_auth_email(target_email text)
+returns boolean
+language sql
+stable
+as $$
+  select auth.uid() is not null
+    and lower(coalesce(target_email, '')) = lower(coalesce(auth.jwt() ->> 'email', ''));
+$$;
+
 alter table public.eso_users enable row level security;
 alter table public.eso_admin_wallets enable row level security;
 alter table public.eso_deposits enable row level security;
 alter table public.eso_withdrawals enable row level security;
 alter table public.eso_trades enable row level security;
 alter table public.eso_upgrades enable row level security;
+alter table public.eso_loans enable row level security;
 
 -- USERS policies
 drop policy if exists "users_select_self_or_admin" on public.eso_users;
 create policy "users_select_self_or_admin"
 on public.eso_users for select
-using (auth.uid() = auth_id or public.eso_is_admin(auth.uid()));
+using (
+  auth.uid() = auth_id
+  or public.eso_matches_auth_email(email)
+  or public.eso_is_admin(auth.uid())
+);
 
 drop policy if exists "users_insert_self_or_admin" on public.eso_users;
 create policy "users_insert_self_or_admin"
 on public.eso_users for insert
-with check (auth.uid() = auth_id or public.eso_is_admin(auth.uid()));
+with check (
+  auth.uid() = auth_id
+  or public.eso_matches_auth_email(email)
+  or public.eso_is_admin(auth.uid())
+);
 
 drop policy if exists "users_update_self_or_admin" on public.eso_users;
 create policy "users_update_self_or_admin"
 on public.eso_users for update
-using (auth.uid() = auth_id or public.eso_is_admin(auth.uid()))
-with check (auth.uid() = auth_id or public.eso_is_admin(auth.uid()));
+using (
+  auth.uid() = auth_id
+  or public.eso_matches_auth_email(email)
+  or public.eso_is_admin(auth.uid())
+)
+with check (
+  auth.uid() = auth_id
+  or public.eso_matches_auth_email(email)
+  or public.eso_is_admin(auth.uid())
+);
 
 -- WALLET policies
 drop policy if exists "wallets_select_authenticated" on public.eso_admin_wallets;
@@ -262,6 +300,35 @@ with check (
 drop policy if exists "upgrades_update_admin_only" on public.eso_upgrades;
 create policy "upgrades_update_admin_only"
 on public.eso_upgrades for update
+using (public.eso_is_admin(auth.uid()))
+with check (public.eso_is_admin(auth.uid()));
+
+-- LOAN policies
+drop policy if exists "loans_select_own_or_admin" on public.eso_loans;
+create policy "loans_select_own_or_admin"
+on public.eso_loans for select
+using (
+  public.eso_is_admin(auth.uid())
+  or exists (
+    select 1 from public.eso_users u
+    where u.id = "userId" and u.auth_id = auth.uid()
+  )
+);
+
+drop policy if exists "loans_insert_own_or_admin" on public.eso_loans;
+create policy "loans_insert_own_or_admin"
+on public.eso_loans for insert
+with check (
+  public.eso_is_admin(auth.uid())
+  or exists (
+    select 1 from public.eso_users u
+    where u.id = "userId" and u.auth_id = auth.uid()
+  )
+);
+
+drop policy if exists "loans_update_admin_only" on public.eso_loans;
+create policy "loans_update_admin_only"
+on public.eso_loans for update
 using (public.eso_is_admin(auth.uid()))
 with check (public.eso_is_admin(auth.uid()));
 

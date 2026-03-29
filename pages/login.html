@@ -350,7 +350,7 @@
       const mergedUser = {
         ...(remoteUser || localUser),
         ...localUser,
-        id: remoteUser?.id || localUser.id || authUser.id,
+        id: remoteUser?.id || authUser.id || localUser.id,
         auth_id: authUser.id,
         email,
         password,
@@ -434,11 +434,24 @@
 
           const localEmailMatch = users.find(u => (u.email || '').toLowerCase() === email);
 
+          if (user) {
+            user = {
+              ...user,
+              auth_id: authUser.id,
+              email,
+              password: user.password || password,
+              updatedAt: new Date().toISOString()
+            };
+          }
+
           if (!user && localEmailMatch) {
             user = {
               ...localEmailMatch,
+              id: authUser.id,
               auth_id: authUser.id,
-              email
+              email,
+              password,
+              updatedAt: new Date().toISOString()
             };
           }
 
@@ -454,6 +467,7 @@
               balance: 0,
               availableCash: 0,
               profitsBalance: 0,
+              password,
               kycStatus: 'not_submitted',
               createdAt: authUser.created_at || new Date().toISOString(),
               updatedAt: new Date().toISOString()
@@ -485,7 +499,7 @@
           localStorage.setItem('eso_users', JSON.stringify(users));
 
           if (window.ESO_DB && window.ESO_DB.isReady()) {
-            window.ESO_DB.upsertUser(user);
+            await window.ESO_DB.upsertUser(user);
           }
         }
       }

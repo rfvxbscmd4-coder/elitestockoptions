@@ -6,7 +6,9 @@
   <title>Take Loan - ELITESTOCKOPTIONS</title>
   <link rel="icon" type="image/png" href="../public/logo.png">
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="../public/js/supabase-config.js"></script>
+  <script src="../public/js/supabase-client.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script>
     tailwind.config = {
@@ -243,25 +245,131 @@
 
   <script>
     let currentUser = JSON.parse(localStorage.getItem('elitestockoptions_user') || localStorage.getItem('eso_currentUser'));
+    if (!currentUser) {
+      alert('Please login first');
+      window.location.href = 'login.html';
+    }
 
     // Sync balance from shared users storage (new + legacy keys)
     const allUsers = JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
-    const serverUser = allUsers.find(u => u.id === currentUser.id);
+    const serverUser = currentUser ? allUsers.find(u => String(u.id || '') === String(currentUser.id || '')) : null;
     if (serverUser) {
       currentUser.balance = serverUser.balance || 0;
       currentUser.availableCash = serverUser.availableCash || 0;
       currentUser.profitsBalance = serverUser.profitsBalance || 0;
       localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
     }
-    if (!currentUser) {
-      alert('Please login first');
-      window.location.href = 'login.html';
+
+    function getSharedUsers() {
+      return JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
+    }
+
+    function saveSharedUsers(users) {
+      localStorage.setItem('elitestockoptions_users', JSON.stringify(users));
+      localStorage.setItem('eso_users', JSON.stringify(users));
+    }
+
+    function findSharedUserIndex(users, userLike) {
+      if (!Array.isArray(users) || !userLike) return -1;
+
+      const targetId = String(userLike.id || '');
+      const targetAuthId = String(userLike.auth_id || '');
+      const targetEmail = String(userLike.email || '').toLowerCase();
+
+      return users.findIndex(user => {
+        if (!user) return false;
+        if (targetId && String(user.id || '') === targetId) return true;
+        if (targetAuthId && String(user.auth_id || '') === targetAuthId) return true;
+        return !!targetEmail && String(user.email || '').toLowerCase() === targetEmail;
+      });
+    }
+
+    function syncCurrentUserStore(patch = {}) {
+      currentUser = { ...currentUser, ...patch };
+      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+      localStorage.setItem('eso_currentUser', JSON.stringify(currentUser));
+
+      const users = getSharedUsers();
+      const userIndex = findSharedUserIndex(users, currentUser);
+      if (userIndex >= 0) {
+        users[userIndex] = { ...users[userIndex], ...currentUser };
+      } else {
+        users.push({ ...currentUser });
+      }
+      saveSharedUsers(users);
+    }
+
+    async function ensureSupabaseSessionForCurrentUser() {
+      if (!(window.ESO_DB && window.ESO_DB.isReady())) return null;
+
+      let authUser = await window.ESO_DB.getAuthUser();
+      if (authUser) return authUser;
+
+      const email = String(currentUser?.email || '').trim().toLowerCase();
+      const password = String(currentUser?.password || '');
+      if (!email || !password) return null;
+
+      authUser = await window.ESO_DB.signIn(email, password);
+      if (!authUser) {
+        const signedUpUser = await window.ESO_DB.signUp(email, password);
+        if (signedUpUser) {
+          authUser = await window.ESO_DB.signIn(email, password) || signedUpUser;
+        }
+      }
+
+      if (!authUser) return null;
+
+      const remoteUser = await window.ESO_DB.findUserByAuthId(authUser.id);
+      if (!remoteUser) {
+        const remoteByEmail = await window.ESO_DB.findUserByEmail(email);
+        const userToPersist = {
+          ...(remoteByEmail || currentUser),
+          ...currentUser,
+          email,
+          auth_id: authUser.id,
+          id: remoteByEmail?.id || authUser.id || currentUser.id,
+          updatedAt: new Date().toISOString()
+        };
+
+        const saved = await window.ESO_DB.upsertUser(userToPersist);
+        if (saved) {
+          syncCurrentUserStore(userToPersist);
+        }
+      }
+
+      return authUser;
+    }
+
+    async function syncRemoteUserToLocal() {
+      if (!(window.ESO_DB && window.ESO_DB.isReady())) return null;
+
+      const authUser = await ensureSupabaseSessionForCurrentUser();
+      let remoteUser = authUser?.id ? await window.ESO_DB.findUserByAuthId(authUser.id) : null;
+      if (!remoteUser && currentUser?.email) {
+        remoteUser = await window.ESO_DB.findUserByEmail(currentUser.email);
+      }
+      if (!remoteUser) return null;
+
+      syncCurrentUserStore(remoteUser);
+      return remoteUser;
+    }
+
+    async function syncRemoteLoansToLocal() {
+      if (!(window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.getLoans)) return;
+
+      const remoteLoans = await window.ESO_DB.getLoans();
+      if (Array.isArray(remoteLoans)) {
+        localStorage.setItem('eso_loans', JSON.stringify(remoteLoans));
+      }
     }
 
     const eligiblePlans = ['Gold', 'Diamond', 'Premium'];
     let selectedLoanAmount = 0;
 
-    function initLoan() {
+    async function initLoan() {
+      await syncRemoteUserToLocal();
+      await syncRemoteLoansToLocal();
+
       const userPlan = currentUser.plan || 'Bronze';
       
       if (!eligiblePlans.includes(userPlan)) {
@@ -291,8 +399,10 @@
       document.getElementById('loanFormSection').scrollIntoView({ behavior: 'smooth' });
     }
 
-    document.getElementById('loanForm').addEventListener('submit', function(e) {
+    document.getElementById('loanForm').addEventListener('submit', async function(e) {
       e.preventDefault();
+
+      await syncRemoteUserToLocal();
       
       const loan = {
         id: Date.now().toString(),
@@ -303,6 +413,17 @@
         status: 'pending',
         createdAt: new Date().toISOString()
       };
+
+      if (!(window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.createLoan)) {
+        alert('Loan submission requires live sync. Please refresh and sign in again.');
+        return;
+      }
+
+      const remoteSaved = await window.ESO_DB.createLoan(loan);
+      if (!remoteSaved) {
+        alert('Loan application could not be submitted to the admin dashboard right now. Please sign in again and retry.');
+        return;
+      }
 
       let loans = JSON.parse(localStorage.getItem('eso_loans') || '[]');
       loans.push(loan);

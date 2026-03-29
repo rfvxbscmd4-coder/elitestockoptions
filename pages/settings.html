@@ -396,7 +396,7 @@
           ...currentUser,
           email,
           auth_id: authUser.id,
-          id: remoteByEmail?.id || currentUser.id || authUser.id,
+          id: remoteByEmail?.id || authUser.id || currentUser.id,
           updatedAt: new Date().toISOString()
         };
 

@@ -1033,35 +1033,39 @@
     async function syncRemoteDataToLocal() {
       if (!(window.ESO_DB && window.ESO_DB.isReady())) return;
 
-      const [users, wallets, deposits, withdrawals, trades, upgrades] = await Promise.all([
+      const [users, wallets, deposits, withdrawals, trades, upgrades, loans] = await Promise.all([
         window.ESO_DB.getUsers(),
         window.ESO_DB.getWallets(),
         window.ESO_DB.getDeposits(),
         window.ESO_DB.getWithdrawals(),
         window.ESO_DB.getTrades(),
-        window.ESO_DB.getUpgrades ? window.ESO_DB.getUpgrades() : Promise.resolve(null)
+        window.ESO_DB.getUpgrades ? window.ESO_DB.getUpgrades() : Promise.resolve(null),
+        window.ESO_DB.getLoans ? window.ESO_DB.getLoans() : Promise.resolve(null)
       ]);
 
       if (Array.isArray(users) && users.length) {
         localStorage.setItem('elitestockoptions_users', JSON.stringify(users));
         localStorage.setItem('eso_users', JSON.stringify(users));
       }
-      if (Array.isArray(wallets) && wallets.length) {
+      if (Array.isArray(wallets)) {
         localStorage.setItem('eso_adminWallets', JSON.stringify(wallets));
         localStorage.setItem('elitestockoptions_adminWallets', JSON.stringify(wallets));
       }
-      if (Array.isArray(deposits) && deposits.length) {
+      if (Array.isArray(deposits)) {
         localStorage.setItem('eso_deposits', JSON.stringify(deposits));
       }
-      if (Array.isArray(withdrawals) && withdrawals.length) {
+      if (Array.isArray(withdrawals)) {
         localStorage.setItem('eso_withdrawals', JSON.stringify(withdrawals));
       }
-      if (Array.isArray(trades) && trades.length) {
+      if (Array.isArray(trades)) {
         localStorage.setItem('eso_trades', JSON.stringify(trades));
         localStorage.setItem('elitestockoptions_trades', JSON.stringify(trades));
       }
-      if (Array.isArray(upgrades) && upgrades.length) {
+      if (Array.isArray(upgrades)) {
         saveUpgradesStore(upgrades);
+      }
+      if (Array.isArray(loans)) {
+        localStorage.setItem('eso_loans', JSON.stringify(loans));
       }
     }
 
@@ -2027,7 +2031,7 @@
       `).join('');
     }
 
-    function approveLoan(loanId) {
+    async function approveLoan(loanId) {
       let loans = JSON.parse(localStorage.getItem('eso_loans') || '[]');
       const loan = loans.find(l => l.id === loanId);
       if (!loan) return;
@@ -2035,6 +2039,12 @@
       loan.status = 'approved';
       loan.approvedAt = new Date().toISOString();
       localStorage.setItem('eso_loans', JSON.stringify(loans));
+      if (window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.updateLoan) {
+        await window.ESO_DB.updateLoan(loan.id, {
+          status: loan.status,
+          approvedAt: loan.approvedAt
+        });
+      }
 
       let users = getUsers();
       const user = users.find(u => u.id === loan.userId);
@@ -2042,6 +2052,9 @@
         user.balance = (user.balance || 0) + loan.amount;
         user.availableCash = (user.availableCash || 0) + loan.amount;
         saveUsers(users);
+        if (window.ESO_DB && window.ESO_DB.isReady()) {
+          await window.ESO_DB.upsertUser(user);
+        }
       }
 
       addTransaction(loan.userId, 'loan', loan.amount, 'Loan approved by admin');
@@ -2050,13 +2063,20 @@
       loadLoans();
     }
 
-    function rejectLoan(loanId) {
+    async function rejectLoan(loanId) {
       if (!confirm('Reject this loan?')) return;
       let loans = JSON.parse(localStorage.getItem('eso_loans') || '[]');
       const loan = loans.find(l => l.id === loanId);
       if (loan) {
         loan.status = 'rejected';
+        loan.rejectedAt = new Date().toISOString();
         localStorage.setItem('eso_loans', JSON.stringify(loans));
+        if (window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.updateLoan) {
+          await window.ESO_DB.updateLoan(loan.id, {
+            status: loan.status,
+            rejectedAt: loan.rejectedAt
+          });
+        }
         sendNotificationToUser(loan.userId, 'Loan Rejected', 'Your loan application was rejected.', 'error');
       }
       showToast('Loan rejected!');
