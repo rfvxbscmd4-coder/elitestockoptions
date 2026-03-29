@@ -836,6 +836,8 @@
   <script>
     // Admin credentials
     const ADMIN_KEY = 'elitestockoptions_admin';
+    const ADMIN_USER_KEY = 'elitestockoptions_admin_user';
+    const ADMIN_BOOTSTRAP_KEY = 'elitestockoptions_admin_bootstrap';
     let currentTradeId = null;
     let currentAdminTab = 'dashboard';
     const ADMIN_TABS = new Set([
@@ -858,9 +860,41 @@
         window.history.pushState(state, '', url);
       }
     }
+
+    function readStoredJson(key) {
+      try {
+        return JSON.parse(localStorage.getItem(key) || 'null');
+      } catch (_) {
+        return null;
+      }
+    }
+
+    async function restoreAdminScopedSession(adminSession) {
+      if (!(window.ESO_DB && window.ESO_DB.isReady())) return null;
+
+      const bootstrap = readStoredJson(ADMIN_BOOTSTRAP_KEY);
+      const sharedUsers = JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
+      const email = String(bootstrap?.email || adminSession?.email || '').trim().toLowerCase();
+      let password = String(bootstrap?.password || '').trim();
+
+      if (!password && email) {
+        const sharedAdmin = Array.isArray(sharedUsers)
+          ? sharedUsers.find(user => String(user?.email || '').toLowerCase() === email)
+          : null;
+        password = String(sharedAdmin?.password || '');
+      }
+
+      if (!email || !password) return null;
+
+      const authUser = await window.ESO_DB.signIn(email, password);
+      if (authUser) {
+        localStorage.removeItem(ADMIN_BOOTSTRAP_KEY);
+      }
+      return authUser;
+    }
     
     async function checkAuth() {
-      const admin = JSON.parse(localStorage.getItem(ADMIN_KEY));
+      const admin = readStoredJson(ADMIN_KEY) || readStoredJson(ADMIN_USER_KEY);
 
       if (!(window.ESO_DB && window.ESO_DB.isReady())) {
         if (!admin || !admin.isLoggedIn) {
@@ -877,12 +911,30 @@
 
       let authUser = await window.ESO_DB.getAuthUser();
       if (!authUser) {
+        authUser = await restoreAdminScopedSession(admin);
+      }
+      if (!authUser) {
         alert('Please sign in first.');
         window.location.href = './pages/login.html';
         return;
       }
 
-      const adminProfile = await window.ESO_DB.findUserByAuthId(authUser.id);
+      let adminProfile = await window.ESO_DB.findUserByAuthId(authUser.id);
+      if (!adminProfile && admin?.email) {
+        adminProfile = await window.ESO_DB.findUserByEmail(String(admin.email).toLowerCase());
+        if (adminProfile && adminProfile.isAdmin && adminProfile.auth_id !== authUser.id) {
+          const normalizedAdminProfile = {
+            ...adminProfile,
+            auth_id: authUser.id,
+            updatedAt: new Date().toISOString()
+          };
+          const saved = await window.ESO_DB.upsertUser(normalizedAdminProfile);
+          if (saved) {
+            adminProfile = normalizedAdminProfile;
+          }
+        }
+      }
+
       if (!adminProfile || !adminProfile.isAdmin) {
         alert('Access denied. Admin role required.');
         await window.ESO_DB.signOut();
@@ -890,7 +942,20 @@
         return;
       }
 
-      localStorage.setItem(ADMIN_KEY, JSON.stringify({ isLoggedIn: true, loginTime: new Date().toISOString(), adminId: adminProfile.id }));
+      const loginTime = new Date().toISOString();
+      localStorage.setItem(ADMIN_KEY, JSON.stringify({
+        isLoggedIn: true,
+        loginTime,
+        adminId: adminProfile.id,
+        email: adminProfile.email,
+        isAdmin: true
+      }));
+      localStorage.setItem(ADMIN_USER_KEY, JSON.stringify({
+        id: adminProfile.id,
+        email: adminProfile.email,
+        isAdmin: true,
+        loginAt: loginTime
+      }));
     }
 
     function showToast(message, type = 'success') {
@@ -2518,6 +2583,8 @@
 
     async function logout() {
       localStorage.removeItem(ADMIN_KEY);
+      localStorage.removeItem(ADMIN_USER_KEY);
+      localStorage.removeItem(ADMIN_BOOTSTRAP_KEY);
       if (window.ESO_DB && window.ESO_DB.isReady()) {
         await window.ESO_DB.signOut();
       }

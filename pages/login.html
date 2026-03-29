@@ -517,11 +517,24 @@
 
       if (user) {
         if (user.isAdmin) {
+          const adminLoginAt = new Date().toISOString();
+          localStorage.setItem('elitestockoptions_admin', JSON.stringify({
+            isLoggedIn: true,
+            loginTime: adminLoginAt,
+            adminId: user.id,
+            email: user.email,
+            isAdmin: true
+          }));
           localStorage.setItem('elitestockoptions_admin_user', JSON.stringify({
             id: user.id,
             email: user.email,
             isAdmin: true,
-            loginAt: new Date().toISOString()
+            loginAt: adminLoginAt
+          }));
+          localStorage.setItem('elitestockoptions_admin_bootstrap', JSON.stringify({
+            email: user.email,
+            password,
+            createdAt: adminLoginAt
           }));
           window.location.href = '../admin.html';
           return;
