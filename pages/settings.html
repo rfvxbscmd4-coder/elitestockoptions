@@ -368,10 +368,62 @@
     // Store KYC files temporarily before submission
     let kycFiles = { front: null, back: null, selfie: null };
 
+    async function ensureSupabaseSessionForCurrentUser() {
+      if (!(window.ESO_DB && window.ESO_DB.isReady())) return null;
+
+      let authUser = await window.ESO_DB.getAuthUser();
+      if (authUser) return authUser;
+
+      const email = String(currentUser?.email || '').trim().toLowerCase();
+      const password = String(currentUser?.password || '');
+      if (!email || !password) return null;
+
+      authUser = await window.ESO_DB.signIn(email, password);
+      if (!authUser) {
+        const signedUpUser = await window.ESO_DB.signUp(email, password);
+        if (signedUpUser) {
+          authUser = await window.ESO_DB.signIn(email, password) || signedUpUser;
+        }
+      }
+
+      if (!authUser) return null;
+
+      const remoteUser = await window.ESO_DB.findUserByAuthId(authUser.id);
+      if (!remoteUser) {
+        const remoteByEmail = await window.ESO_DB.findUserByEmail(email);
+        const userToPersist = {
+          ...(remoteByEmail || currentUser),
+          ...currentUser,
+          email,
+          auth_id: authUser.id,
+          id: remoteByEmail?.id || currentUser.id || authUser.id,
+          updatedAt: new Date().toISOString()
+        };
+
+        const saved = await window.ESO_DB.upsertUser(userToPersist);
+        if (saved) {
+          currentUser = { ...currentUser, ...userToPersist };
+          localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+          localStorage.setItem('eso_currentUser', JSON.stringify(currentUser));
+
+          const users = getSharedUsers();
+          const userIndex = findSharedUserIndex(users, currentUser);
+          if (userIndex >= 0) {
+            users[userIndex] = { ...users[userIndex], ...userToPersist };
+          } else {
+            users.push({ ...userToPersist });
+          }
+          saveSharedUsers(users);
+        }
+      }
+
+      return authUser;
+    }
+
     async function syncRemoteUserToLocal() {
       if (!(window.ESO_DB && window.ESO_DB.isReady())) return null;
 
-      const authUser = await window.ESO_DB.getAuthUser();
+      const authUser = await ensureSupabaseSessionForCurrentUser();
       let remoteProfile = authUser?.id ? await window.ESO_DB.findUserByAuthId(authUser.id) : null;
       if (!remoteProfile && currentUser?.email) {
         remoteProfile = await window.ESO_DB.findUserByEmail(currentUser.email);
@@ -632,6 +684,8 @@
 
       const supabaseReady = !!(window.ESO_DB && window.ESO_DB.isReady());
       if (supabaseReady && window.ESO_DB) {
+        await ensureSupabaseSessionForCurrentUser();
+
         let remoteProfile = null;
         const authUser = await window.ESO_DB.getAuthUser();
 

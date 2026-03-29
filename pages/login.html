@@ -312,6 +312,60 @@
       return targetUser;
     }
 
+    function storeMergedUserRecord(users, mergedUser) {
+      const normalizedEmail = String(mergedUser.email || '').toLowerCase();
+      const dedupedUsers = (Array.isArray(users) ? users : []).filter(u => {
+        if (!u) return false;
+        const sameId = String(u.id || '') === String(mergedUser.id || '');
+        const sameEmail = normalizedEmail && String(u.email || '').toLowerCase() === normalizedEmail;
+        return sameId || sameEmail ? false : true;
+      });
+
+      dedupedUsers.push(mergedUser);
+      localStorage.setItem('elitestockoptions_users', JSON.stringify(dedupedUsers));
+      localStorage.setItem('eso_users', JSON.stringify(dedupedUsers));
+      return dedupedUsers;
+    }
+
+    async function provisionRemoteProfileForLocalUser(localUser, email, password, users) {
+      if (!(window.ESO_DB && window.ESO_DB.isReady()) || !localUser) return localUser;
+
+      let authUser = await window.ESO_DB.getAuthUser();
+      if (!authUser) {
+        authUser = await window.ESO_DB.signIn(email, password);
+      }
+      if (!authUser) {
+        const signedUpUser = await window.ESO_DB.signUp(email, password);
+        if (signedUpUser) {
+          authUser = await window.ESO_DB.signIn(email, password) || signedUpUser;
+        }
+      }
+      if (!authUser) return localUser;
+
+      let remoteUser = await window.ESO_DB.findUserByAuthId(authUser.id);
+      if (!remoteUser) {
+        remoteUser = await window.ESO_DB.findUserByEmail(email);
+      }
+
+      const mergedUser = {
+        ...(remoteUser || localUser),
+        ...localUser,
+        id: remoteUser?.id || localUser.id || authUser.id,
+        auth_id: authUser.id,
+        email,
+        password,
+        updatedAt: new Date().toISOString()
+      };
+
+      const saved = await window.ESO_DB.upsertUser(mergedUser);
+      if (saved) {
+        storeMergedUserRecord(users, mergedUser);
+        return mergedUser;
+      }
+
+      return localUser;
+    }
+
     function readUsersArray(key) {
       try {
         const parsed = JSON.parse(localStorage.getItem(key) || '[]');
@@ -438,6 +492,13 @@
 
       if (!user) {
         user = users.find(u => (u.email || '').toLowerCase() === email && u.password === password);
+        if (user && supabaseReady) {
+          user = await provisionRemoteProfileForLocalUser(user, email, password, users);
+          users = readUsersArray('elitestockoptions_users');
+          if (!users.length) {
+            users = readUsersArray('eso_users');
+          }
+        }
       }
 
       if (user) {
