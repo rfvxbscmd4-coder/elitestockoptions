@@ -985,7 +985,7 @@
       document.getElementById('debugUsers').textContent = JSON.stringify(users, null, 2);
       document.getElementById('debugDeposits').textContent = JSON.stringify(deposits, null, 2);
       document.getElementById('debugTransactions').textContent = JSON.stringify(transactions, null, 2);
-      document.getElementById('debugUpgrades').textContent = JSON.stringify(getUpgradesStore(), null, 2);
+      document.getElementById('debugUpgrades').textContent = JSON.stringify(getUpgradeRequests(), null, 2);
       document.getElementById('debugSession').textContent = JSON.stringify(session, null, 2);
     }
 
@@ -1088,6 +1088,62 @@
     function saveTradesStore(trades) {
       localStorage.setItem('eso_trades', JSON.stringify(trades));
       localStorage.setItem('elitestockoptions_trades', JSON.stringify(trades));
+    }
+
+    function isUpgradeTradeRecord(trade) {
+      return !!trade
+        && String(trade.type || '').toUpperCase() === 'PLAN_UPGRADE'
+        && String(trade.symbol || '').startsWith('PLAN_UPGRADE:');
+    }
+
+    function normalizeUpgradeTradeRecord(trade) {
+      const parts = String(trade.symbol || '').split(':');
+      const rawStatus = String(trade.status || '').toLowerCase();
+      let status = 'pending';
+      if (rawStatus === 'upgrade_approved') status = 'approved';
+      if (rawStatus === 'upgrade_rejected') status = 'rejected';
+
+      return {
+        id: trade.id,
+        userId: trade.userId,
+        fromPlan: parts[1] || 'Bronze',
+        toPlan: parts[2] || 'Bronze',
+        requiredDeposit: Number(trade.amount || 0),
+        status,
+        createdAt: trade.openedAt || new Date().toISOString(),
+        approvedAt: status === 'approved' ? (trade.closedAt || null) : null,
+        rejectedAt: status === 'rejected' ? (trade.closedAt || null) : null,
+        paymentSource: String(trade.orderType || '').toLowerCase() || 'deposit'
+      };
+    }
+
+    function getUpgradeRequests() {
+      const explicitUpgrades = getUpgradesStore();
+      const fallbackUpgrades = getTradesStore()
+        .filter(isUpgradeTradeRecord)
+        .map(normalizeUpgradeTradeRecord);
+      const merged = [...explicitUpgrades, ...fallbackUpgrades];
+      const deduped = [];
+
+      merged
+        .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+        .forEach(upgrade => {
+          if (!upgrade || !upgrade.id) return;
+          const existingIndex = deduped.findIndex(item => item.id === upgrade.id);
+          if (existingIndex === -1) {
+            deduped.push(upgrade);
+            return;
+          }
+
+          const existing = deduped[existingIndex];
+          const existingTime = new Date(existing.approvedAt || existing.rejectedAt || existing.createdAt || 0).getTime();
+          const incomingTime = new Date(upgrade.approvedAt || upgrade.rejectedAt || upgrade.createdAt || 0).getTime();
+          if ((existing.status === 'pending' && upgrade.status !== 'pending') || incomingTime >= existingTime) {
+            deduped[existingIndex] = { ...existing, ...upgrade };
+          }
+        });
+
+      return deduped;
     }
 
     function getUpgradesStore() {
@@ -1260,7 +1316,7 @@
         <div class="flex justify-between"><span class="text-gray-500">User ID:</span> <span class="font-mono text-xs">${user.id}</span></div>
       `;
 
-      const trades = getTradesStore().filter(t => String(t.userId) === String(userId)).slice(0, 5);
+      const trades = getTradesStore().filter(t => String(t.userId) === String(userId) && !isUpgradeTradeRecord(t)).slice(0, 5);
       document.getElementById('detailTrades').innerHTML = trades.length ? trades.map(t => `
         <div class="p-3 bg-gray-50 rounded-lg text-sm">
           <div class="flex justify-between">
@@ -1276,7 +1332,7 @@
 
     function loadTrades() {
       const filter = document.getElementById('tradeFilter').value;
-      let trades = getTradesStore();
+      let trades = getTradesStore().filter(t => !isUpgradeTradeRecord(t));
       
       if (filter !== 'all') {
         trades = trades.filter(t => String(t.status || '').toLowerCase() === filter);
@@ -2008,7 +2064,7 @@
     }
 
     function loadUpgrades() {
-      const upgrades = getUpgradesStore();
+      const upgrades = getUpgradeRequests();
       const tbody = document.getElementById('upgradesTable');
       
       if (upgrades.length === 0) {
@@ -2037,12 +2093,18 @@
     }
 
     async function approveUpgrade(upgradeId) {
-      let upgrades = getUpgradesStore();
-      const upgrade = upgrades.find(u => u.id === upgradeId);
+      const upgrade = getUpgradeRequests().find(u => u.id === upgradeId);
       if (!upgrade) return;
 
-      upgrade.status = 'approved';
-      upgrade.approvedAt = new Date().toISOString();
+      let upgrades = getUpgradesStore();
+      let storedUpgrade = upgrades.find(u => u.id === upgradeId);
+      if (!storedUpgrade) {
+        storedUpgrade = { ...upgrade };
+        upgrades.push(storedUpgrade);
+      }
+
+      storedUpgrade.status = 'approved';
+      storedUpgrade.approvedAt = new Date().toISOString();
       saveUpgradesStore(upgrades);
 
       let users = getUsers();
@@ -2064,15 +2126,27 @@
               user.availableCash = Math.max(0, available - Math.min(available, deposit));
             } else {
               // Insufficient funds: mark upgrade as rejected and notify
-              upgrade.status = 'rejected';
-              upgrade.rejectedAt = new Date().toISOString();
+              storedUpgrade.status = 'rejected';
+              storedUpgrade.rejectedAt = new Date().toISOString();
               saveUpgradesStore(upgrades);
               if (window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.updateUpgrade) {
                 await window.ESO_DB.updateUpgrade(upgrade.id, {
                   status: 'rejected',
-                  rejectedAt: upgrade.rejectedAt
+                  rejectedAt: storedUpgrade.rejectedAt
                 });
               }
+
+              const trades = getTradesStore();
+              const fallbackTrade = trades.find(t => t.id === upgradeId && isUpgradeTradeRecord(t));
+              if (fallbackTrade) {
+                fallbackTrade.status = 'upgrade_rejected';
+                fallbackTrade.closedAt = storedUpgrade.rejectedAt;
+                saveTradesStore(trades);
+                if (window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.upsertTrade) {
+                  await window.ESO_DB.upsertTrade(fallbackTrade);
+                }
+              }
+
               sendNotificationToUser(upgrade.userId, 'Upgrade Failed', 'Insufficient funds for upgrade.', 'error');
               showToast('User has insufficient funds; upgrade rejected');
               loadUpgrades();
@@ -2101,9 +2175,20 @@
 
       if (window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.updateUpgrade) {
         await window.ESO_DB.updateUpgrade(upgrade.id, {
-          status: upgrade.status,
-          approvedAt: upgrade.approvedAt
+          status: storedUpgrade.status,
+          approvedAt: storedUpgrade.approvedAt
         });
+      }
+
+      const trades = getTradesStore();
+      const fallbackTrade = trades.find(t => t.id === upgradeId && isUpgradeTradeRecord(t));
+      if (fallbackTrade) {
+        fallbackTrade.status = 'upgrade_approved';
+        fallbackTrade.closedAt = storedUpgrade.approvedAt;
+        saveTradesStore(trades);
+        if (window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.upsertTrade) {
+          await window.ESO_DB.upsertTrade(fallbackTrade);
+        }
       }
 
       sendNotificationToUser(upgrade.userId, 'Plan Upgraded!', `Congratulations! Your plan has been upgraded to ${upgrade.toPlan}.`, 'success');
@@ -2113,18 +2198,36 @@
 
     async function rejectUpgrade(upgradeId) {
       if (!confirm('Reject this upgrade?')) return;
-      let upgrades = getUpgradesStore();
-      const upgrade = upgrades.find(u => u.id === upgradeId);
+      const upgrade = getUpgradeRequests().find(u => u.id === upgradeId);
       if (upgrade) {
-        upgrade.status = 'rejected';
-        upgrade.rejectedAt = new Date().toISOString();
+        let upgrades = getUpgradesStore();
+        let storedUpgrade = upgrades.find(u => u.id === upgradeId);
+        if (!storedUpgrade) {
+          storedUpgrade = { ...upgrade };
+          upgrades.push(storedUpgrade);
+        }
+
+        storedUpgrade.status = 'rejected';
+        storedUpgrade.rejectedAt = new Date().toISOString();
         saveUpgradesStore(upgrades);
         if (window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.updateUpgrade) {
           await window.ESO_DB.updateUpgrade(upgrade.id, {
             status: 'rejected',
-            rejectedAt: upgrade.rejectedAt
+            rejectedAt: storedUpgrade.rejectedAt
           });
         }
+
+        const trades = getTradesStore();
+        const fallbackTrade = trades.find(t => t.id === upgradeId && isUpgradeTradeRecord(t));
+        if (fallbackTrade) {
+          fallbackTrade.status = 'upgrade_rejected';
+          fallbackTrade.closedAt = storedUpgrade.rejectedAt;
+          saveTradesStore(trades);
+          if (window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.upsertTrade) {
+            await window.ESO_DB.upsertTrade(fallbackTrade);
+          }
+        }
+
         sendNotificationToUser(upgrade.userId, 'Upgrade Rejected', 'Your plan upgrade request was rejected.', 'error');
       }
       showToast('Upgrade rejected!');

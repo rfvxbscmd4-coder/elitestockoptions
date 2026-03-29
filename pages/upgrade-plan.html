@@ -335,6 +335,125 @@
       localStorage.setItem('elitestockoptions_upgrades', JSON.stringify(upgrades));
     }
 
+    function getTradesStore() {
+      const primary = JSON.parse(localStorage.getItem('eso_trades') || '[]');
+      const secondary = JSON.parse(localStorage.getItem('elitestockoptions_trades') || '[]');
+      const merged = [...primary, ...secondary];
+      const deduped = [];
+      const seen = new Set();
+
+      merged.forEach(trade => {
+        if (!trade || !trade.id || seen.has(trade.id)) return;
+        seen.add(trade.id);
+        deduped.push(trade);
+      });
+
+      return deduped;
+    }
+
+    function saveTradesStore(trades) {
+      localStorage.setItem('eso_trades', JSON.stringify(trades));
+      localStorage.setItem('elitestockoptions_trades', JSON.stringify(trades));
+    }
+
+    function isUpgradeTradeRecord(trade) {
+      return !!trade
+        && String(trade.type || '').toUpperCase() === 'PLAN_UPGRADE'
+        && String(trade.symbol || '').startsWith('PLAN_UPGRADE:');
+    }
+
+    function normalizeUpgradeTradeRecord(trade) {
+      const parts = String(trade.symbol || '').split(':');
+      const rawStatus = String(trade.status || '').toLowerCase();
+      let status = 'pending';
+      if (rawStatus === 'upgrade_approved') status = 'approved';
+      if (rawStatus === 'upgrade_rejected') status = 'rejected';
+
+      return {
+        id: trade.id,
+        userId: trade.userId,
+        fromPlan: parts[1] || 'Bronze',
+        toPlan: parts[2] || 'Bronze',
+        requiredDeposit: Number(trade.amount || 0),
+        status,
+        createdAt: trade.openedAt || new Date().toISOString(),
+        approvedAt: status === 'approved' ? (trade.closedAt || null) : null,
+        rejectedAt: status === 'rejected' ? (trade.closedAt || null) : null,
+        paymentSource: String(trade.orderType || '').toLowerCase() || 'deposit'
+      };
+    }
+
+    function getAllUpgradeRequests() {
+      const explicitUpgrades = getUpgradeStore();
+      const fallbackUpgrades = getTradesStore()
+        .filter(isUpgradeTradeRecord)
+        .map(normalizeUpgradeTradeRecord);
+      const merged = [...explicitUpgrades, ...fallbackUpgrades];
+      const deduped = [];
+
+      merged
+        .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+        .forEach(upgrade => {
+          if (!upgrade || !upgrade.id) return;
+          const existingIndex = deduped.findIndex(item => item.id === upgrade.id);
+          if (existingIndex === -1) {
+            deduped.push(upgrade);
+            return;
+          }
+
+          const existing = deduped[existingIndex];
+          const existingTime = new Date(existing.approvedAt || existing.rejectedAt || existing.createdAt || 0).getTime();
+          const incomingTime = new Date(upgrade.approvedAt || upgrade.rejectedAt || upgrade.createdAt || 0).getTime();
+          if ((existing.status === 'pending' && upgrade.status !== 'pending') || incomingTime >= existingTime) {
+            deduped[existingIndex] = { ...existing, ...upgrade };
+          }
+        });
+
+      return deduped;
+    }
+
+    async function persistUpgradeFallbackTrade(upgradeRequest, paymentSource) {
+      const fallbackTrade = {
+        id: upgradeRequest.id,
+        userId: upgradeRequest.userId,
+        symbol: `PLAN_UPGRADE:${upgradeRequest.fromPlan}:${upgradeRequest.toPlan}`,
+        type: 'PLAN_UPGRADE',
+        orderType: String(paymentSource || 'deposit').toUpperCase(),
+        amount: Number(upgradeRequest.requiredDeposit || 0),
+        leverage: 1,
+        entryPrice: null,
+        currentPrice: null,
+        exitPrice: null,
+        tpPrice: null,
+        slPrice: null,
+        status: upgradeRequest.status === 'approved'
+          ? 'upgrade_approved'
+          : upgradeRequest.status === 'rejected'
+            ? 'upgrade_rejected'
+            : 'upgrade_pending',
+        pnl: 0,
+        pnlPercent: 0,
+        openedAt: upgradeRequest.createdAt || new Date().toISOString(),
+        closedAt: upgradeRequest.approvedAt || upgradeRequest.rejectedAt || null
+      };
+
+      let trades = getTradesStore();
+      const tradeIndex = trades.findIndex(trade => trade.id === fallbackTrade.id);
+      if (tradeIndex >= 0) {
+        trades[tradeIndex] = { ...trades[tradeIndex], ...fallbackTrade };
+      } else {
+        trades.push(fallbackTrade);
+      }
+      saveTradesStore(trades);
+
+      if (window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.upsertTrade) {
+        const saved = await window.ESO_DB.upsertTrade(fallbackTrade);
+        if (!saved) {
+          console.warn('Upgrade fallback trade could not be persisted remotely', window.ESO_DB.getLastError && window.ESO_DB.getLastError());
+        }
+      }
+    }
+
     async function syncRemoteUserToLocal() {
       if (!(window.ESO_DB && window.ESO_DB.isReady())) return null;
 
@@ -350,18 +469,51 @@
     }
 
     async function syncRemoteUpgradesToLocal() {
-      if (!(window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.getUpgrades)) return;
+      if (!(window.ESO_DB && window.ESO_DB.isReady())) return;
 
-      const remoteUpgrades = await window.ESO_DB.getUpgrades();
-      if (!Array.isArray(remoteUpgrades)) return;
+      const [remoteUpgrades, remoteTrades] = await Promise.all([
+        window.ESO_DB.getUpgrades ? window.ESO_DB.getUpgrades() : Promise.resolve(null),
+        window.ESO_DB.getTrades ? window.ESO_DB.getTrades() : Promise.resolve(null)
+      ]);
 
-      const mergedUpgrades = [...remoteUpgrades, ...getUpgradeStore()];
+      if (Array.isArray(remoteTrades)) {
+        const mergedTrades = [...remoteTrades, ...getTradesStore()];
+        const dedupedTrades = [];
+        const seenTrades = new Set();
+
+        mergedTrades.forEach(trade => {
+          if (!trade || !trade.id || seenTrades.has(trade.id)) return;
+          seenTrades.add(trade.id);
+          dedupedTrades.push(trade);
+        });
+
+        saveTradesStore(dedupedTrades);
+      }
+
+      const fallbackUpgrades = Array.isArray(remoteTrades)
+        ? remoteTrades.filter(isUpgradeTradeRecord).map(normalizeUpgradeTradeRecord)
+        : [];
+
+      const mergedUpgrades = [
+        ...(Array.isArray(remoteUpgrades) ? remoteUpgrades : []),
+        ...fallbackUpgrades,
+        ...getUpgradeStore()
+      ];
       const dedupedUpgrades = [];
-      const seen = new Set();
       mergedUpgrades.forEach(upgrade => {
-        if (!upgrade || !upgrade.id || seen.has(upgrade.id)) return;
-        seen.add(upgrade.id);
-        dedupedUpgrades.push(upgrade);
+        if (!upgrade || !upgrade.id) return;
+        const existingIndex = dedupedUpgrades.findIndex(item => item.id === upgrade.id);
+        if (existingIndex === -1) {
+          dedupedUpgrades.push(upgrade);
+          return;
+        }
+
+        const existing = dedupedUpgrades[existingIndex];
+        const existingTime = new Date(existing.approvedAt || existing.rejectedAt || existing.createdAt || 0).getTime();
+        const incomingTime = new Date(upgrade.approvedAt || upgrade.rejectedAt || upgrade.createdAt || 0).getTime();
+        if ((existing.status === 'pending' && upgrade.status !== 'pending') || incomingTime >= existingTime) {
+          dedupedUpgrades[existingIndex] = { ...existing, ...upgrade };
+        }
       });
 
       saveUpgradeStore(dedupedUpgrades);
@@ -373,7 +525,7 @@
         approved: 'bg-green-100 text-green-800',
         rejected: 'bg-red-100 text-red-800'
       };
-      const upgrades = getUpgradeStore().filter(upgrade => String(upgrade.userId) === String(currentUser.id));
+      const upgrades = getAllUpgradeRequests().filter(upgrade => String(upgrade.userId) === String(currentUser.id));
       const historyTable = document.getElementById('upgradeHistoryTable');
 
       const activeRow = `
@@ -440,20 +592,28 @@
 
       if (!selectedUpgrade.plan) return;
 
+      const requiredAmount = Number(selectedUpgrade.amount || 0);
+      const availableFunds = Math.max(Number(currentUser.availableCash || 0), Number(currentUser.balance || 0));
+      const paymentSource = availableFunds >= requiredAmount ? 'balance' : 'deposit';
+
       // Create upgrade request
       const upgradeRequest = {
         id: Date.now().toString(),
         userId: currentUser.id,
         fromPlan: currentUser.plan || 'Bronze',
         toPlan: selectedUpgrade.plan,
-        requiredDeposit: selectedUpgrade.amount,
+        requiredDeposit: requiredAmount,
         status: 'pending',
         createdAt: new Date().toISOString()
       };
 
-      const existingPendingRequest = getUpgradeStore().find(upgrade => String(upgrade.userId) === String(currentUser.id) && upgrade.toPlan === selectedUpgrade.plan && upgrade.status === 'pending');
+      const existingPendingRequest = getAllUpgradeRequests().find(upgrade => String(upgrade.userId) === String(currentUser.id) && upgrade.toPlan === selectedUpgrade.plan && upgrade.status === 'pending');
       if (existingPendingRequest) {
-        alert('You already have a pending request for this plan.');
+        await persistUpgradeFallbackTrade(existingPendingRequest, existingPendingRequest.paymentSource || paymentSource);
+        alert(existingPendingRequest.paymentSource === 'balance' || paymentSource === 'balance'
+          ? 'This plan upgrade is already pending for admin approval and your account balance already covers it.'
+          : 'This plan upgrade is already pending for admin approval. Complete the required deposit only if your balance does not already cover it.');
+        loadUpgradeHistory();
         closeUpgradeModal();
         return;
       }
@@ -471,8 +631,10 @@
       }
 
       let upgrades = getUpgradeStore();
-      upgrades.push(upgradeRequest);
+      upgrades.push({ ...upgradeRequest, paymentSource });
       saveUpgradeStore(upgrades);
+
+      await persistUpgradeFallbackTrade(upgradeRequest, paymentSource);
 
       if (window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.createUpgrade) {
         const remoteSaved = await window.ESO_DB.createUpgrade(upgradeRequest);
@@ -483,6 +645,12 @@
 
       console.log('Upgrade request saved', upgradeRequest);
       loadUpgradeHistory();
+      if (paymentSource === 'balance') {
+        alert('Upgrade request submitted for admin approval. Your current account balance already covers this plan, so no extra deposit is required.');
+        closeUpgradeModal();
+        return;
+      }
+
       alert('Upgrade request submitted! Please make a deposit of $' + selectedUpgrade.amount.toLocaleString() + ' to complete the upgrade.');
       closeUpgradeModal();
       // navigate user to deposit page to complete payment

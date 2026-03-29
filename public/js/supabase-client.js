@@ -298,6 +298,18 @@
       });
     },
 
+    async upsertTrade(trade) {
+      const client = getClient();
+      if (!client) return null;
+      return safe(async () => {
+        const { error } = await client
+          .from('eso_trades')
+          .upsert(trade, { onConflict: 'id' });
+        if (error) throw error;
+        return true;
+      });
+    },
+
     async getUpgrades() {
       const client = getClient();
       if (!client) return null;
