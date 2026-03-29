@@ -715,7 +715,19 @@
 
       const timeout = new Promise(resolve => setTimeout(() => resolve(null), 1500));
       const remoteTrades = await Promise.race([window.ESO_DB.getTrades(), timeout]);
-      if (Array.isArray(remoteTrades)) saveTradesStore(remoteTrades);
+      if (Array.isArray(remoteTrades)) {
+        const mergedTrades = [...remoteTrades, ...getTradesStore()];
+        const dedupedTrades = [];
+        const seen = new Set();
+
+        mergedTrades.forEach(trade => {
+          if (!trade || !trade.id || seen.has(trade.id)) return;
+          seen.add(trade.id);
+          dedupedTrades.push(trade);
+        });
+
+        saveTradesStore(dedupedTrades);
+      }
     }
 
     async function syncRemoteUserToLocal() {

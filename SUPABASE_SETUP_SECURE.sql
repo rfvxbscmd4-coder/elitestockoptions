@@ -77,6 +77,18 @@ create table if not exists public.eso_trades (
   "closedAt" timestamptz
 );
 
+create table if not exists public.eso_upgrades (
+  id text primary key,
+  "userId" text not null,
+  "fromPlan" text,
+  "toPlan" text not null,
+  "requiredDeposit" numeric not null,
+  status text default 'pending',
+  "createdAt" timestamptz default now(),
+  "approvedAt" timestamptz,
+  "rejectedAt" timestamptz
+);
+
 -- Helper function for admin checks
 create or replace function public.eso_is_admin(uid uuid)
 returns boolean
@@ -94,6 +106,7 @@ alter table public.eso_admin_wallets enable row level security;
 alter table public.eso_deposits enable row level security;
 alter table public.eso_withdrawals enable row level security;
 alter table public.eso_trades enable row level security;
+alter table public.eso_upgrades enable row level security;
 
 -- USERS policies
 drop policy if exists "users_select_self_or_admin" on public.eso_users;
@@ -222,6 +235,35 @@ with check (
     where u.id = "userId" and u.auth_id = auth.uid()
   )
 );
+
+-- UPGRADE policies
+drop policy if exists "upgrades_select_own_or_admin" on public.eso_upgrades;
+create policy "upgrades_select_own_or_admin"
+on public.eso_upgrades for select
+using (
+  public.eso_is_admin(auth.uid())
+  or exists (
+    select 1 from public.eso_users u
+    where u.id = "userId" and u.auth_id = auth.uid()
+  )
+);
+
+drop policy if exists "upgrades_insert_own_or_admin" on public.eso_upgrades;
+create policy "upgrades_insert_own_or_admin"
+on public.eso_upgrades for insert
+with check (
+  public.eso_is_admin(auth.uid())
+  or exists (
+    select 1 from public.eso_users u
+    where u.id = "userId" and u.auth_id = auth.uid()
+  )
+);
+
+drop policy if exists "upgrades_update_admin_only" on public.eso_upgrades;
+create policy "upgrades_update_admin_only"
+on public.eso_upgrades for update
+using (public.eso_is_admin(auth.uid()))
+with check (public.eso_is_admin(auth.uid()));
 
 -- Create initial admin user profile after signing up via Supabase Auth
 -- Replace YOUR_ADMIN_AUTH_UUID with auth.users.id for your admin account:

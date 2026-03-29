@@ -296,6 +296,42 @@
         if (error) throw error;
         return true;
       });
+    },
+
+    async getUpgrades() {
+      const client = getClient();
+      if (!client) return null;
+      return safe(async () => {
+        const { data, error } = await client
+          .from('eso_upgrades')
+          .select('*')
+          .order('createdAt', { ascending: false });
+        if (error) throw error;
+        return data || [];
+      });
+    },
+
+    async createUpgrade(upgrade) {
+      const client = getClient();
+      if (!client) return null;
+      return safe(async () => {
+        const { error } = await client.from('eso_upgrades').insert(upgrade);
+        if (error) throw error;
+        return true;
+      });
+    },
+
+    async updateUpgrade(id, patch) {
+      const client = getClient();
+      if (!client) return null;
+      return safe(async () => {
+        const { error } = await client
+          .from('eso_upgrades')
+          .update(patch)
+          .eq('id', id);
+        if (error) throw error;
+        return true;
+      });
     }
   };
 

@@ -842,6 +842,7 @@
       'dashboard', 'users', 'userDetails', 'trades', 'deposits', 'withdrawals', 'bonuses',
       'balanceManager', 'kyc', 'wallets', 'loans', 'upgrades', 'notifications', 'messages', 'systemData'
     ]);
+    const REMOTE_SYNC_TABS = new Set(['dashboard', 'users', 'userDetails', 'trades', 'deposits', 'withdrawals', 'kyc', 'loans', 'upgrades', 'systemData']);
 
     function getTabFromHash() {
       const hashTab = (window.location.hash || '').replace('#', '').trim();
@@ -941,7 +942,7 @@
       loadTabData(tab);
     }
 
-    function loadTabData(tab) {
+    function renderTabData(tab) {
       switch(tab) {
         case 'dashboard': loadDashboard(); break;
         case 'users': loadUsers(); break;
@@ -961,6 +962,20 @@
       }
     }
 
+    function loadTabData(tab) {
+      renderTabData(tab);
+
+      if (!(window.ESO_DB && window.ESO_DB.isReady()) || !REMOTE_SYNC_TABS.has(tab)) return;
+
+      syncRemoteDataToLocal()
+        .then(() => {
+          if (currentAdminTab === tab) {
+            renderTabData(tab);
+          }
+        })
+        .catch(error => console.warn('Admin remote sync failed', error));
+    }
+
     function loadSystemData() {
       const users = JSON.parse(localStorage.getItem('elitestockoptions_users') || '[]');
       const deposits = JSON.parse(localStorage.getItem('eso_deposits') || '[]');
@@ -970,7 +985,7 @@
       document.getElementById('debugUsers').textContent = JSON.stringify(users, null, 2);
       document.getElementById('debugDeposits').textContent = JSON.stringify(deposits, null, 2);
       document.getElementById('debugTransactions').textContent = JSON.stringify(transactions, null, 2);
-      document.getElementById('debugUpgrades').textContent = JSON.stringify(JSON.parse(localStorage.getItem('eso_upgrades') || '[]'), null, 2);
+      document.getElementById('debugUpgrades').textContent = JSON.stringify(getUpgradesStore(), null, 2);
       document.getElementById('debugSession').textContent = JSON.stringify(session, null, 2);
     }
 
@@ -985,6 +1000,7 @@
       localStorage.removeItem('eso_bonuses');
       localStorage.removeItem('eso_loans');
       localStorage.removeItem('eso_upgrades');
+      localStorage.removeItem('elitestockoptions_upgrades');
       localStorage.removeItem('eso_adminWallets');
       localStorage.removeItem('elitestockoptions_adminWallets');
       localStorage.removeItem('eso_notifications');
@@ -1017,12 +1033,13 @@
     async function syncRemoteDataToLocal() {
       if (!(window.ESO_DB && window.ESO_DB.isReady())) return;
 
-      const [users, wallets, deposits, withdrawals, trades] = await Promise.all([
+      const [users, wallets, deposits, withdrawals, trades, upgrades] = await Promise.all([
         window.ESO_DB.getUsers(),
         window.ESO_DB.getWallets(),
         window.ESO_DB.getDeposits(),
         window.ESO_DB.getWithdrawals(),
-        window.ESO_DB.getTrades()
+        window.ESO_DB.getTrades(),
+        window.ESO_DB.getUpgrades ? window.ESO_DB.getUpgrades() : Promise.resolve(null)
       ]);
 
       if (Array.isArray(users) && users.length) {
@@ -1042,6 +1059,9 @@
       if (Array.isArray(trades) && trades.length) {
         localStorage.setItem('eso_trades', JSON.stringify(trades));
         localStorage.setItem('elitestockoptions_trades', JSON.stringify(trades));
+      }
+      if (Array.isArray(upgrades) && upgrades.length) {
+        saveUpgradesStore(upgrades);
       }
     }
 
@@ -1068,6 +1088,29 @@
     function saveTradesStore(trades) {
       localStorage.setItem('eso_trades', JSON.stringify(trades));
       localStorage.setItem('elitestockoptions_trades', JSON.stringify(trades));
+    }
+
+    function getUpgradesStore() {
+      const primary = JSON.parse(localStorage.getItem('eso_upgrades') || '[]');
+      const secondary = JSON.parse(localStorage.getItem('elitestockoptions_upgrades') || '[]');
+      const merged = [...primary, ...secondary];
+      const deduped = [];
+      const seen = new Set();
+
+      merged
+        .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+        .forEach(upgrade => {
+          if (!upgrade || !upgrade.id || seen.has(upgrade.id)) return;
+          seen.add(upgrade.id);
+          deduped.push(upgrade);
+        });
+
+      return deduped;
+    }
+
+    function saveUpgradesStore(upgrades) {
+      localStorage.setItem('eso_upgrades', JSON.stringify(upgrades));
+      localStorage.setItem('elitestockoptions_upgrades', JSON.stringify(upgrades));
     }
 
     function saveUsers(users) {
@@ -1294,6 +1337,9 @@
           }
           
           saveUsers(users);
+          if (window.ESO_DB && window.ESO_DB.isReady()) {
+            await window.ESO_DB.upsertUser(user);
+          }
           
           addTransaction(trade.userId, 'trade', trade.amount + trade.pnl, `Admin closed ${trade.type} position on ${trade.symbol} | P&L: $${trade.pnl.toFixed(2)}`);
         }
@@ -1962,7 +2008,7 @@
     }
 
     function loadUpgrades() {
-      const upgrades = JSON.parse(localStorage.getItem('eso_upgrades') || '[]').sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      const upgrades = getUpgradesStore();
       const tbody = document.getElementById('upgradesTable');
       
       if (upgrades.length === 0) {
@@ -1978,7 +2024,7 @@
           <td class="px-4 py-3 text-sm">${getUserEmail(u.userId)}</td>
           <td class="px-4 py-3">${u.fromPlan}</td>
           <td class="px-4 py-3 font-medium">${u.toPlan}</td>
-          <td class="px-4 py-3">$${u.requiredDeposit.toLocaleString()}</td>
+          <td class="px-4 py-3">$${Number(u.requiredDeposit || 0).toLocaleString()}</td>
           <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-medium ${statusColors[u.status]}">${u.status}</span></td>
           <td class="px-4 py-3">
             ${u.status === 'pending' ? `
@@ -1991,13 +2037,13 @@
     }
 
     async function approveUpgrade(upgradeId) {
-      let upgrades = JSON.parse(localStorage.getItem('eso_upgrades') || '[]');
+      let upgrades = getUpgradesStore();
       const upgrade = upgrades.find(u => u.id === upgradeId);
       if (!upgrade) return;
 
       upgrade.status = 'approved';
       upgrade.approvedAt = new Date().toISOString();
-      localStorage.setItem('eso_upgrades', JSON.stringify(upgrades));
+      saveUpgradesStore(upgrades);
 
       let users = getUsers();
       const user = users.find(u => u.id === upgrade.userId);
@@ -2019,7 +2065,14 @@
             } else {
               // Insufficient funds: mark upgrade as rejected and notify
               upgrade.status = 'rejected';
-              localStorage.setItem('eso_upgrades', JSON.stringify(upgrades));
+              upgrade.rejectedAt = new Date().toISOString();
+              saveUpgradesStore(upgrades);
+              if (window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.updateUpgrade) {
+                await window.ESO_DB.updateUpgrade(upgrade.id, {
+                  status: 'rejected',
+                  rejectedAt: upgrade.rejectedAt
+                });
+              }
               sendNotificationToUser(upgrade.userId, 'Upgrade Failed', 'Insufficient funds for upgrade.', 'error');
               showToast('User has insufficient funds; upgrade rejected');
               loadUpgrades();
@@ -2046,18 +2099,32 @@
         }
       }
 
+      if (window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.updateUpgrade) {
+        await window.ESO_DB.updateUpgrade(upgrade.id, {
+          status: upgrade.status,
+          approvedAt: upgrade.approvedAt
+        });
+      }
+
       sendNotificationToUser(upgrade.userId, 'Plan Upgraded!', `Congratulations! Your plan has been upgraded to ${upgrade.toPlan}.`, 'success');
       showToast('Upgrade approved!');
       loadUpgrades();
     }
 
-    function rejectUpgrade(upgradeId) {
+    async function rejectUpgrade(upgradeId) {
       if (!confirm('Reject this upgrade?')) return;
-      let upgrades = JSON.parse(localStorage.getItem('eso_upgrades') || '[]');
+      let upgrades = getUpgradesStore();
       const upgrade = upgrades.find(u => u.id === upgradeId);
       if (upgrade) {
         upgrade.status = 'rejected';
-        localStorage.setItem('eso_upgrades', JSON.stringify(upgrades));
+        upgrade.rejectedAt = new Date().toISOString();
+        saveUpgradesStore(upgrades);
+        if (window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.updateUpgrade) {
+          await window.ESO_DB.updateUpgrade(upgrade.id, {
+            status: 'rejected',
+            rejectedAt: upgrade.rejectedAt
+          });
+        }
         sendNotificationToUser(upgrade.userId, 'Upgrade Rejected', 'Your plan upgrade request was rejected.', 'error');
       }
       showToast('Upgrade rejected!');
@@ -2345,8 +2412,8 @@
     (async function initAdmin() {
       syncUserStores();
       syncWalletStores();
-      await syncRemoteDataToLocal();
       await checkAuth();
+      await syncRemoteDataToLocal();
       const initialTab = getTabFromHash() || 'dashboard';
       switchTab(initialTab, { pushHistory: false, replaceHistory: true });
     })();

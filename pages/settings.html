@@ -327,18 +327,19 @@
   <script>
     let currentUser = JSON.parse(localStorage.getItem('elitestockoptions_user') || localStorage.getItem('eso_currentUser'));
 
+    if (!currentUser) {
+      alert('Please login first');
+      window.location.href = 'login.html';
+    }
+
     // Sync balance from shared users storage (new + legacy keys)
     const allUsers = JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
-    const serverUser = allUsers.find(u => u.id === currentUser.id);
+    const serverUser = currentUser ? allUsers.find(u => u.id === currentUser.id) : null;
     if (serverUser) {
       currentUser.balance = serverUser.balance || 0;
       currentUser.availableCash = serverUser.availableCash || 0;
       currentUser.profitsBalance = serverUser.profitsBalance || 0;
       localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
-    }
-    if (!currentUser) {
-      alert('Please login first');
-      window.location.href = 'login.html';
     }
 
     function getSharedUsers() {
@@ -367,22 +368,42 @@
     // Store KYC files temporarily before submission
     let kycFiles = { front: null, back: null, selfie: null };
 
+    async function syncRemoteUserToLocal() {
+      if (!(window.ESO_DB && window.ESO_DB.isReady())) return null;
+
+      const authUser = await window.ESO_DB.getAuthUser();
+      let remoteProfile = authUser?.id ? await window.ESO_DB.findUserByAuthId(authUser.id) : null;
+      if (!remoteProfile && currentUser?.email) {
+        remoteProfile = await window.ESO_DB.findUserByEmail(currentUser.email);
+      }
+      if (!remoteProfile) return null;
+
+      currentUser = { ...currentUser, ...remoteProfile };
+      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+      localStorage.setItem('eso_currentUser', JSON.stringify(currentUser));
+
+      const users = getSharedUsers();
+      const userIndex = findSharedUserIndex(users, currentUser);
+      if (userIndex >= 0) {
+        users[userIndex] = { ...users[userIndex], ...remoteProfile };
+      } else {
+        users.push({ ...remoteProfile });
+      }
+      saveSharedUsers(users);
+
+      return remoteProfile;
+    }
+
     async function syncExistingKycToSupabase() {
       const supabaseReady = !!(window.ESO_DB && window.ESO_DB.isReady());
-      if (!supabaseReady || !currentUser?.kycData) return;
+      if (!supabaseReady) return;
+
+      const remoteProfile = await syncRemoteUserToLocal();
+      if (!currentUser?.kycData) return;
 
       const kycStatus = currentUser.kycStatus || 'pending';
       const shouldSync = ['pending', 'rejected', 'verified'].includes(kycStatus);
       if (!shouldSync) return;
-
-      let remoteProfile = null;
-      const authUser = await window.ESO_DB.getAuthUser();
-      if (authUser?.id) {
-        remoteProfile = await window.ESO_DB.findUserByAuthId(authUser.id);
-      }
-      if (!remoteProfile && currentUser.email) {
-        remoteProfile = await window.ESO_DB.findUserByEmail(currentUser.email);
-      }
 
       const users = getSharedUsers();
       const userIndex = findSharedUserIndex(users, currentUser);
@@ -403,6 +424,8 @@
     }
 
     async function initSettings() {
+      await syncRemoteUserToLocal();
+
       // Update avatars
       const avatarUrl = currentUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.fullName || currentUser.email}&backgroundColor=b6e3f4`;
       document.getElementById('userAvatar').innerHTML = `<img src="${avatarUrl}" alt="Avatar" class="w-10 h-10 rounded-full">`;
@@ -496,13 +519,15 @@
       const banner = document.getElementById('kycStatusBanner');
       const text = document.getElementById('kycStatusText');
       const desc = document.getElementById('kycStatusDesc');
+      const form = document.getElementById('kycForm');
       
       banner.className = 'flex items-center space-x-4 p-4 rounded-xl ';
+      form.classList.remove('hidden');
       if (status === 'verified') {
         banner.classList.add('kyc-status-verified');
         text.textContent = 'Verified';
         desc.textContent = 'Your identity has been verified';
-        document.getElementById('kycForm').classList.add('hidden');
+        form.classList.add('hidden');
       } else if (status === 'rejected') {
         banner.classList.add('kyc-status-rejected');
         text.textContent = 'Rejected';

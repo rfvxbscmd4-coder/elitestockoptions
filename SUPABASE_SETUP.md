@@ -91,6 +91,18 @@ create table if not exists eso_trades (
   "openedAt" timestamptz default now(),
   "closedAt" timestamptz
 );
+
+create table if not exists eso_upgrades (
+  id text primary key,
+  "userId" text not null,
+  "fromPlan" text,
+  "toPlan" text not null,
+  "requiredDeposit" numeric not null,
+  status text default 'pending',
+  "createdAt" timestamptz default now(),
+  "approvedAt" timestamptz,
+  "rejectedAt" timestamptz
+);
 ```
 
 ## 3) Disable RLS for quick start (development)
@@ -103,6 +115,7 @@ alter table eso_admin_wallets disable row level security;
 alter table eso_deposits disable row level security;
 alter table eso_withdrawals disable row level security;
 alter table eso_trades disable row level security;
+alter table eso_upgrades disable row level security;
 ```
 
 For production, enable RLS and add proper policies.
