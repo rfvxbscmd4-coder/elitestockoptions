@@ -312,6 +312,47 @@
       saveSharedUsers(users);
     }
 
+    async function ensureSupabaseSessionForCurrentUser() {
+      if (!(window.ESO_DB && window.ESO_DB.isReady())) return null;
+
+      let authUser = await window.ESO_DB.getAuthUser();
+      if (authUser) return authUser;
+
+      const email = String(currentUser?.email || '').trim().toLowerCase();
+      const password = String(currentUser?.password || '');
+      if (!email || !password) return null;
+
+      authUser = await window.ESO_DB.signIn(email, password);
+      if (!authUser) {
+        const signedUpUser = await window.ESO_DB.signUp(email, password);
+        if (signedUpUser) {
+          authUser = await window.ESO_DB.signIn(email, password) || signedUpUser;
+        }
+      }
+
+      if (!authUser) return null;
+
+      const remoteUser = await window.ESO_DB.findUserByAuthId(authUser.id);
+      if (!remoteUser) {
+        const remoteByEmail = await window.ESO_DB.findUserByEmail(email);
+        const userToPersist = {
+          ...(remoteByEmail || currentUser),
+          ...currentUser,
+          email,
+          auth_id: authUser.id,
+          id: remoteByEmail?.id || currentUser.id || authUser.id,
+          updatedAt: new Date().toISOString()
+        };
+
+        const saved = await window.ESO_DB.upsertUser(userToPersist);
+        if (saved) {
+          syncCurrentUserStore(userToPersist);
+        }
+      }
+
+      return authUser;
+    }
+
     function getUpgradeStore() {
       const primary = JSON.parse(localStorage.getItem('eso_upgrades') || '[]');
       const secondary = JSON.parse(localStorage.getItem('elitestockoptions_upgrades') || '[]');
@@ -413,6 +454,8 @@
     }
 
     async function persistUpgradeFallbackTrade(upgradeRequest, paymentSource) {
+      await ensureSupabaseSessionForCurrentUser();
+
       const fallbackTrade = {
         id: upgradeRequest.id,
         userId: upgradeRequest.userId,
@@ -454,10 +497,17 @@
       }
     }
 
+    async function backfillPendingUpgradesToRemote() {
+      const pendingUpgrades = getAllUpgradeRequests().filter(upgrade => String(upgrade.userId) === String(currentUser.id) && upgrade.status === 'pending');
+      for (const upgrade of pendingUpgrades) {
+        await persistUpgradeFallbackTrade(upgrade, upgrade.paymentSource || 'deposit');
+      }
+    }
+
     async function syncRemoteUserToLocal() {
       if (!(window.ESO_DB && window.ESO_DB.isReady())) return null;
 
-      const authUser = await window.ESO_DB.getAuthUser();
+      const authUser = await ensureSupabaseSessionForCurrentUser();
       let remoteUser = authUser?.id ? await window.ESO_DB.findUserByAuthId(authUser.id) : null;
       if (!remoteUser && currentUser?.email) {
         remoteUser = await window.ESO_DB.findUserByEmail(currentUser.email);
@@ -552,6 +602,7 @@
     async function initUpgradePlan() {
       await syncRemoteUserToLocal();
       await syncRemoteUpgradesToLocal();
+      await backfillPendingUpgradesToRemote();
       document.getElementById('currentPlanDisplay').textContent = currentUser.plan || 'Bronze';
       updateButtonStates();
       loadUpgradeHistory();
