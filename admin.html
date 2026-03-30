@@ -895,6 +895,17 @@
       }
       return authUser;
     }
+
+    async function ensureAdminSupabaseSession() {
+      if (!(window.ESO_DB && window.ESO_DB.isReady())) return null;
+
+      let authUser = await window.ESO_DB.getAuthUser();
+      if (authUser) return authUser;
+
+      const admin = readStoredJson(ADMIN_KEY) || readStoredJson(ADMIN_USER_KEY);
+      authUser = await restoreAdminScopedSession(admin);
+      return authUser || null;
+    }
     
     async function checkAuth() {
       const admin = readStoredJson(ADMIN_KEY) || readStoredJson(ADMIN_USER_KEY);
@@ -2082,21 +2093,60 @@
       document.getElementById('kycDocsModal').classList.remove('flex');
     }
 
+    function upsertAdminCachedUser(users, user) {
+      const nextUsers = Array.isArray(users) ? [...users] : [];
+      const userId = String(user?.id || '');
+      const userAuthId = String(user?.auth_id || '');
+      const userEmail = String(user?.email || '').toLowerCase();
+
+      const existingIndex = nextUsers.findIndex(entry => {
+        if (!entry) return false;
+        if (userId && String(entry.id || '') === userId) return true;
+        if (userAuthId && String(entry.auth_id || '') === userAuthId) return true;
+        return !!userEmail && String(entry.email || '').toLowerCase() === userEmail;
+      });
+
+      if (existingIndex >= 0) {
+        nextUsers[existingIndex] = { ...nextUsers[existingIndex], ...user };
+      } else {
+        nextUsers.push(user);
+      }
+
+      return nextUsers;
+    }
+
+    async function resolveCanonicalAdminUser(userId, userHint = null) {
+      let resolvedUser = userHint || getUsers().find(u => String(u.id || '') === String(userId || '')) || null;
+
+      if (!(window.ESO_DB && window.ESO_DB.isReady())) return resolvedUser;
+
+      const authUser = await ensureAdminSupabaseSession();
+      if (!authUser) return resolvedUser;
+
+      let remoteUser = null;
+      if (userId && window.ESO_DB.findUserById) {
+        remoteUser = await window.ESO_DB.findUserById(userId);
+      }
+
+      const fallbackEmail = String(resolvedUser?.email || '').trim().toLowerCase();
+      if (!remoteUser && fallbackEmail && window.ESO_DB.findUserByEmail) {
+        remoteUser = await window.ESO_DB.findUserByEmail(fallbackEmail);
+      }
+
+      if (!remoteUser) return resolvedUser;
+      return { ...(resolvedUser || {}), ...remoteUser };
+    }
+
     async function approveKyc(userId) {
       let users = getUsers();
-      let userIndex = users.findIndex(u => String(u.id || '') === String(userId || ''));
-      let user = userIndex >= 0 ? users[userIndex] : null;
+      const localUser = users.find(u => String(u.id || '') === String(userId || '')) || null;
+      let user = await resolveCanonicalAdminUser(userId, localUser);
 
-      if (window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.findUserById) {
-        const remoteUser = await window.ESO_DB.findUserById(userId);
-        if (remoteUser) {
-          user = { ...(user || {}), ...remoteUser };
-          if (userIndex >= 0) {
-            users[userIndex] = { ...users[userIndex], ...user };
-          } else {
-            users.push(user);
-            userIndex = users.length - 1;
-          }
+      if (window.ESO_DB && window.ESO_DB.isReady()) {
+        const authUser = await ensureAdminSupabaseSession();
+        if (!authUser) {
+          showToast('Admin session expired. Please sign in again.', 'error');
+          return;
         }
       }
 
@@ -2113,19 +2163,17 @@
         if (window.ESO_DB && window.ESO_DB.isReady()) {
           const saved = await window.ESO_DB.upsertUser(user);
           if (!saved) {
+            const lastError = window.ESO_DB.getLastError ? window.ESO_DB.getLastError() : null;
+            console.error('approveKyc failed', { userId, user, lastError });
             showToast('Could not approve KYC on server', 'error');
             return;
           }
         }
 
-        if (userIndex >= 0) {
-          users[userIndex] = { ...users[userIndex], ...user };
-        } else {
-          users.push(user);
-        }
+        users = upsertAdminCachedUser(users, user);
         saveUsers(users);
 
-        await sendNotificationToUser(userId, 'KYC Approved!', 'Your KYC verification has been approved. You now have full access to all features.', 'success', user);
+        await sendNotificationToUser(user.id || userId, 'KYC Approved!', 'Your KYC verification has been approved. You now have full access to all features.', 'success', user);
         showToast(hasKycSubmission(user) ? 'KYC approved!' : 'KYC approved without submission.');
         loadKyc();
       }
@@ -2134,15 +2182,33 @@
     async function rejectKyc(userId) {
       if (!confirm('Reject KYC?')) return;
       let users = getUsers();
-      const user = users.find(u => u.id === userId);
+      const localUser = users.find(u => String(u.id || '') === String(userId || '')) || null;
+      const user = await resolveCanonicalAdminUser(userId, localUser);
       if (user) {
+        if (window.ESO_DB && window.ESO_DB.isReady()) {
+          const authUser = await ensureAdminSupabaseSession();
+          if (!authUser) {
+            showToast('Admin session expired. Please sign in again.', 'error');
+            return;
+          }
+        }
+
         user.kycStatus = 'rejected';
         user.updatedAt = new Date().toISOString();
-        saveUsers(users);
         if (window.ESO_DB && window.ESO_DB.isReady()) {
-          await window.ESO_DB.upsertUser(user);
+          const saved = await window.ESO_DB.upsertUser(user);
+          if (!saved) {
+            const lastError = window.ESO_DB.getLastError ? window.ESO_DB.getLastError() : null;
+            console.error('rejectKyc failed', { userId, user, lastError });
+            showToast('Could not reject KYC on server', 'error');
+            return;
+          }
         }
-        sendNotificationToUser(userId, 'KYC Rejected', 'Your KYC verification was rejected. Please submit valid documents.', 'error');
+
+        users = upsertAdminCachedUser(users, user);
+        saveUsers(users);
+
+        await sendNotificationToUser(user.id || userId, 'KYC Rejected', 'Your KYC verification was rejected. Please submit valid documents.', 'error', user);
         showToast('KYC rejected!');
         loadKyc();
       }
