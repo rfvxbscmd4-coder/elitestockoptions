@@ -7,6 +7,7 @@
   <link rel="icon" type="image/png" href="../public/logo.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
   <script src="./public/js/supabase-config.js"></script>
   <script src="./public/js/supabase-client.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -646,7 +647,7 @@
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
               <h2 class="font-bold text-gray-900 mb-2">Send Direct Message</h2>
-              <p class="text-sm text-gray-500 mb-4">Delivered to the selected user's account and dashboard notifications.</p>
+              <p id="msgDeliveryStatus" class="text-sm text-gray-500 mb-4">Delivered to the selected user's account and dashboard notifications.</p>
               <form id="messageForm" class="space-y-4">
                 <div>
                   <label class="block text-sm font-medium text-gray-700 mb-2">Send To</label>
@@ -1024,7 +1025,7 @@
         case 'loans': loadLoans(); break;
         case 'upgrades': loadUpgrades(); break;
         case 'notifications': loadNotifUsers(); loadNotifications(); break;
-        case 'messages': loadMsgUsers(); loadMessages(); break;
+        case 'messages': loadMsgUsers(); loadMessages(); updateMessageDeliveryStatus(); break;
         case 'systemData': loadSystemData(); break;
       }
     }
@@ -2592,6 +2593,73 @@
         users.map(u => `<option value="${u.id}">${u.fullName || u.name || u.email} (${u.email})</option>`).join('');
     }
 
+    function isEmailDeliveryConfigured() {
+      const provider = String(window.ESO_EMAIL_PROVIDER || '').trim().toLowerCase();
+      const publicKey = String(window.ESO_EMAILJS_PUBLIC_KEY || '').trim();
+      const serviceId = String(window.ESO_EMAILJS_SERVICE_ID || '').trim();
+      const templateId = String(window.ESO_EMAILJS_TEMPLATE_ID || '').trim();
+
+      return provider === 'emailjs'
+        && !!window.emailjs
+        && !!publicKey
+        && !!serviceId
+        && !!templateId;
+    }
+
+    function updateMessageDeliveryStatus() {
+      const statusEl = document.getElementById('msgDeliveryStatus');
+      if (!statusEl) return;
+
+      if (isEmailDeliveryConfigured()) {
+        statusEl.className = 'text-sm text-emerald-600 mb-4';
+        statusEl.textContent = 'Delivered to the selected user dashboard and sent to their mailbox email.';
+        return;
+      }
+
+      statusEl.className = 'text-sm text-amber-600 mb-4';
+      statusEl.textContent = 'Delivered to the selected user dashboard only. Email delivery is not configured yet.';
+    }
+
+    async function sendEmailsToRecipients(recipients, subject, body) {
+      const normalizedRecipients = (Array.isArray(recipients) ? recipients : []).filter(user => user && user.email);
+      if (!normalizedRecipients.length) {
+        return { configured: isEmailDeliveryConfigured(), sent: 0, failed: 0, total: 0 };
+      }
+
+      if (!isEmailDeliveryConfigured()) {
+        return { configured: false, sent: 0, failed: 0, total: normalizedRecipients.length };
+      }
+
+      const publicKey = String(window.ESO_EMAILJS_PUBLIC_KEY || '').trim();
+      const serviceId = String(window.ESO_EMAILJS_SERVICE_ID || '').trim();
+      const templateId = String(window.ESO_EMAILJS_TEMPLATE_ID || '').trim();
+      const fromName = String(window.ESO_EMAIL_FROM_NAME || 'ELITESTOCKOPTIONS Admin').trim();
+      const fromEmail = String(window.ESO_EMAIL_FROM_ADDRESS || 'support@elitestockoptions.net').trim();
+
+      if (!window.__esoEmailJsInitialized) {
+        window.emailjs.init({ publicKey });
+        window.__esoEmailJsInitialized = true;
+      }
+
+      const results = await Promise.allSettled(
+        normalizedRecipients.map(user => window.emailjs.send(serviceId, templateId, {
+          to_email: String(user.email || '').trim().toLowerCase(),
+          to_name: user.fullName || user.name || user.email,
+          subject,
+          message: body,
+          from_name: fromName,
+          from_email: fromEmail,
+          reply_to: fromEmail,
+          app_name: 'ELITESTOCKOPTIONS',
+          user_plan: user.plan || 'Bronze'
+        }))
+      );
+
+      const sent = results.filter(result => result.status === 'fulfilled').length;
+      const failed = results.length - sent;
+      return { configured: true, sent, failed, total: normalizedRecipients.length };
+    }
+
     function toggleMsgUser() {
       const target = document.getElementById('msgTarget').value;
       document.getElementById('msgUserSelect').classList.toggle('hidden', target !== 'specific');
@@ -2629,6 +2697,8 @@
         return;
       }
 
+      const emailResult = await sendEmailsToRecipients(recipients, subject, body);
+
       delivered.forEach(record => {
         messages.unshift({
           id: record.id,
@@ -2636,12 +2706,24 @@
           subject: record.title,
           body: record.message,
           sentAt: record.createdAt,
-          targetEmail: record.targetEmail
+          targetEmail: record.targetEmail,
+          emailStatus: !emailResult.configured
+            ? 'not_configured'
+            : (emailResult.failed ? 'partial' : 'sent')
         });
       });
       localStorage.setItem('eso_messages', JSON.stringify(messages));
 
-      showToast('Message sent successfully!');
+      if (!emailResult.configured) {
+        showToast('Direct message sent to the user dashboard. Email delivery is not configured.', 'success');
+      } else if (emailResult.failed === 0) {
+        showToast('Direct message sent to the dashboard and mailbox email.', 'success');
+      } else if (emailResult.sent > 0) {
+        showToast(`Dashboard message sent. Email delivered to ${emailResult.sent}/${emailResult.total} users.`, 'info');
+      } else {
+        showToast('Dashboard message sent, but mailbox email delivery failed.', 'error');
+      }
+
       document.getElementById('messageForm').reset();
       await loadMessages();
     });
@@ -2789,6 +2871,7 @@
       syncWalletStores();
       await checkAuth();
       await syncRemoteDataToLocal();
+      updateMessageDeliveryStatus();
       const initialTab = getTabFromHash() || 'dashboard';
       switchTab(initialTab, { pushHistory: false, replaceHistory: true });
     })();

@@ -1,5 +1,11 @@
 window.ESO_SUPABASE_URL = 'https://dmncqeczdpxnladdramd.supabase.co';
 window.ESO_SUPABASE_ANON_KEY = 'sb_publishable_azANVZBlpJd2dPXy159Fxg_OsO7hkKJ';
+window.ESO_EMAIL_PROVIDER = 'none';
+window.ESO_EMAILJS_PUBLIC_KEY = '';
+window.ESO_EMAILJS_SERVICE_ID = '';
+window.ESO_EMAILJS_TEMPLATE_ID = '';
+window.ESO_EMAIL_FROM_NAME = 'ELITESTOCKOPTIONS Admin';
+window.ESO_EMAIL_FROM_ADDRESS = 'support@elitestockoptions.net';
 window.ESO_CHAT_PROVIDER = 'tawk';
 window.ESO_TAWK_PROPERTY_ID = '6996ed8f4f011d1c3d8f5058';
 window.ESO_TAWK_WIDGET_ID = 'default';
