@@ -120,6 +120,19 @@ create table if not exists eso_loans (
   "approvedAt" timestamptz,
   "rejectedAt" timestamptz
 );
+
+create table if not exists eso_notifications (
+  id text primary key,
+  "userId" text not null,
+  category text default 'notification',
+  title text not null,
+  message text not null,
+  type text default 'info',
+  read boolean default false,
+  "targetEmail" text,
+  meta jsonb,
+  "createdAt" timestamptz default now()
+);
 ```
 
 ## 3) Disable RLS for quick start (development)
@@ -134,10 +147,11 @@ alter table eso_withdrawals disable row level security;
 alter table eso_trades disable row level security;
 alter table eso_upgrades disable row level security;
 alter table eso_loans disable row level security;
+alter table eso_notifications disable row level security;
 ```
 
 For production, enable RLS and add proper policies.
-If you already ran the older secure SQL before this fix, rerun [SUPABASE_SETUP_SECURE.sql](SUPABASE_SETUP_SECURE.sql) so existing users can be matched by authenticated email, the `eso_loans` table exists, and the KYC columns/default status are corrected for cross-device approval.
+If you already ran the older secure SQL before this fix, rerun [SUPABASE_SETUP_SECURE.sql](SUPABASE_SETUP_SECURE.sql) so existing users can be matched by authenticated email, the `eso_loans` table exists, the KYC columns/default status are corrected for cross-device approval, and the `eso_notifications` table is created for admin messages and dashboard delivery.
 
 ## 4) Redeploy to Netlify
 

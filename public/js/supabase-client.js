@@ -407,6 +407,62 @@
         if (error) throw error;
         return true;
       });
+    },
+
+    async getNotifications(filters = {}) {
+      const client = getClient();
+      if (!client) return null;
+      return safe(async () => {
+        let query = client
+          .from('eso_notifications')
+          .select('*')
+          .order('createdAt', { ascending: false });
+
+        if (filters?.category) {
+          query = query.eq('category', filters.category);
+        }
+        if (filters?.userId) {
+          query = query.eq('userId', filters.userId);
+        }
+        if (filters?.unreadOnly) {
+          query = query.eq('read', false);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        return data || [];
+      });
+    },
+
+    async createNotifications(notifications) {
+      const client = getClient();
+      if (!client) return null;
+      return safe(async () => {
+        const payload = Array.isArray(notifications) ? notifications.filter(Boolean) : [notifications].filter(Boolean);
+        if (!payload.length) return true;
+
+        const { error } = await client
+          .from('eso_notifications')
+          .insert(payload);
+        if (error) throw error;
+        return true;
+      });
+    },
+
+    async updateNotifications(ids, patch) {
+      const client = getClient();
+      if (!client) return null;
+      return safe(async () => {
+        const normalizedIds = Array.isArray(ids) ? ids.filter(Boolean) : [ids].filter(Boolean);
+        if (!normalizedIds.length) return true;
+
+        const { error } = await client
+          .from('eso_notifications')
+          .update(patch)
+          .in('id', normalizedIds);
+        if (error) throw error;
+        return true;
+      });
     }
   };
 

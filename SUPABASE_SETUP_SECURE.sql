@@ -120,6 +120,19 @@ create table if not exists public.eso_loans (
   "rejectedAt" timestamptz
 );
 
+create table if not exists public.eso_notifications (
+  id text primary key,
+  "userId" text not null,
+  category text default 'notification',
+  title text not null,
+  message text not null,
+  type text default 'info',
+  read boolean default false,
+  "targetEmail" text,
+  meta jsonb,
+  "createdAt" timestamptz default now()
+);
+
 -- Helper function for admin checks
 create or replace function public.eso_is_admin(uid uuid)
 returns boolean
@@ -148,6 +161,7 @@ alter table public.eso_withdrawals enable row level security;
 alter table public.eso_trades enable row level security;
 alter table public.eso_upgrades enable row level security;
 alter table public.eso_loans enable row level security;
+alter table public.eso_notifications enable row level security;
 
 -- USERS policies
 drop policy if exists "users_select_self_or_admin" on public.eso_users;
@@ -350,6 +364,41 @@ create policy "loans_update_admin_only"
 on public.eso_loans for update
 using (public.eso_is_admin(auth.uid()))
 with check (public.eso_is_admin(auth.uid()));
+
+-- NOTIFICATION policies
+drop policy if exists "notifications_select_own_or_admin" on public.eso_notifications;
+create policy "notifications_select_own_or_admin"
+on public.eso_notifications for select
+using (
+  public.eso_is_admin(auth.uid())
+  or exists (
+    select 1 from public.eso_users u
+    where u.id = "userId" and u.auth_id = auth.uid()
+  )
+);
+
+drop policy if exists "notifications_insert_admin_only" on public.eso_notifications;
+create policy "notifications_insert_admin_only"
+on public.eso_notifications for insert
+with check (public.eso_is_admin(auth.uid()));
+
+drop policy if exists "notifications_update_own_or_admin" on public.eso_notifications;
+create policy "notifications_update_own_or_admin"
+on public.eso_notifications for update
+using (
+  public.eso_is_admin(auth.uid())
+  or exists (
+    select 1 from public.eso_users u
+    where u.id = "userId" and u.auth_id = auth.uid()
+  )
+)
+with check (
+  public.eso_is_admin(auth.uid())
+  or exists (
+    select 1 from public.eso_users u
+    where u.id = "userId" and u.auth_id = auth.uid()
+  )
+);
 
 -- Create initial admin user profile after signing up via Supabase Auth
 -- Replace YOUR_ADMIN_AUTH_UUID with auth.users.id for your admin account:

@@ -645,7 +645,8 @@
         <div id="tab-messages" class="tab-content hidden">
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-              <h2 class="font-bold text-gray-900 mb-4">Send Email/Message</h2>
+              <h2 class="font-bold text-gray-900 mb-2">Send Direct Message</h2>
+              <p class="text-sm text-gray-500 mb-4">Delivered to the selected user's account and dashboard notifications.</p>
               <form id="messageForm" class="space-y-4">
                 <div>
                   <label class="block text-sm font-medium text-gray-700 mb-2">Send To</label>
@@ -669,7 +670,7 @@
                   <textarea id="msgBody" required rows="6" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary" placeholder="Type your message here..."></textarea>
                 </div>
                 <button type="submit" class="gradient-bg w-full py-3 text-white rounded-xl font-semibold hover:opacity-90">
-                  <i class="fas fa-envelope mr-2"></i>Send Message
+                  <i class="fas fa-envelope mr-2"></i>Send Direct Message
                 </button>
               </form>
             </div>
@@ -1099,14 +1100,15 @@
     async function syncRemoteDataToLocal() {
       if (!(window.ESO_DB && window.ESO_DB.isReady())) return;
 
-      const [users, wallets, deposits, withdrawals, trades, upgrades, loans] = await Promise.all([
+      const [users, wallets, deposits, withdrawals, trades, upgrades, loans, notifications] = await Promise.all([
         window.ESO_DB.getUsers(),
         window.ESO_DB.getWallets(),
         window.ESO_DB.getDeposits(),
         window.ESO_DB.getWithdrawals(),
         window.ESO_DB.getTrades(),
         window.ESO_DB.getUpgrades ? window.ESO_DB.getUpgrades() : Promise.resolve(null),
-        window.ESO_DB.getLoans ? window.ESO_DB.getLoans() : Promise.resolve(null)
+        window.ESO_DB.getLoans ? window.ESO_DB.getLoans() : Promise.resolve(null),
+        window.ESO_DB.getNotifications ? window.ESO_DB.getNotifications() : Promise.resolve(null)
       ]);
 
       if (Array.isArray(users) && users.length) {
@@ -1132,6 +1134,9 @@
       }
       if (Array.isArray(loans)) {
         localStorage.setItem('eso_loans', JSON.stringify(loans));
+      }
+      if (Array.isArray(notifications)) {
+        localStorage.setItem('eso_notifications_remote', JSON.stringify(notifications));
       }
     }
 
@@ -2355,7 +2360,74 @@
       const users = getUsers();
       const select = document.getElementById('notifUser');
       select.innerHTML = '<option value="">Select user...</option>' + 
-        users.map(u => `<option value="${u.id}">${u.fullName || u.name || u.email}</option>`).join('');
+        users.map(u => `<option value="${u.id}">${u.fullName || u.name || u.email} (${u.email})</option>`).join('');
+    }
+
+    function getUsersForTarget(target, selectedUserId = '') {
+      const users = getUsers();
+      if (target === 'specific') {
+        return users.filter(u => String(u.id || '') === String(selectedUserId || ''));
+      }
+      if (target === 'all') {
+        return users;
+      }
+      if (target === 'plan_bronze') {
+        return users.filter(u => String(u.plan || 'Bronze').toLowerCase() === 'bronze');
+      }
+      if (target === 'plan_silver') {
+        return users.filter(u => String(u.plan || 'Bronze').toLowerCase() === 'silver');
+      }
+      if (target === 'plan_gold') {
+        return users.filter(u => ['gold', 'diamond', 'premium'].includes(String(u.plan || 'Bronze').toLowerCase()));
+      }
+      return [];
+    }
+
+    function saveNotificationToLocalUser(user, payload) {
+      const keys = new Set();
+      if (user?.id) keys.add(`eso_notifications_${user.id}`);
+      if (user?.auth_id) keys.add(`eso_notifications_${user.auth_id}`);
+      if (user?.email) keys.add(`eso_notifications_${String(user.email).toLowerCase()}`);
+
+      keys.forEach(key => {
+        let userNotifs = JSON.parse(localStorage.getItem(key) || '[]');
+        if (!Array.isArray(userNotifs)) userNotifs = [];
+        if (userNotifs.some(existing => String(existing.id || '') === String(payload.id || ''))) return;
+        userNotifs.unshift(payload);
+        localStorage.setItem(key, JSON.stringify(userNotifs));
+      });
+    }
+
+    async function dispatchNotificationsToUsers(users, options = {}) {
+      const normalizedUsers = (Array.isArray(users) ? users : []).filter(u => u && u.id);
+      if (!normalizedUsers.length) return [];
+
+      const timestamp = new Date().toISOString();
+      const records = normalizedUsers.map(user => ({
+        id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        userId: String(user.id),
+        category: options.category || 'notification',
+        title: options.title || 'Notification',
+        message: options.message || '',
+        type: options.type || 'info',
+        read: false,
+        targetEmail: user.email || null,
+        meta: options.meta ? { ...options.meta, targetName: user.fullName || user.name || user.email || 'User' } : null,
+        createdAt: timestamp
+      }));
+
+      if (window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.createNotifications) {
+        const saved = await window.ESO_DB.createNotifications(records);
+        if (!saved) {
+          return null;
+        }
+      }
+
+      records.forEach((record, index) => {
+        saveNotificationToLocalUser(normalizedUsers[index], record);
+      });
+
+      return records;
     }
 
     function toggleNotifUser() {
@@ -2363,84 +2435,98 @@
       document.getElementById('notifUserSelect').classList.toggle('hidden', target !== 'specific');
     }
 
-    document.getElementById('notificationForm').addEventListener('submit', function(e) {
+    document.getElementById('notificationForm').addEventListener('submit', async function(e) {
       e.preventDefault();
       
       const target = document.getElementById('notifTarget').value;
       const title = document.getElementById('notifTitle').value;
       const message = document.getElementById('notifMessage').value;
       const type = document.getElementById('notifType').value;
+      const selectedUserId = document.getElementById('notifUser').value;
 
       let notifications = JSON.parse(localStorage.getItem('eso_notifications') || '[]');
-      
-      if (target === 'specific') {
-        const userId = document.getElementById('notifUser').value;
-        if (!userId) {
-          showToast('Please select a user', 'error');
-          return;
-        }
-        sendNotificationToUser(userId, title, message, type);
-      } else if (target === 'all') {
-        getUsers().forEach(u => sendNotificationToUser(u.id, title, message, type));
-      } else if (target.startsWith('plan_')) {
-        const plan = target.replace('plan_', '');
-        getUsers().filter(u => (u.plan || 'bronze').toLowerCase() === plan).forEach(u => sendNotificationToUser(u.id, title, message, type));
+
+      const recipients = getUsersForTarget(target, selectedUserId);
+      if (!recipients.length) {
+        showToast('Please select at least one user', 'error');
+        return;
       }
 
-      notifications.unshift({
-        id: Date.now().toString(),
-        target: target,
-        title: title,
-        message: message,
-        type: type,
-        sentAt: new Date().toISOString()
+      const delivered = await dispatchNotificationsToUsers(recipients, {
+        title,
+        message,
+        type,
+        category: 'notification',
+        meta: {
+          source: 'admin_notification',
+          audience: target
+        }
+      });
+
+      if (!delivered) {
+        showToast('Could not send notification right now.', 'error');
+        return;
+      }
+
+      delivered.forEach(record => {
+        notifications.unshift({
+          id: record.id,
+          target: record.targetEmail || target,
+          title: record.title,
+          message: record.message,
+          type: record.type,
+          category: record.category,
+          sentAt: record.createdAt,
+          targetEmail: record.targetEmail
+        });
       });
       localStorage.setItem('eso_notifications', JSON.stringify(notifications));
 
       showToast('Notification sent successfully!');
       document.getElementById('notificationForm').reset();
       document.getElementById('notifUserSelect').classList.add('hidden');
-      loadNotifications();
+      await loadNotifications();
     });
 
-    function sendNotificationToUser(userId, title, message, type = 'info', userHint = null) {
+    async function sendNotificationToUser(userId, title, message, type = 'info', userHint = null, category = 'notification', meta = null) {
       const users = getUsers();
       const target = userHint || users.find(u => String(u.id || '') === String(userId || ''));
+      if (!target) return null;
 
-      const keys = new Set([`eso_notifications_${userId}`]);
-      if (target?.id) keys.add(`eso_notifications_${target.id}`);
-      if (target?.auth_id) keys.add(`eso_notifications_${target.auth_id}`);
-      if (target?.email) keys.add(`eso_notifications_${String(target.email).toLowerCase()}`);
-
-      const payload = {
-        id: Date.now().toString() + '_' + Math.random().toString(36).slice(2, 7),
-        title: title,
-        message: message,
-        type: type,
-        read: false,
-        createdAt: new Date().toISOString()
-      };
-
-      keys.forEach(key => {
-        let userNotifs = JSON.parse(localStorage.getItem(key) || '[]');
-        if (!Array.isArray(userNotifs)) userNotifs = [];
-        userNotifs.unshift(payload);
-        localStorage.setItem(key, JSON.stringify(userNotifs));
+      const delivered = await dispatchNotificationsToUsers([target], {
+        title,
+        message,
+        type,
+        category,
+        meta
       });
+
+      return Array.isArray(delivered) && delivered.length ? delivered[0] : null;
     }
 
-    function loadNotifications() {
-      const notifications = JSON.parse(localStorage.getItem('eso_notifications') || '[]').slice(0, 20);
+    async function loadNotifications() {
+      let notifications = [];
+      if (window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.getNotifications) {
+        const remoteNotifications = await window.ESO_DB.getNotifications({ category: 'notification' });
+        if (Array.isArray(remoteNotifications)) {
+          notifications = remoteNotifications.slice(0, 50);
+        }
+      }
+
+      if (!notifications.length) {
+        notifications = JSON.parse(localStorage.getItem('eso_notifications') || '[]').slice(0, 20);
+      }
+
       document.getElementById('notificationsList').innerHTML = notifications.length ? notifications.map(n => `
         <div class="p-3 bg-gray-50 rounded-lg">
           <div class="flex justify-between items-start">
             <div>
-              <p class="font-medium text-sm">${n.title}</p>
-              <p class="text-xs text-gray-500">${n.message.substring(0, 50)}...</p>
+              <p class="font-medium text-sm">${n.title || 'Notification'}</p>
+              <p class="text-xs text-gray-500">${String(n.message || '').substring(0, 80)}...</p>
             </div>
-            <span class="text-xs text-gray-400">${new Date(n.sentAt).toLocaleDateString()}</span>
+            <span class="text-xs text-gray-400">${new Date(n.sentAt || n.createdAt).toLocaleDateString()}</span>
           </div>
-          <p class="text-xs text-gray-400 mt-1">To: ${n.target}</p>
+          <p class="text-xs text-gray-400 mt-1">To: ${n.targetEmail || n.target || 'User'}</p>
         </div>
       `).join('') : '<p class="text-gray-500 text-center py-4">No notifications sent yet</p>';
     }
@@ -2449,7 +2535,7 @@
       const users = getUsers();
       const select = document.getElementById('msgUser');
       select.innerHTML = '<option value="">Select user...</option>' + 
-        users.map(u => `<option value="${u.id}">${u.fullName || u.name || u.email}</option>`).join('');
+        users.map(u => `<option value="${u.id}">${u.fullName || u.name || u.email} (${u.email})</option>`).join('');
     }
 
     function toggleMsgUser() {
@@ -2457,65 +2543,78 @@
       document.getElementById('msgUserSelect').classList.toggle('hidden', target !== 'specific');
     }
 
-    document.getElementById('messageForm').addEventListener('submit', function(e) {
+    document.getElementById('messageForm').addEventListener('submit', async function(e) {
       e.preventDefault();
       
       const target = document.getElementById('msgTarget').value;
       const subject = document.getElementById('msgSubject').value;
       const body = document.getElementById('msgBody').value;
+      const selectedUserId = document.getElementById('msgUser').value;
 
       let messages = JSON.parse(localStorage.getItem('eso_messages') || '[]');
-      
-      if (target === 'specific') {
-        const userId = document.getElementById('msgUser').value;
-        if (!userId) {
-          showToast('Please select a user', 'error');
-          return;
-        }
-        sendMessageToUser(userId, subject, body);
-      } else {
-        getUsers().forEach(u => sendMessageToUser(u.id, subject, body));
+
+      const recipients = getUsersForTarget(target, selectedUserId);
+      if (!recipients.length) {
+        showToast('Please select at least one user', 'error');
+        return;
       }
 
-      messages.unshift({
-        id: Date.now().toString(),
-        target: target,
-        subject: subject,
-        body: body,
-        sentAt: new Date().toISOString()
+      const delivered = await dispatchNotificationsToUsers(recipients, {
+        title: subject,
+        message: body,
+        type: 'info',
+        category: 'message',
+        meta: {
+          source: 'admin_message',
+          audience: target
+        }
+      });
+
+      if (!delivered) {
+        showToast('Could not send message right now.', 'error');
+        return;
+      }
+
+      delivered.forEach(record => {
+        messages.unshift({
+          id: record.id,
+          target: record.targetEmail || target,
+          subject: record.title,
+          body: record.message,
+          sentAt: record.createdAt,
+          targetEmail: record.targetEmail
+        });
       });
       localStorage.setItem('eso_messages', JSON.stringify(messages));
 
       showToast('Message sent successfully!');
       document.getElementById('messageForm').reset();
-      loadMessages();
+      await loadMessages();
     });
 
-    function sendMessageToUser(userId, subject, body) {
-      let userMsgs = JSON.parse(localStorage.getItem(`eso_messages_${userId}`) || '[]');
-      userMsgs.unshift({
-        id: Date.now().toString(),
-        subject: subject,
-        body: body,
-        from: 'Admin',
-        read: false,
-        createdAt: new Date().toISOString()
-      });
-      localStorage.setItem(`eso_messages_${userId}`, JSON.stringify(userMsgs));
-    }
+    async function loadMessages() {
+      let messages = [];
+      if (window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.getNotifications) {
+        const remoteMessages = await window.ESO_DB.getNotifications({ category: 'message' });
+        if (Array.isArray(remoteMessages)) {
+          messages = remoteMessages.slice(0, 50);
+        }
+      }
 
-    function loadMessages() {
-      const messages = JSON.parse(localStorage.getItem('eso_messages') || '[]').slice(0, 20);
+      if (!messages.length) {
+        messages = JSON.parse(localStorage.getItem('eso_messages') || '[]').slice(0, 20);
+      }
+
       document.getElementById('messagesList').innerHTML = messages.length ? messages.map(m => `
         <div class="p-3 bg-gray-50 rounded-lg">
           <div class="flex justify-between items-start">
             <div>
-              <p class="font-medium text-sm">${m.subject}</p>
-              <p class="text-xs text-gray-500">${m.body.substring(0, 50)}...</p>
+              <p class="font-medium text-sm">${m.subject || m.title || 'Message'}</p>
+              <p class="text-xs text-gray-500">${String(m.body || m.message || '').substring(0, 80)}...</p>
             </div>
-            <span class="text-xs text-gray-400">${new Date(m.sentAt).toLocaleDateString()}</span>
+            <span class="text-xs text-gray-400">${new Date(m.sentAt || m.createdAt).toLocaleDateString()}</span>
           </div>
-          <p class="text-xs text-gray-400 mt-1">To: ${m.target}</p>
+          <p class="text-xs text-gray-400 mt-1">To: ${m.targetEmail || m.target || 'User'}</p>
         </div>
       `).join('') : '<p class="text-gray-500 text-center py-4">No messages sent yet</p>';
     }

@@ -538,12 +538,42 @@
       return merged.sort((a, b) => new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0));
     }
 
+    function dedupeNotifications(notifications) {
+      const merged = [];
+      const seen = new Set();
+
+      (Array.isArray(notifications) ? notifications : []).forEach(notification => {
+        if (!notification) return;
+        const dedupeKey = String(notification.id || '') + '|' + String(notification.createdAt || notification.date || '');
+        if (seen.has(dedupeKey)) return;
+        seen.add(dedupeKey);
+        merged.push(notification);
+      });
+
+      return merged.sort((a, b) => new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0));
+    }
+
     function saveUserNotifications(notifications) {
       if (!currentUser) return;
       const normalized = Array.isArray(notifications) ? notifications : [];
       if (currentUser.id) localStorage.setItem(`eso_notifications_${currentUser.id}`, JSON.stringify(normalized));
       if (currentUser.auth_id) localStorage.setItem(`eso_notifications_${currentUser.auth_id}`, JSON.stringify(normalized));
       if (currentUser.email) localStorage.setItem(`eso_notifications_${String(currentUser.email).toLowerCase()}`, JSON.stringify(normalized));
+    }
+
+    async function syncRemoteNotificationsToLocal() {
+      if (!(window.ESO_DB && window.ESO_DB.isReady())) return getUserNotifications();
+      if (!currentUser?.id) return getUserNotifications();
+      if (!window.ESO_DB.getNotifications) return getUserNotifications();
+
+      const remoteNotifications = await window.ESO_DB.getNotifications();
+      if (!Array.isArray(remoteNotifications)) {
+        return getUserNotifications();
+      }
+
+      const merged = dedupeNotifications([...remoteNotifications, ...getUserNotifications()]);
+      saveUserNotifications(merged);
+      return merged;
     }
 
     function updateKycBanner(statusOverride = null) {
@@ -664,7 +694,8 @@
       }
     }
 
-    function loadUserNotifications() {
+    async function loadUserNotifications() {
+      await syncRemoteNotificationsToLocal();
       syncBonusNotifications();
       updatePendingBonusBadge();
       const notifications = getUserNotifications();
@@ -692,7 +723,9 @@
       }
 
       list.innerHTML = notifications.slice(0, 30).map(n => {
-        const style = typeStyles[n.type] || typeStyles.info;
+        const style = n.category === 'message'
+          ? { icon: 'fa-envelope', color: 'text-violet-600 bg-violet-100' }
+          : (typeStyles[n.type] || typeStyles.info);
         const timestamp = new Date(n.createdAt || n.date || Date.now()).toLocaleString();
         return `
           <div class="p-3 rounded-xl border mb-2 ${n.read ? 'bg-white border-gray-100' : 'bg-indigo-50 border-indigo-100'}">
@@ -729,9 +762,19 @@
       document.getElementById('notificationsBackdrop').classList.add('hidden');
     }
 
-    function markAllNotificationsRead() {
+    async function markAllNotificationsRead() {
       const notifications = getUserNotifications().map(n => ({ ...n, read: true }));
       saveUserNotifications(notifications);
+
+      if (window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.updateNotifications) {
+        const remoteIds = notifications
+          .map(n => String(n.id || ''))
+          .filter(id => id && !id.startsWith('bonus_notif_'));
+        if (remoteIds.length) {
+          await window.ESO_DB.updateNotifications(remoteIds, { read: true });
+        }
+      }
+
       loadUserNotifications();
     }
 
