@@ -18,10 +18,29 @@ create table if not exists public.eso_users (
   balance numeric default 0,
   "availableCash" numeric default 0,
   "profitsBalance" numeric default 0,
-  "kycStatus" text default 'pending',
+  "kycStatus" text default 'not_submitted',
+  "kycSubmittedAt" timestamptz,
+  "kycVerifiedAt" timestamptz,
+  "kycData" jsonb,
+  "kycDocuments" jsonb,
+  "updatedAt" timestamptz default now(),
   "createdAt" timestamptz default now(),
   "isAdmin" boolean default false
 );
+
+alter table public.eso_users add column if not exists "kycSubmittedAt" timestamptz;
+alter table public.eso_users add column if not exists "kycVerifiedAt" timestamptz;
+alter table public.eso_users add column if not exists "kycData" jsonb;
+alter table public.eso_users add column if not exists "kycDocuments" jsonb;
+alter table public.eso_users add column if not exists "updatedAt" timestamptz default now();
+alter table public.eso_users alter column "kycStatus" set default 'not_submitted';
+
+update public.eso_users
+set "kycStatus" = 'not_submitted'
+where coalesce("kycStatus", '') in ('', 'pending')
+  and "kycSubmittedAt" is null
+  and "kycData" is null
+  and "kycDocuments" is null;
 
 create table if not exists public.eso_admin_wallets (
   "cryptoId" text primary key,

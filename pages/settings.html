@@ -38,6 +38,7 @@
     .kyc-status-pending { background: #fef3c7; color: #92400e; }
     .kyc-status-verified { background: #d1fae5; color: #065f46; }
     .kyc-status-rejected { background: #fee2e2; color: #991b1b; }
+    .kyc-status-not-submitted { background: #f3f4f6; color: #4b5563; }
   </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
@@ -368,6 +369,76 @@
     // Store KYC files temporarily before submission
     let kycFiles = { front: null, back: null, selfie: null };
 
+    function hasStoredKycSubmission(userLike = currentUser) {
+      if (!userLike) return false;
+      if (userLike.kycData) return true;
+      if (userLike.kycSubmittedAt) return true;
+
+      const docs = userLike.kycDocuments || {};
+      return !!(docs.front || docs.back || docs.selfie);
+    }
+
+    function getEffectiveKycStatus(userLike = currentUser) {
+      const rawStatus = String(userLike?.kycStatus || '').trim().toLowerCase();
+      if (rawStatus === 'verified' || rawStatus === 'rejected') return rawStatus;
+      return hasStoredKycSubmission(userLike) ? 'pending' : 'not_submitted';
+    }
+
+    function persistCurrentUserToStores() {
+      if (!currentUser) return;
+
+      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+      localStorage.setItem('eso_currentUser', JSON.stringify(currentUser));
+
+      const users = getSharedUsers();
+      const userIndex = findSharedUserIndex(users, currentUser);
+      if (userIndex >= 0) {
+        users[userIndex] = { ...users[userIndex], ...currentUser };
+      } else {
+        users.push({ ...currentUser });
+      }
+      saveSharedUsers(users);
+    }
+
+    async function persistCurrentUserToRemote(overrides = {}) {
+      if (!(window.ESO_DB && window.ESO_DB.isReady())) return null;
+
+      const authUser = await ensureSupabaseSessionForCurrentUser();
+      let remoteProfile = authUser?.id ? await window.ESO_DB.findUserByAuthId(authUser.id) : null;
+      if (!remoteProfile && currentUser?.email) {
+        remoteProfile = await window.ESO_DB.findUserByEmail(currentUser.email);
+      }
+
+      const users = getSharedUsers();
+      const userIndex = findSharedUserIndex(users, remoteProfile || currentUser);
+      const fallbackSharedUser = userIndex >= 0 ? users[userIndex] : null;
+      const canonicalEmail = String(
+        remoteProfile?.email || fallbackSharedUser?.email || currentUser?.email || authUser?.email || ''
+      ).trim().toLowerCase();
+      const canonicalId = remoteProfile?.id || fallbackSharedUser?.id || currentUser?.id || authUser?.id;
+      const canonicalAuthId = remoteProfile?.auth_id || currentUser?.auth_id || fallbackSharedUser?.auth_id || authUser?.id || null;
+
+      if (!canonicalEmail || !canonicalId) return null;
+
+      const userToPersist = {
+        ...(fallbackSharedUser || {}),
+        ...(remoteProfile || {}),
+        ...currentUser,
+        ...overrides,
+        id: canonicalId,
+        email: canonicalEmail,
+        auth_id: canonicalAuthId,
+        updatedAt: new Date().toISOString()
+      };
+
+      const saved = await window.ESO_DB.upsertUser(userToPersist);
+      if (!saved) return null;
+
+      currentUser = { ...currentUser, ...userToPersist };
+      persistCurrentUserToStores();
+      return currentUser;
+    }
+
     async function ensureSupabaseSessionForCurrentUser() {
       if (!(window.ESO_DB && window.ESO_DB.isReady())) return null;
 
@@ -431,48 +502,53 @@
       if (!remoteProfile) return null;
 
       currentUser = { ...currentUser, ...remoteProfile };
-      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
-      localStorage.setItem('eso_currentUser', JSON.stringify(currentUser));
-
-      const users = getSharedUsers();
-      const userIndex = findSharedUserIndex(users, currentUser);
-      if (userIndex >= 0) {
-        users[userIndex] = { ...users[userIndex], ...remoteProfile };
-      } else {
-        users.push({ ...remoteProfile });
-      }
-      saveSharedUsers(users);
+      persistCurrentUserToStores();
 
       return remoteProfile;
     }
 
     async function syncExistingKycToSupabase() {
       const supabaseReady = !!(window.ESO_DB && window.ESO_DB.isReady());
-      if (!supabaseReady) return;
+      if (!supabaseReady) {
+        const normalizedStatus = getEffectiveKycStatus(currentUser);
+        if (currentUser.kycStatus !== normalizedStatus) {
+          currentUser.kycStatus = normalizedStatus;
+          persistCurrentUserToStores();
+        }
+        return;
+      }
 
       const remoteProfile = await syncRemoteUserToLocal();
-      if (!currentUser?.kycData) return;
+      const normalizedStatus = getEffectiveKycStatus(currentUser);
 
-      const kycStatus = currentUser.kycStatus || 'pending';
-      const shouldSync = ['pending', 'rejected', 'verified'].includes(kycStatus);
-      if (!shouldSync) return;
-
-      const users = getSharedUsers();
-      const userIndex = findSharedUserIndex(users, currentUser);
-      const fallbackSharedUser = userIndex >= 0 ? users[userIndex] : null;
-      const userToPersist = {
-        ...(remoteProfile || fallbackSharedUser || currentUser),
-        kycStatus,
-        kycSubmittedAt: currentUser.kycSubmittedAt || remoteProfile?.kycSubmittedAt || null,
-        kycVerifiedAt: currentUser.kycVerifiedAt || remoteProfile?.kycVerifiedAt || null,
-        kycData: currentUser.kycData,
-        kycDocuments: currentUser.kycDocuments || remoteProfile?.kycDocuments || null,
-        updatedAt: new Date().toISOString()
-      };
-
-      if (userToPersist?.id) {
-        await window.ESO_DB.upsertUser(userToPersist);
+      if (currentUser.kycStatus !== normalizedStatus) {
+        currentUser.kycStatus = normalizedStatus;
+        persistCurrentUserToStores();
       }
+
+      if (!hasStoredKycSubmission(currentUser)) {
+        const remoteStatus = getEffectiveKycStatus(remoteProfile);
+        if (remoteProfile && remoteStatus !== 'not_submitted') {
+          await persistCurrentUserToRemote({
+            kycStatus: 'not_submitted',
+            kycSubmittedAt: null,
+            kycVerifiedAt: null,
+            kycData: null,
+            kycDocuments: null
+          });
+        }
+        return;
+      }
+
+      await persistCurrentUserToRemote({
+        kycStatus: normalizedStatus,
+        kycSubmittedAt: currentUser.kycSubmittedAt || remoteProfile?.kycSubmittedAt || new Date().toISOString(),
+        kycVerifiedAt: normalizedStatus === 'verified'
+          ? (currentUser.kycVerifiedAt || remoteProfile?.kycVerifiedAt || null)
+          : null,
+        kycData: currentUser.kycData || remoteProfile?.kycData || null,
+        kycDocuments: currentUser.kycDocuments || remoteProfile?.kycDocuments || null
+      });
     }
 
     async function initSettings() {
@@ -567,11 +643,16 @@
     }
 
     function updateKycStatus() {
-      const status = currentUser.kycStatus || 'pending';
+      const status = getEffectiveKycStatus(currentUser);
       const banner = document.getElementById('kycStatusBanner');
       const text = document.getElementById('kycStatusText');
       const desc = document.getElementById('kycStatusDesc');
       const form = document.getElementById('kycForm');
+
+      if (currentUser.kycStatus !== status) {
+        currentUser.kycStatus = status;
+        persistCurrentUserToStores();
+      }
       
       banner.className = 'flex items-center space-x-4 p-4 rounded-xl ';
       form.classList.remove('hidden');
@@ -584,6 +665,10 @@
         banner.classList.add('kyc-status-rejected');
         text.textContent = 'Rejected';
         desc.textContent = 'Please resubmit your documents';
+      } else if (status === 'not_submitted') {
+        banner.classList.add('kyc-status-not-submitted');
+        text.textContent = 'Not Submitted';
+        desc.textContent = 'Submit your documents to start verification';
       } else {
         banner.classList.add('kyc-status-pending');
         text.textContent = 'Pending';
@@ -642,86 +727,47 @@
         alert('Please upload a selfie with your ID');
         return;
       }
-      
-      currentUser.kycStatus = 'pending';
-      currentUser.kycSubmittedAt = new Date().toISOString();
-      currentUser.kycData = {
+
+      const nextKycSubmittedAt = new Date().toISOString();
+      const nextKycData = {
         firstName: document.getElementById('kycFirstName').value,
         lastName: document.getElementById('kycLastName').value,
         dob: document.getElementById('kycDob').value,
         idType: document.getElementById('kycIdType').value,
         idNumber: document.getElementById('kycIdNumber').value
       };
-      
-      // Store KYC documents
-      currentUser.kycDocuments = {
+
+      const nextKycDocuments = {
         front: kycFiles.front || currentUser.kycDocuments?.front,
         back: kycFiles.back || currentUser.kycDocuments?.back,
         selfie: kycFiles.selfie || currentUser.kycDocuments?.selfie
       };
-      
-      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
-      
-      // Update in shared users storage for admin access
-      let users = getSharedUsers();
-      const userIndex = findSharedUserIndex(users, currentUser);
-      if (userIndex >= 0) {
-        users[userIndex].kycStatus = 'pending';
-        users[userIndex].kycSubmittedAt = currentUser.kycSubmittedAt;
-        users[userIndex].kycData = currentUser.kycData;
-        users[userIndex].kycDocuments = currentUser.kycDocuments;
-        currentUser.id = users[userIndex].id || currentUser.id;
-        currentUser.auth_id = users[userIndex].auth_id || currentUser.auth_id;
-        saveSharedUsers(users);
-      } else {
-        // Not found in shared users: add current session user so admin can see submission
-        // Ensure we have an id so other flows can reference this user locally
-        currentUser.id = currentUser.id || (Date.now().toString() + '_' + Math.random().toString(36).slice(2,7));
-        currentUser.auth_id = currentUser.auth_id || currentUser.auth_id;
-        users.push(currentUser);
-        saveSharedUsers(users);
-      }
+      const nextKycState = {
+        kycStatus: 'pending',
+        kycSubmittedAt: nextKycSubmittedAt,
+        kycVerifiedAt: null,
+        kycData: nextKycData,
+        kycDocuments: nextKycDocuments
+      };
 
       const supabaseReady = !!(window.ESO_DB && window.ESO_DB.isReady());
       if (supabaseReady && window.ESO_DB) {
-        await ensureSupabaseSessionForCurrentUser();
-
-        let remoteProfile = null;
-        const authUser = await window.ESO_DB.getAuthUser();
-
-        if (authUser?.id) {
-          remoteProfile = await window.ESO_DB.findUserByAuthId(authUser.id);
-        }
-        if (!remoteProfile && currentUser.email) {
-          remoteProfile = await window.ESO_DB.findUserByEmail(currentUser.email);
-        }
-
-        const fallbackSharedUser = userIndex >= 0 ? users[userIndex] : null;
-        const userToPersist = {
-          ...(remoteProfile || fallbackSharedUser || currentUser),
-          kycStatus: 'pending',
-          kycSubmittedAt: currentUser.kycSubmittedAt,
-          kycData: currentUser.kycData,
-          kycDocuments: currentUser.kycDocuments,
-          updatedAt: new Date().toISOString()
-        };
-
-        if (userToPersist) {
-          try {
-            const saved = await window.ESO_DB.upsertUser(userToPersist);
-            // upsertUser returns true on success or null on error (safe wrapper)
-            if (!saved) {
-              const err = window.ESO_DB.getLastError && window.ESO_DB.getLastError();
-              console.error('KYC upsert failed', err);
-              alert('Could not submit KYC to server. Please try again later.');
-            } else {
-              console.log('KYC upsert succeeded');
-            }
-          } catch (e) {
-            console.error('KYC upsert exception', e);
-            alert('Could not submit KYC due to an error. Check console for details.');
+        try {
+          const savedUser = await persistCurrentUserToRemote(nextKycState);
+          if (!savedUser) {
+            const err = window.ESO_DB.getLastError && window.ESO_DB.getLastError();
+            console.error('KYC upsert failed', err);
+            alert('Could not submit KYC to server. Please try again later.');
+            return;
           }
+        } catch (e) {
+          console.error('KYC upsert exception', e);
+          alert('Could not submit KYC due to an error. Check console for details.');
+          return;
         }
+      } else {
+        currentUser = { ...currentUser, ...nextKycState };
+        persistCurrentUserToStores();
       }
       
       updateKycStatus();

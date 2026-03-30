@@ -34,7 +34,12 @@ create table if not exists eso_users (
   balance numeric default 0,
   "availableCash" numeric default 0,
   "profitsBalance" numeric default 0,
-  "kycStatus" text default 'pending',
+  "kycStatus" text default 'not_submitted',
+  "kycSubmittedAt" timestamptz,
+  "kycVerifiedAt" timestamptz,
+  "kycData" jsonb,
+  "kycDocuments" jsonb,
+  "updatedAt" timestamptz default now(),
   "createdAt" timestamptz default now()
 );
 
@@ -132,7 +137,7 @@ alter table eso_loans disable row level security;
 ```
 
 For production, enable RLS and add proper policies.
-If you already ran the older secure SQL before this fix, rerun [SUPABASE_SETUP_SECURE.sql](SUPABASE_SETUP_SECURE.sql) so existing users can be matched by authenticated email and so the `eso_loans` table exists.
+If you already ran the older secure SQL before this fix, rerun [SUPABASE_SETUP_SECURE.sql](SUPABASE_SETUP_SECURE.sql) so existing users can be matched by authenticated email, the `eso_loans` table exists, and the KYC columns/default status are corrected for cross-device approval.
 
 ## 4) Redeploy to Netlify
 

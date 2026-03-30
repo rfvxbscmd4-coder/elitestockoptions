@@ -292,6 +292,15 @@
     function mergeFinancialFields(targetUser, sourceUser) {
       if (!targetUser || !sourceUser) return targetUser;
 
+      const hasKycSubmission = (userLike) => {
+        if (!userLike) return false;
+        if (userLike.kycData) return true;
+        if (userLike.kycSubmittedAt) return true;
+
+        const docs = userLike.kycDocuments || {};
+        return !!(docs.front || docs.back || docs.selfie);
+      };
+
       const numericFields = ['balance', 'availableCash', 'profitsBalance'];
       numericFields.forEach((field) => {
         const targetValue = Number(targetUser[field] || 0);
@@ -305,8 +314,29 @@
         targetUser.plan = sourceUser.plan;
       }
 
-      if ((!targetUser.kycStatus || targetUser.kycStatus === 'pending') && sourceUser.kycStatus) {
-        targetUser.kycStatus = sourceUser.kycStatus;
+      const targetKycStatus = String(targetUser.kycStatus || '').trim().toLowerCase();
+      const sourceKycStatus = String(sourceUser.kycStatus || '').trim().toLowerCase();
+      const targetMissingKyc = !targetKycStatus
+        || targetKycStatus === 'not_submitted'
+        || (targetKycStatus === 'pending' && !hasKycSubmission(targetUser));
+      const sourceHasKyc = sourceKycStatus === 'verified'
+        || sourceKycStatus === 'rejected'
+        || hasKycSubmission(sourceUser);
+
+      if (targetMissingKyc && sourceHasKyc) {
+        targetUser.kycStatus = sourceKycStatus || 'pending';
+      }
+      if (!targetUser.kycSubmittedAt && sourceUser.kycSubmittedAt) {
+        targetUser.kycSubmittedAt = sourceUser.kycSubmittedAt;
+      }
+      if (!targetUser.kycVerifiedAt && sourceUser.kycVerifiedAt) {
+        targetUser.kycVerifiedAt = sourceUser.kycVerifiedAt;
+      }
+      if (!targetUser.kycData && sourceUser.kycData) {
+        targetUser.kycData = sourceUser.kycData;
+      }
+      if (!targetUser.kycDocuments && sourceUser.kycDocuments) {
+        targetUser.kycDocuments = sourceUser.kycDocuments;
       }
 
       return targetUser;

@@ -1254,6 +1254,21 @@
       return user ? (user.fullName || user.name || user.email) : 'Unknown';
     }
 
+    function hasKycSubmission(user) {
+      if (!user) return false;
+      if (user.kycData) return true;
+      if (user.kycSubmittedAt) return true;
+
+      const docs = user.kycDocuments || {};
+      return !!(docs.front || docs.back || docs.selfie);
+    }
+
+    function getEffectiveKycStatus(user) {
+      const rawStatus = String(user?.kycStatus || '').trim().toLowerCase();
+      if (rawStatus === 'verified' || rawStatus === 'rejected') return rawStatus;
+      return hasKycSubmission(user) ? 'pending' : 'not_submitted';
+    }
+
     function renderPlanBadge(plan, size = 'md') {
       if (window.ESO_PLANS) {
         return window.ESO_PLANS.renderBadge(plan || 'Bronze', { size });
@@ -1271,7 +1286,7 @@
 
       document.getElementById('totalUsers').textContent = users.length;
       document.getElementById('pendingDeposits').textContent = deposits.filter(d => d.status === 'pending').length;
-      document.getElementById('pendingKyc').textContent = users.filter(u => u.kycStatus === 'pending').length;
+  document.getElementById('pendingKyc').textContent = users.filter(u => getEffectiveKycStatus(u) === 'pending' && hasKycSubmission(u)).length;
       document.getElementById('openTradesCount').textContent = trades.filter(t => t.status === 'open').length;
 
       const totalDeposits = deposits.filter(d => d.status === 'approved').reduce((sum, d) => sum + d.amount, 0);
@@ -1314,7 +1329,9 @@
 
       const kycColors = { pending: 'bg-amber-100 text-amber-800', verified: 'bg-green-100 text-green-800', rejected: 'bg-red-100 text-red-800', not_submitted: 'bg-gray-100 text-gray-800' };
 
-      tbody.innerHTML = users.map(u => `
+      tbody.innerHTML = users.map(u => {
+        const kycStatus = getEffectiveKycStatus(u);
+        return `
         <tr class="hover:bg-gray-50">
           <td class="px-4 py-3 font-medium text-gray-900">${u.fullName || u.name || 'N/A'}</td>
           <td class="px-4 py-3 text-sm">${u.email}</td>
@@ -1329,14 +1346,15 @@
           </td>
           <td class="px-4 py-3">${renderPlanBadge(u.plan || 'Bronze')}</td>
           <td class="px-4 py-3 font-medium">$${(u.balance || 0).toFixed(2)}</td>
-          <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-medium ${kycColors[u.kycStatus] || kycColors.not_submitted}">${(u.kycStatus || 'not_submitted').replace('_', ' ')}</span></td>
+          <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-medium ${kycColors[kycStatus] || kycColors.not_submitted}">${kycStatus.replace('_', ' ')}</span></td>
           <td class="px-4 py-3">
             <button onclick="editUserBalance('${u.id}')" class="text-green-600 hover:text-green-800 mr-2" title="Edit Balance"><i class="fas fa-wallet"></i></button>
             <button onclick="sendUserBonus('${u.id}')" class="text-amber-600 hover:text-amber-800 mr-2" title="Send Bonus"><i class="fas fa-gift"></i></button>
             <button onclick="deleteUser('${u.id}')" class="text-red-600 hover:text-red-800" title="Delete"><i class="fas fa-trash"></i></button>
           </td>
         </tr>
-      `).join('');
+      `;
+      }).join('');
     }
 
     function filterUsers() {
@@ -1378,6 +1396,8 @@
       const user = getUsers().find(u => u.id === userId);
       if (!user) return;
 
+      const kycStatus = getEffectiveKycStatus(user);
+
       document.getElementById('detailBalance').textContent = '$' + (user.balance || 0).toFixed(2);
       document.getElementById('detailAvailable').textContent = '$' + (user.availableCash || 0).toFixed(2);
       document.getElementById('detailProfits').textContent = '$' + (user.profitsBalance || 0).toFixed(2);
@@ -1388,7 +1408,7 @@
         <div class="flex justify-between"><span class="text-gray-500">Phone:</span> <span>${user.phone || 'N/A'}</span></div>
         <div class="flex justify-between"><span class="text-gray-500">Country:</span> <span>${user.country || 'N/A'}</span></div>
         <div class="flex justify-between"><span class="text-gray-500">Plan:</span> ${renderPlanBadge(user.plan || 'Bronze', 'sm')}</div>
-        <div class="flex justify-between"><span class="text-gray-500">KYC Status:</span> <span class="px-2 py-0.5 rounded-full ${user.kycStatus === 'verified' ? 'bg-green-100 text-green-800' : user.kycStatus === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-800'} text-xs">${user.kycStatus || 'not submitted'}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">KYC Status:</span> <span class="px-2 py-0.5 rounded-full ${kycStatus === 'verified' ? 'bg-green-100 text-green-800' : kycStatus === 'pending' ? 'bg-amber-100 text-amber-800' : kycStatus === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'} text-xs">${kycStatus.replace('_', ' ')}</span></div>
         <div class="flex justify-between"><span class="text-gray-500">Joined:</span> <span>${new Date(user.createdAt).toLocaleDateString()}</span></div>
         <div class="flex justify-between"><span class="text-gray-500">User ID:</span> <span class="font-mono text-xs">${user.id}</span></div>
       `;
@@ -1886,7 +1906,7 @@
     });
 
     function loadKyc() {
-      const users = getUsers().filter(u => u.kycData);
+      const users = getUsers().filter(u => hasKycSubmission(u) || ['verified', 'rejected'].includes(getEffectiveKycStatus(u)));
       const tbody = document.getElementById('kycTable');
       
       if (users.length === 0) {
@@ -1894,27 +1914,30 @@
         return;
       }
 
-      const statusColors = { pending: 'bg-amber-100 text-amber-800', verified: 'bg-green-100 text-green-800', rejected: 'bg-red-100 text-red-800' };
+      const statusColors = { pending: 'bg-amber-100 text-amber-800', verified: 'bg-green-100 text-green-800', rejected: 'bg-red-100 text-red-800', not_submitted: 'bg-gray-100 text-gray-800' };
 
-      tbody.innerHTML = users.map(u => `
+      tbody.innerHTML = users.map(u => {
+        const kycStatus = getEffectiveKycStatus(u);
+        return `
         <tr class="hover:bg-gray-50">
           <td class="px-4 py-3 text-sm">${new Date(u.kycSubmittedAt || u.createdAt).toLocaleDateString()}</td>
           <td class="px-4 py-3 text-sm">${u.email}</td>
           <td class="px-4 py-3">${u.kycData?.firstName} ${u.kycData?.lastName}</td>
           <td class="px-4 py-3 capitalize">${u.kycData?.idType?.replace('_', ' ') || 'N/A'}</td>
           <td class="px-4 py-3">${u.kycData?.idNumber || 'N/A'}</td>
-          <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-medium ${statusColors[u.kycStatus] || statusColors.pending}">${u.kycStatus || 'pending'}</span></td>
+          <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-medium ${statusColors[kycStatus] || statusColors.not_submitted}">${kycStatus.replace('_', ' ')}</span></td>
           <td class="px-4 py-3">
             <button onclick="viewKycDocs('${u.id}')" class="text-blue-600 hover:text-blue-800 mr-2" title="View Documents"><i class="fas fa-images"></i></button>
           </td>
           <td class="px-4 py-3">
-            ${u.kycStatus === 'pending' ? `
+            ${kycStatus === 'pending' ? `
               <button onclick="approveKyc('${u.id}')" class="text-green-600 hover:text-green-800 mr-2"><i class="fas fa-check"></i></button>
               <button onclick="rejectKyc('${u.id}')" class="text-red-600 hover:text-red-800"><i class="fas fa-times"></i></button>
             ` : '<span class="text-gray-400">-</span>'}
           </td>
         </tr>
-      `).join('');
+      `;
+      }).join('');
     }
 
     function viewKycDocs(userId) {
@@ -1925,6 +1948,7 @@
       }
       
       const docs = user.kycDocuments;
+      const kycStatus = getEffectiveKycStatus(user);
       const content = document.getElementById('kycDocsContent');
       
       content.innerHTML = `
@@ -1953,7 +1977,7 @@
           ` : '<div class="text-gray-400">No selfie image</div>'}
         </div>
         <div class="mt-6 flex justify-end space-x-3">
-          ${user.kycStatus === 'pending' ? `
+          ${kycStatus === 'pending' ? `
             <button onclick="approveKyc('${user.id}'); closeKycDocsModal();" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600">
               <i class="fas fa-check mr-2"></i>Approve KYC
             </button>
