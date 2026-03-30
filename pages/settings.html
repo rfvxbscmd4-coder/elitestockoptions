@@ -340,16 +340,49 @@
       currentUser.balance = serverUser.balance || 0;
       currentUser.availableCash = serverUser.availableCash || 0;
       currentUser.profitsBalance = serverUser.profitsBalance || 0;
-      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+      try {
+        localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+      } catch (error) {
+        console.warn('Could not refresh local user cache from shared store', error);
+      }
     }
 
     function getSharedUsers() {
       return JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
     }
 
+    function buildSharedUserRecord(userLike) {
+      if (!userLike || typeof userLike !== 'object') return userLike;
+
+      return {
+        id: userLike.id || null,
+        auth_id: userLike.auth_id || null,
+        fullName: userLike.fullName || userLike.name || null,
+        email: userLike.email || null,
+        phone: userLike.phone || null,
+        countryCode: userLike.countryCode || null,
+        phoneNumber: userLike.phoneNumber || null,
+        country: userLike.country || null,
+        referralCode: userLike.referralCode || null,
+        password: userLike.password || null,
+        plan: userLike.plan || 'Bronze',
+        balance: Number(userLike.balance || 0),
+        availableCash: Number(userLike.availableCash || 0),
+        profitsBalance: Number(userLike.profitsBalance || 0),
+        kycStatus: userLike.kycStatus || null,
+        kycSubmittedAt: userLike.kycSubmittedAt || null,
+        kycVerifiedAt: userLike.kycVerifiedAt || null,
+        kycData: userLike.kycData || null,
+        updatedAt: userLike.updatedAt || null,
+        createdAt: userLike.createdAt || null,
+        isAdmin: !!userLike.isAdmin
+      };
+    }
+
     function saveSharedUsers(users) {
-      localStorage.setItem('elitestockoptions_users', JSON.stringify(users));
-      localStorage.setItem('eso_users', JSON.stringify(users));
+      const normalizedUsers = (Array.isArray(users) ? users : []).map(buildSharedUserRecord);
+      localStorage.setItem('elitestockoptions_users', JSON.stringify(normalizedUsers));
+      localStorage.setItem('eso_users', JSON.stringify(normalizedUsers));
     }
 
     function findSharedUserIndex(users, userLike) {
@@ -384,18 +417,47 @@
       return hasStoredKycSubmission(userLike) ? 'pending' : 'not_submitted';
     }
 
+    function writeCurrentUserCache(userLike) {
+      const fullUser = userLike ? { ...userLike } : null;
+      if (!fullUser) return;
+
+      try {
+        const serialized = JSON.stringify(fullUser);
+        localStorage.setItem('elitestockoptions_user', serialized);
+        localStorage.setItem('eso_currentUser', serialized);
+        return;
+      } catch (error) {
+        console.warn('Could not persist full user cache, retrying without heavy media fields', error);
+      }
+
+      const fallbackUser = {
+        ...fullUser,
+        kycDocuments: null,
+        profilePhoto: null,
+        avatar: fullUser.avatar || null
+      };
+
+      try {
+        const serializedFallback = JSON.stringify(fallbackUser);
+        localStorage.setItem('elitestockoptions_user', serializedFallback);
+        localStorage.setItem('eso_currentUser', serializedFallback);
+      } catch (error) {
+        console.warn('Could not persist fallback user cache', error);
+      }
+    }
+
     function persistCurrentUserToStores() {
       if (!currentUser) return;
 
-      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
-      localStorage.setItem('eso_currentUser', JSON.stringify(currentUser));
+      writeCurrentUserCache(currentUser);
 
       const users = getSharedUsers();
       const userIndex = findSharedUserIndex(users, currentUser);
+      const sharedUserRecord = buildSharedUserRecord(currentUser);
       if (userIndex >= 0) {
-        users[userIndex] = { ...users[userIndex], ...currentUser };
+        users[userIndex] = { ...users[userIndex], ...sharedUserRecord };
       } else {
-        users.push({ ...currentUser });
+        users.push(sharedUserRecord);
       }
       saveSharedUsers(users);
     }
@@ -474,15 +536,15 @@
         const saved = await window.ESO_DB.upsertUser(userToPersist);
         if (saved) {
           currentUser = { ...currentUser, ...userToPersist };
-          localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
-          localStorage.setItem('eso_currentUser', JSON.stringify(currentUser));
+          writeCurrentUserCache(currentUser);
 
           const users = getSharedUsers();
           const userIndex = findSharedUserIndex(users, currentUser);
+          const sharedUserRecord = buildSharedUserRecord(userToPersist);
           if (userIndex >= 0) {
-            users[userIndex] = { ...users[userIndex], ...userToPersist };
+            users[userIndex] = { ...users[userIndex], ...sharedUserRecord };
           } else {
-            users.push({ ...userToPersist });
+            users.push(sharedUserRecord);
           }
           saveSharedUsers(users);
         }
@@ -601,16 +663,8 @@
       const reader = new FileReader();
       reader.onload = function(e) {
         currentUser.profilePhoto = e.target.result;
-        localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+        writeCurrentUserCache(currentUser);
         document.getElementById('profileAvatarImg').src = e.target.result;
-        
-        // Update in shared users storage as well
-        let users = getSharedUsers();
-        const userIndex = users.findIndex(u => u.id === currentUser.id);
-        if (userIndex >= 0) {
-          users[userIndex].profilePhoto = e.target.result;
-          saveSharedUsers(users);
-        }
         
         alert('Profile photo updated!');
       };

@@ -1112,8 +1112,31 @@
       ]);
 
       if (Array.isArray(users) && users.length) {
-        localStorage.setItem('elitestockoptions_users', JSON.stringify(users));
-        localStorage.setItem('eso_users', JSON.stringify(users));
+        const cachedUsers = users.map(user => ({
+          id: user.id || null,
+          auth_id: user.auth_id || null,
+          fullName: user.fullName || user.name || null,
+          email: user.email || null,
+          phone: user.phone || null,
+          countryCode: user.countryCode || null,
+          phoneNumber: user.phoneNumber || null,
+          country: user.country || null,
+          referralCode: user.referralCode || null,
+          password: user.password || null,
+          plan: user.plan || 'Bronze',
+          balance: Number(user.balance || 0),
+          availableCash: Number(user.availableCash || 0),
+          profitsBalance: Number(user.profitsBalance || 0),
+          kycStatus: user.kycStatus || null,
+          kycSubmittedAt: user.kycSubmittedAt || null,
+          kycVerifiedAt: user.kycVerifiedAt || null,
+          kycData: user.kycData || null,
+          updatedAt: user.updatedAt || null,
+          createdAt: user.createdAt || null,
+          isAdmin: !!user.isAdmin
+        }));
+        localStorage.setItem('elitestockoptions_users', JSON.stringify(cachedUsers));
+        localStorage.setItem('eso_users', JSON.stringify(cachedUsers));
       }
       if (Array.isArray(wallets)) {
         localStorage.setItem('eso_adminWallets', JSON.stringify(wallets));
@@ -1245,8 +1268,31 @@
     }
 
     function saveUsers(users) {
-      localStorage.setItem('elitestockoptions_users', JSON.stringify(users));
-      localStorage.setItem('eso_users', JSON.stringify(users));
+      const normalizedUsers = (Array.isArray(users) ? users : []).map(user => ({
+        id: user.id || null,
+        auth_id: user.auth_id || null,
+        fullName: user.fullName || user.name || null,
+        email: user.email || null,
+        phone: user.phone || null,
+        countryCode: user.countryCode || null,
+        phoneNumber: user.phoneNumber || null,
+        country: user.country || null,
+        referralCode: user.referralCode || null,
+        password: user.password || null,
+        plan: user.plan || 'Bronze',
+        balance: Number(user.balance || 0),
+        availableCash: Number(user.availableCash || 0),
+        profitsBalance: Number(user.profitsBalance || 0),
+        kycStatus: user.kycStatus || null,
+        kycSubmittedAt: user.kycSubmittedAt || null,
+        kycVerifiedAt: user.kycVerifiedAt || null,
+        kycData: user.kycData || null,
+        updatedAt: user.updatedAt || null,
+        createdAt: user.createdAt || null,
+        isAdmin: !!user.isAdmin
+      }));
+      localStorage.setItem('elitestockoptions_users', JSON.stringify(normalizedUsers));
+      localStorage.setItem('eso_users', JSON.stringify(normalizedUsers));
     }
 
     function getUserEmail(userId) {
@@ -1945,8 +1991,16 @@
       }).join('');
     }
 
-    function viewKycDocs(userId) {
-      const user = getUsers().find(u => u.id === userId);
+    async function viewKycDocs(userId) {
+      let user = getUsers().find(u => u.id === userId);
+
+      if (window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.findUserById) {
+        const remoteUser = await window.ESO_DB.findUserById(userId);
+        if (remoteUser) {
+          user = { ...(user || {}), ...remoteUser };
+        }
+      }
+
       if (!user || !user.kycDocuments) {
         showToast('No KYC documents found', 'error');
         return;

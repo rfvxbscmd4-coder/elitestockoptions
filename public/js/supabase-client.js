@@ -208,6 +208,20 @@
       });
     },
 
+    async findUserById(id) {
+      const client = getClient();
+      if (!client) return null;
+      return safe(async () => {
+        const { data, error } = await client
+          .from('eso_users')
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
+        if (error && error.code !== 'PGRST116') throw error;
+        return data || null;
+      });
+    },
+
     async upsertUser(user) {
       const client = getClient();
       if (!client) return null;
