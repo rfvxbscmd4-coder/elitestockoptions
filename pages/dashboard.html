@@ -487,6 +487,20 @@
       return byEmail.sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0))[0];
     }
 
+    async function ensureSupabaseSessionForCurrentUser() {
+      if (!(window.ESO_DB && window.ESO_DB.isReady()) || !currentUser) return null;
+
+      let authUser = await window.ESO_DB.getAuthUser();
+      if (authUser) return authUser;
+
+      const email = String(currentUser.email || '').trim().toLowerCase();
+      const password = String(currentUser.password || '');
+      if (!email || !password) return null;
+
+      authUser = await window.ESO_DB.signIn(email, password);
+      return authUser || null;
+    }
+
     function applyDashboardPlanBranding(plan) {
       const normalizedPlan = plan || 'Bronze';
       const userPlanEl = document.getElementById('userPlan');
@@ -802,7 +816,7 @@
     async function syncRemoteUserToLocal() {
       if (!(window.ESO_DB && window.ESO_DB.isReady())) return null;
 
-      const authUser = await window.ESO_DB.getAuthUser();
+      const authUser = await ensureSupabaseSessionForCurrentUser();
       if (!authUser) return null;
 
       let remoteUser = await window.ESO_DB.findUserByAuthId(authUser.id);
@@ -834,6 +848,10 @@
       currentUser.availableCash = Number(remoteUser.availableCash || 0);
       currentUser.profitsBalance = Number(remoteUser.profitsBalance || 0);
       currentUser.kycStatus = remoteUser.kycStatus || currentUser.kycStatus;
+      currentUser.kycSubmittedAt = remoteUser.kycSubmittedAt || currentUser.kycSubmittedAt;
+      currentUser.kycVerifiedAt = remoteUser.kycVerifiedAt || currentUser.kycVerifiedAt;
+      currentUser.kycData = remoteUser.kycData || currentUser.kycData;
+      currentUser.updatedAt = remoteUser.updatedAt || currentUser.updatedAt;
 
       localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
       localStorage.setItem('eso_currentUser', JSON.stringify(currentUser));
@@ -844,10 +862,10 @@
     async function initDashboard() {
       if (!currentUser?.id) return;
 
-      await syncRemoteUserToLocal();
+      const remoteUser = await syncRemoteUserToLocal();
 
       // Sync balance from shared users storage (new + legacy keys) to current session
-      const serverUser = resolveDashboardUserFromStore();
+      const serverUser = remoteUser ? null : resolveDashboardUserFromStore();
       if (serverUser) {
         // Update current session with server values
         currentUser.id = serverUser.id || currentUser.id;

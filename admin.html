@@ -479,7 +479,7 @@
         <div id="tab-kyc" class="tab-content hidden">
           <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div class="p-4 border-b">
-              <h2 class="font-bold text-gray-900">KYC Verification Requests</h2>
+              <h2 class="font-bold text-gray-900">KYC Verification</h2>
             </div>
             <div class="overflow-x-auto">
               <table class="w-full">
@@ -1957,12 +1957,29 @@
       document.getElementById('currentBalanceDisplay').classList.add('hidden');
     });
 
+    function getKycReviewPriority(user) {
+      const status = getEffectiveKycStatus(user);
+      if (status === 'pending') return 0;
+      if (status === 'not_submitted') return 1;
+      if (status === 'rejected') return 2;
+      return 3;
+    }
+
     function loadKyc() {
-      const users = getUsers().filter(u => hasKycSubmission(u) || ['verified', 'rejected'].includes(getEffectiveKycStatus(u)));
+      const users = getUsers()
+        .filter(u => u && !u.isAdmin)
+        .sort((a, b) => {
+          const priorityDiff = getKycReviewPriority(a) - getKycReviewPriority(b);
+          if (priorityDiff !== 0) return priorityDiff;
+
+          const aTime = new Date(a.updatedAt || a.kycVerifiedAt || a.kycSubmittedAt || a.createdAt || 0).getTime();
+          const bTime = new Date(b.updatedAt || b.kycVerifiedAt || b.kycSubmittedAt || b.createdAt || 0).getTime();
+          return bTime - aTime;
+        });
       const tbody = document.getElementById('kycTable');
       
       if (users.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-8 text-center text-gray-500">No KYC submissions found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-8 text-center text-gray-500">No users found</td></tr>';
         return;
       }
 
@@ -1970,22 +1987,28 @@
 
       tbody.innerHTML = users.map(u => {
         const kycStatus = getEffectiveKycStatus(u);
+        const displayName = [u.kycData?.firstName, u.kycData?.lastName].filter(Boolean).join(' ') || u.fullName || u.name || 'N/A';
+        const activityDate = u.kycVerifiedAt || u.kycSubmittedAt || u.updatedAt || u.createdAt;
+        const canApprove = kycStatus !== 'verified';
+        const canReject = kycStatus === 'pending';
+        const hasDocs = hasKycSubmission(u);
         return `
         <tr class="hover:bg-gray-50">
-          <td class="px-4 py-3 text-sm">${new Date(u.kycSubmittedAt || u.createdAt).toLocaleDateString()}</td>
+          <td class="px-4 py-3 text-sm">${new Date(activityDate || Date.now()).toLocaleDateString()}</td>
           <td class="px-4 py-3 text-sm">${u.email}</td>
-          <td class="px-4 py-3">${u.kycData?.firstName} ${u.kycData?.lastName}</td>
+          <td class="px-4 py-3">${displayName}</td>
           <td class="px-4 py-3 capitalize">${u.kycData?.idType?.replace('_', ' ') || 'N/A'}</td>
           <td class="px-4 py-3">${u.kycData?.idNumber || 'N/A'}</td>
           <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-medium ${statusColors[kycStatus] || statusColors.not_submitted}">${kycStatus.replace('_', ' ')}</span></td>
           <td class="px-4 py-3">
-            <button onclick="viewKycDocs('${u.id}')" class="text-blue-600 hover:text-blue-800 mr-2" title="View Documents"><i class="fas fa-images"></i></button>
+            ${hasDocs
+              ? `<button onclick="viewKycDocs('${u.id}')" class="text-blue-600 hover:text-blue-800 mr-2" title="View Documents"><i class="fas fa-images"></i></button>`
+              : '<span class="text-gray-300" title="No documents uploaded"><i class="fas fa-images"></i></span>'}
           </td>
           <td class="px-4 py-3">
-            ${kycStatus === 'pending' ? `
-              <button onclick="approveKyc('${u.id}')" class="text-green-600 hover:text-green-800 mr-2"><i class="fas fa-check"></i></button>
-              <button onclick="rejectKyc('${u.id}')" class="text-red-600 hover:text-red-800"><i class="fas fa-times"></i></button>
-            ` : '<span class="text-gray-400">-</span>'}
+            ${canApprove ? `<button onclick="approveKyc('${u.id}')" class="text-green-600 hover:text-green-800 mr-2" title="${hasDocs ? 'Approve KYC' : 'Approve without submission'}"><i class="fas fa-check"></i></button>` : ''}
+            ${canReject ? `<button onclick="rejectKyc('${u.id}')" class="text-red-600 hover:text-red-800" title="Reject KYC"><i class="fas fa-times"></i></button>` : ''}
+            ${!canApprove && !canReject ? '<span class="text-xs text-gray-400">Approved</span>' : ''}
           </td>
         </tr>
       `;
@@ -2037,10 +2060,12 @@
           ` : '<div class="text-gray-400">No selfie image</div>'}
         </div>
         <div class="mt-6 flex justify-end space-x-3">
-          ${kycStatus === 'pending' ? `
+          ${kycStatus !== 'verified' ? `
             <button onclick="approveKyc('${user.id}'); closeKycDocsModal();" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600">
               <i class="fas fa-check mr-2"></i>Approve KYC
             </button>
+          ` : ''}
+          ${kycStatus === 'pending' ? `
             <button onclick="rejectKyc('${user.id}'); closeKycDocsModal();" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600">
               <i class="fas fa-times mr-2"></i>Reject KYC
             </button>
@@ -2059,17 +2084,49 @@
 
     async function approveKyc(userId) {
       let users = getUsers();
-      const user = users.find(u => u.id === userId);
-      if (user) {
-        user.kycStatus = 'verified';
-        user.kycVerifiedAt = new Date().toISOString();
-        user.updatedAt = new Date().toISOString();
-        saveUsers(users);
-        if (window.ESO_DB && window.ESO_DB.isReady()) {
-          await window.ESO_DB.upsertUser(user);
+      let userIndex = users.findIndex(u => String(u.id || '') === String(userId || ''));
+      let user = userIndex >= 0 ? users[userIndex] : null;
+
+      if (window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.findUserById) {
+        const remoteUser = await window.ESO_DB.findUserById(userId);
+        if (remoteUser) {
+          user = { ...(user || {}), ...remoteUser };
+          if (userIndex >= 0) {
+            users[userIndex] = { ...users[userIndex], ...user };
+          } else {
+            users.push(user);
+            userIndex = users.length - 1;
+          }
         }
-        sendNotificationToUser(userId, 'KYC Approved!', 'Your KYC verification has been approved. You now have full access to all features.', 'success');
-        showToast('KYC approved!');
+      }
+
+      if (user) {
+        if (!hasKycSubmission(user) && !confirm('This user has no submitted KYC documents. Approve anyway?')) {
+          return;
+        }
+
+        const approvedAt = new Date().toISOString();
+        user.kycStatus = 'verified';
+        user.kycVerifiedAt = approvedAt;
+        user.updatedAt = approvedAt;
+
+        if (window.ESO_DB && window.ESO_DB.isReady()) {
+          const saved = await window.ESO_DB.upsertUser(user);
+          if (!saved) {
+            showToast('Could not approve KYC on server', 'error');
+            return;
+          }
+        }
+
+        if (userIndex >= 0) {
+          users[userIndex] = { ...users[userIndex], ...user };
+        } else {
+          users.push(user);
+        }
+        saveUsers(users);
+
+        await sendNotificationToUser(userId, 'KYC Approved!', 'Your KYC verification has been approved. You now have full access to all features.', 'success', user);
+        showToast(hasKycSubmission(user) ? 'KYC approved!' : 'KYC approved without submission.');
         loadKyc();
       }
     }

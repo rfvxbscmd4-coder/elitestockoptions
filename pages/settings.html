@@ -417,6 +417,29 @@
       return hasStoredKycSubmission(userLike) ? 'pending' : 'not_submitted';
     }
 
+    function isReviewedKycStatus(status) {
+      return status === 'verified' || status === 'rejected';
+    }
+
+    function preserveReviewedKyc(targetUser, sourceUser, overrides = {}) {
+      if (!targetUser || !sourceUser) return targetUser;
+
+      const hasStatusOverride = Object.prototype.hasOwnProperty.call(overrides, 'kycStatus');
+      const sourceStatus = String(sourceUser.kycStatus || '').trim().toLowerCase();
+      if (!hasStatusOverride && !isReviewedKycStatus(sourceStatus)) {
+        return targetUser;
+      }
+
+      if (!hasStatusOverride) {
+        targetUser.kycStatus = sourceUser.kycStatus;
+      }
+      targetUser.kycSubmittedAt = sourceUser.kycSubmittedAt || targetUser.kycSubmittedAt || null;
+      targetUser.kycVerifiedAt = sourceUser.kycVerifiedAt || targetUser.kycVerifiedAt || null;
+      targetUser.kycData = sourceUser.kycData || targetUser.kycData || null;
+      targetUser.kycDocuments = sourceUser.kycDocuments || targetUser.kycDocuments || null;
+      return targetUser;
+    }
+
     function writeCurrentUserCache(userLike) {
       const fullUser = userLike ? { ...userLike } : null;
       if (!fullUser) return;
@@ -493,6 +516,8 @@
         updatedAt: new Date().toISOString()
       };
 
+      preserveReviewedKyc(userToPersist, remoteProfile, overrides);
+
       const saved = await window.ESO_DB.upsertUser(userToPersist);
       if (!saved) return null;
 
@@ -532,6 +557,8 @@
           id: remoteByEmail?.id || authUser.id || currentUser.id,
           updatedAt: new Date().toISOString()
         };
+
+        preserveReviewedKyc(userToPersist, remoteByEmail);
 
         const saved = await window.ESO_DB.upsertUser(userToPersist);
         if (saved) {
@@ -590,6 +617,11 @@
 
       if (!hasStoredKycSubmission(currentUser)) {
         const remoteStatus = getEffectiveKycStatus(remoteProfile);
+        if (remoteProfile && (isReviewedKycStatus(remoteStatus) || hasStoredKycSubmission(remoteProfile))) {
+          currentUser = { ...currentUser, ...remoteProfile };
+          persistCurrentUserToStores();
+          return;
+        }
         if (remoteProfile && remoteStatus !== 'not_submitted') {
           await persistCurrentUserToRemote({
             kycStatus: 'not_submitted',
