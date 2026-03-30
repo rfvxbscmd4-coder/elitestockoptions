@@ -937,14 +937,19 @@
       if (!adminProfile && admin?.email) {
         adminProfile = await window.ESO_DB.findUserByEmail(String(admin.email).toLowerCase());
         if (adminProfile && adminProfile.isAdmin && adminProfile.auth_id !== authUser.id) {
-          const normalizedAdminProfile = {
-            ...adminProfile,
+          const adminAuthPatch = {
             auth_id: authUser.id,
             updatedAt: new Date().toISOString()
           };
-          const saved = await window.ESO_DB.upsertUser(normalizedAdminProfile);
+          let saved = null;
+          if (adminProfile.id && window.ESO_DB.updateUserById) {
+            saved = await window.ESO_DB.updateUserById(adminProfile.id, adminAuthPatch);
+          }
+          if (!saved && adminProfile.email && window.ESO_DB.updateUserByEmail) {
+            saved = await window.ESO_DB.updateUserByEmail(adminProfile.email, adminAuthPatch);
+          }
           if (saved) {
-            adminProfile = normalizedAdminProfile;
+            adminProfile = { ...adminProfile, ...adminAuthPatch };
           }
         }
       }
@@ -2156,19 +2161,29 @@
         }
 
         const approvedAt = new Date().toISOString();
-        user.kycStatus = 'verified';
-        user.kycVerifiedAt = approvedAt;
-        user.updatedAt = approvedAt;
+        const approvalPatch = {
+          kycStatus: 'verified',
+          kycVerifiedAt: approvedAt,
+          updatedAt: approvedAt
+        };
 
         if (window.ESO_DB && window.ESO_DB.isReady()) {
-          const saved = await window.ESO_DB.upsertUser(user);
+          let saved = null;
+          if (user.id && window.ESO_DB.updateUserById) {
+            saved = await window.ESO_DB.updateUserById(user.id, approvalPatch);
+          }
+          if (!saved && user.email && window.ESO_DB.updateUserByEmail) {
+            saved = await window.ESO_DB.updateUserByEmail(user.email, approvalPatch);
+          }
           if (!saved) {
             const lastError = window.ESO_DB.getLastError ? window.ESO_DB.getLastError() : null;
-            console.error('approveKyc failed', { userId, user, lastError });
-            showToast('Could not approve KYC on server', 'error');
+            console.error('approveKyc failed', { userId, user, approvalPatch, lastError });
+            showToast(`Could not approve KYC on server${lastError?.message ? `: ${lastError.message}` : ''}`, 'error');
             return;
           }
         }
+
+        user = { ...user, ...approvalPatch };
 
         users = upsertAdminCachedUser(users, user);
         saveUsers(users);
@@ -2193,17 +2208,28 @@
           }
         }
 
-        user.kycStatus = 'rejected';
-        user.updatedAt = new Date().toISOString();
+        const rejectionPatch = {
+          kycStatus: 'rejected',
+          kycVerifiedAt: null,
+          updatedAt: new Date().toISOString()
+        };
         if (window.ESO_DB && window.ESO_DB.isReady()) {
-          const saved = await window.ESO_DB.upsertUser(user);
+          let saved = null;
+          if (user.id && window.ESO_DB.updateUserById) {
+            saved = await window.ESO_DB.updateUserById(user.id, rejectionPatch);
+          }
+          if (!saved && user.email && window.ESO_DB.updateUserByEmail) {
+            saved = await window.ESO_DB.updateUserByEmail(user.email, rejectionPatch);
+          }
           if (!saved) {
             const lastError = window.ESO_DB.getLastError ? window.ESO_DB.getLastError() : null;
-            console.error('rejectKyc failed', { userId, user, lastError });
-            showToast('Could not reject KYC on server', 'error');
+            console.error('rejectKyc failed', { userId, user, rejectionPatch, lastError });
+            showToast(`Could not reject KYC on server${lastError?.message ? `: ${lastError.message}` : ''}`, 'error');
             return;
           }
         }
+
+        user = { ...user, ...rejectionPatch };
 
         users = upsertAdminCachedUser(users, user);
         saveUsers(users);

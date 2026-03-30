@@ -236,6 +236,35 @@
       });
     },
 
+    async updateUserById(id, patch) {
+      const client = getClient();
+      if (!client || !id) return null;
+      return safe(async () => {
+        const payload = sanitizeUserPayload(patch);
+        const { error } = await client
+          .from('eso_users')
+          .update(payload)
+          .eq('id', id);
+        if (error) throw error;
+        return true;
+      });
+    },
+
+    async updateUserByEmail(email, patch) {
+      const client = getClient();
+      if (!client || !email) return null;
+      return safe(async () => {
+        const payload = sanitizeUserPayload(patch);
+        const normalizedEmail = String(email).trim().toLowerCase();
+        const { error } = await client
+          .from('eso_users')
+          .update(payload)
+          .eq('email', normalizedEmail);
+        if (error) throw error;
+        return true;
+      });
+    },
+
     async getWallets() {
       const client = getClient();
       if (!client) return null;
