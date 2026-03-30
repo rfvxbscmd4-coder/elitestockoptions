@@ -11,6 +11,7 @@
   <script src="./public/js/supabase-client.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="./public/js/plan-theme.js"></script>
   <script>
     tailwind.config = {
       theme: {
@@ -1253,6 +1254,13 @@
       return user ? (user.fullName || user.name || user.email) : 'Unknown';
     }
 
+    function renderPlanBadge(plan, size = 'md') {
+      if (window.ESO_PLANS) {
+        return window.ESO_PLANS.renderBadge(plan || 'Bronze', { size });
+      }
+      return `<span class="px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">${plan || 'Bronze'}</span>`;
+    }
+
     function loadDashboard() {
       const users = getUsers();
       const deposits = JSON.parse(localStorage.getItem('eso_deposits') || '[]');
@@ -1319,7 +1327,7 @@
               </button>
             </div>
           </td>
-          <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">${u.plan || 'Bronze'}</span></td>
+          <td class="px-4 py-3">${renderPlanBadge(u.plan || 'Bronze')}</td>
           <td class="px-4 py-3 font-medium">$${(u.balance || 0).toFixed(2)}</td>
           <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-medium ${kycColors[u.kycStatus] || kycColors.not_submitted}">${(u.kycStatus || 'not_submitted').replace('_', ' ')}</span></td>
           <td class="px-4 py-3">
@@ -1379,7 +1387,7 @@
         <div class="flex justify-between"><span class="text-gray-500">Email:</span> <span>${user.email}</span></div>
         <div class="flex justify-between"><span class="text-gray-500">Phone:</span> <span>${user.phone || 'N/A'}</span></div>
         <div class="flex justify-between"><span class="text-gray-500">Country:</span> <span>${user.country || 'N/A'}</span></div>
-        <div class="flex justify-between"><span class="text-gray-500">Plan:</span> <span class="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 text-xs">${user.plan || 'Bronze'}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">Plan:</span> ${renderPlanBadge(user.plan || 'Bronze', 'sm')}</div>
         <div class="flex justify-between"><span class="text-gray-500">KYC Status:</span> <span class="px-2 py-0.5 rounded-full ${user.kycStatus === 'verified' ? 'bg-green-100 text-green-800' : user.kycStatus === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-800'} text-xs">${user.kycStatus || 'not submitted'}</span></div>
         <div class="flex justify-between"><span class="text-gray-500">Joined:</span> <span>${new Date(user.createdAt).toLocaleDateString()}</span></div>
         <div class="flex justify-between"><span class="text-gray-500">User ID:</span> <span class="font-mono text-xs">${user.id}</span></div>
@@ -2163,8 +2171,8 @@
         <tr class="hover:bg-gray-50">
           <td class="px-4 py-3 text-sm">${new Date(u.createdAt).toLocaleDateString()}</td>
           <td class="px-4 py-3 text-sm">${getUserEmail(u.userId)}</td>
-          <td class="px-4 py-3">${u.fromPlan}</td>
-          <td class="px-4 py-3 font-medium">${u.toPlan}</td>
+          <td class="px-4 py-3">${renderPlanBadge(u.fromPlan || 'Bronze')}</td>
+          <td class="px-4 py-3 font-medium">${renderPlanBadge(u.toPlan || 'Bronze')}</td>
           <td class="px-4 py-3">$${Number(u.requiredDeposit || 0).toLocaleString()}</td>
           <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-medium ${statusColors[u.status]}">${u.status}</span></td>
           <td class="px-4 py-3">

@@ -242,9 +242,7 @@
           
           <div class="stat-card bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
             <div class="flex items-center justify-between mb-4">
-              <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-                <i class="fas fa-crown text-purple-600 text-xl"></i>
-              </div>
+              <div id="currentPlanIconWrap"></div>
               <span class="text-xs font-medium text-gray-400">Current Plan</span>
             </div>
             <p class="text-2xl font-bold gradient-text" id="currentPlan">Bronze</p>
@@ -435,6 +433,7 @@
     </div>
   </div>
 
+  <script src="../public/js/plan-theme.js"></script>
   <script>
     // Check authentication - support both old and new key names
     const currentUser = JSON.parse(localStorage.getItem('elitestockoptions_user') || localStorage.getItem('eso_currentUser'));
@@ -486,6 +485,33 @@
       }
 
       return byEmail.sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0))[0];
+    }
+
+    function applyDashboardPlanBranding(plan) {
+      const normalizedPlan = plan || 'Bronze';
+      const userPlanEl = document.getElementById('userPlan');
+      const currentPlanEl = document.getElementById('currentPlan');
+      const currentPlanIconWrap = document.getElementById('currentPlanIconWrap');
+
+      if (userPlanEl) {
+        userPlanEl.innerHTML = window.ESO_PLANS
+          ? window.ESO_PLANS.renderBadge(normalizedPlan, { size: 'sm' })
+          : normalizedPlan + ' Plan';
+      }
+
+      if (currentPlanEl) {
+        currentPlanEl.textContent = normalizedPlan;
+        if (window.ESO_PLANS) {
+          const theme = window.ESO_PLANS.getTheme(normalizedPlan);
+          currentPlanEl.style.color = theme.headingColor;
+          currentPlanEl.style.background = 'none';
+          currentPlanEl.style.webkitTextFillColor = theme.headingColor;
+        }
+      }
+
+      if (currentPlanIconWrap && window.ESO_PLANS) {
+        currentPlanIconWrap.innerHTML = window.ESO_PLANS.renderIcon(normalizedPlan);
+      }
     }
 
     function getUserNotifications() {
@@ -794,9 +820,8 @@
       // Update user info
       document.getElementById('userName').textContent = currentUser.fullName?.split(' ')[0] || 'Trader';
       document.getElementById('headerUserName').textContent = currentUser.fullName || 'Trader';
-      document.getElementById('userPlan').textContent = (currentUser.plan || 'Bronze') + ' Plan';
       document.getElementById('userAvatar').textContent = (currentUser.fullName?.[0] || 'T').toUpperCase();
-      document.getElementById('currentPlan').textContent = currentUser.plan || 'Bronze';
+      applyDashboardPlanBranding(currentUser.plan || 'Bronze');
 
       // Update balances
       document.getElementById('totalBalance').textContent = '$' + (currentUser.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});

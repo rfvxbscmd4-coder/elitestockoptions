@@ -10,6 +10,7 @@
   <script src="../public/js/supabase-config.js"></script>
   <script src="../public/js/supabase-client.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="../public/js/plan-theme.js"></script>
   <script>
     tailwind.config = {
       theme: {
@@ -453,6 +454,13 @@
       return deduped;
     }
 
+    function renderPlanBadge(plan, size = 'md') {
+      if (window.ESO_PLANS) {
+        return window.ESO_PLANS.renderBadge(plan || 'Bronze', { size });
+      }
+      return `<span>${plan || 'Bronze'}</span>`;
+    }
+
     async function persistUpgradeFallbackTrade(upgradeRequest, paymentSource, options = {}) {
       const { saveLocal = true, saveRemote = true } = options;
       await ensureSupabaseSessionForCurrentUser();
@@ -589,7 +597,7 @@
         <tr>
           <td class="px-6 py-4">${new Date(currentUser.createdAt || Date.now()).toLocaleDateString()}</td>
           <td class="px-6 py-4">-</td>
-          <td class="px-6 py-4 font-medium">${currentUser.plan || 'Bronze'}</td>
+          <td class="px-6 py-4 font-medium">${renderPlanBadge(currentUser.plan || 'Bronze')}</td>
           <td class="px-6 py-4"><span class="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">Active</span></td>
         </tr>
       `;
@@ -597,8 +605,8 @@
       const upgradeRows = upgrades.map(upgrade => `
         <tr>
           <td class="px-6 py-4">${new Date(upgrade.createdAt || Date.now()).toLocaleDateString()}</td>
-          <td class="px-6 py-4">${upgrade.fromPlan || currentUser.plan || 'Bronze'}</td>
-          <td class="px-6 py-4 font-medium">${upgrade.toPlan}</td>
+          <td class="px-6 py-4">${renderPlanBadge(upgrade.fromPlan || currentUser.plan || 'Bronze')}</td>
+          <td class="px-6 py-4 font-medium">${renderPlanBadge(upgrade.toPlan)}</td>
           <td class="px-6 py-4"><span class="px-3 py-1 rounded-full text-xs font-medium ${statusColors[upgrade.status] || statusColors.pending}">${upgrade.status}</span></td>
         </tr>
       `).join('');
@@ -610,7 +618,7 @@
       await syncRemoteUserToLocal();
       await syncRemoteUpgradesToLocal();
       await backfillPendingUpgradesToRemote();
-      document.getElementById('currentPlanDisplay').textContent = currentUser.plan || 'Bronze';
+      document.getElementById('currentPlanDisplay').innerHTML = renderPlanBadge(currentUser.plan || 'Bronze');
       updateButtonStates();
       loadUpgradeHistory();
     }

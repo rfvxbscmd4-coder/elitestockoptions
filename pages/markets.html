@@ -92,12 +92,12 @@
       </nav>
       <div class="p-4 border-t border-gray-200">
         <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
+          <div id="user-plan-avatar" class="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
             <span class="text-sm font-bold text-white" id="user-initials">U</span>
           </div>
           <div class="flex-1 min-w-0">
             <p class="text-sm font-medium text-gray-900 truncate" id="user-name">User</p>
-            <p class="text-xs text-gray-500">Bronze Plan</p>
+            <p class="text-xs text-gray-500" id="user-plan-badge">Bronze Plan</p>
           </div>
           <a href="settings.html" class="text-gray-400 hover:text-gray-600"><i class="fas fa-cog"></i></a>
         </div>
@@ -252,6 +252,7 @@
   <!-- TradingView Script -->
   <script src="https://s3.tradingview.com/tv.js"></script>
   <script src="../public/js/asset-logos.js"></script>
+  <script src="../public/js/plan-theme.js"></script>
 
   <script>
     const user = JSON.parse(localStorage.getItem('elitestockoptions_user'));
@@ -261,6 +262,13 @@
     const displayName = user.fullName || user.name || 'User';
     document.getElementById('user-name').textContent = displayName;
     document.getElementById('user-initials').textContent = displayName.split(' ').map(n => n[0]).join('');
+    if (window.ESO_PLANS) {
+      const userPlan = user.plan || 'Bronze';
+      document.getElementById('user-plan-badge').innerHTML = window.ESO_PLANS.renderBadge(userPlan, { size: 'sm' });
+      document.getElementById('user-plan-avatar').style.background = window.ESO_PLANS.getTheme(userPlan).gradient;
+    } else {
+      document.getElementById('user-plan-badge').textContent = (user.plan || 'Bronze') + ' Plan';
+    }
 
     let currentAsset = null;
     let currentCategory = 'crypto';
