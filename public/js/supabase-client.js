@@ -37,6 +37,48 @@
     return window.__esoSupabaseClient;
   }
 
+  const USER_COLUMNS = [
+    'id',
+    'auth_id',
+    'fullName',
+    'email',
+    'phone',
+    'countryCode',
+    'phoneNumber',
+    'country',
+    'referralCode',
+    'password',
+    'plan',
+    'balance',
+    'availableCash',
+    'profitsBalance',
+    'kycStatus',
+    'kycSubmittedAt',
+    'kycVerifiedAt',
+    'kycData',
+    'kycDocuments',
+    'updatedAt',
+    'createdAt',
+    'isAdmin'
+  ];
+
+  function sanitizeUserPayload(user) {
+    if (!user || typeof user !== 'object') return user;
+
+    const payload = {};
+    USER_COLUMNS.forEach((key) => {
+      if (Object.prototype.hasOwnProperty.call(user, key) && typeof user[key] !== 'undefined') {
+        payload[key] = user[key];
+      }
+    });
+
+    if (payload.email) {
+      payload.email = String(payload.email).trim().toLowerCase();
+    }
+
+    return payload;
+  }
+
   async function safe(promiseFactory) {
     lastError = null;
     try {
@@ -170,10 +212,11 @@
       const client = getClient();
       if (!client) return null;
       return safe(async () => {
-        const onConflict = user?.email ? 'email' : 'id';
+        const payload = sanitizeUserPayload(user);
+        const onConflict = payload?.email ? 'email' : 'id';
         const { error } = await client
           .from('eso_users')
-          .upsert(user, { onConflict });
+          .upsert(payload, { onConflict });
         if (error) throw error;
         return true;
       });
