@@ -198,6 +198,19 @@
       });
     },
 
+    async verifyOtpTokenHash(tokenHash, type) {
+      const client = getClient();
+      if (!client) return null;
+      return safe(async () => {
+        const { data, error } = await client.auth.verifyOtp({
+          token_hash: tokenHash,
+          type
+        });
+        if (error) throw error;
+        return data?.session || true;
+      });
+    },
+
     async getUsers() {
       const client = getClient();
       if (!client) return null;

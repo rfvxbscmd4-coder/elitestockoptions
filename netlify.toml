@@ -15,3 +15,25 @@
   from = "/pages/reset-password"
   to = "/reset-password.html"
   status = 200
+
+[[redirects]]
+  from = "/auth/v1/verify"
+  to = "https://dmncqeczdpxnladdramd.supabase.co/auth/v1/verify"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/pages/auth/v1/verify"
+  to = "https://dmncqeczdpxnladdramd.supabase.co/auth/v1/verify"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/auth/confirm"
+  to = "/auth-confirm.html"
+  status = 200
+
+[[redirects]]
+  from = "/pages/auth/confirm"
+  to = "/auth-confirm.html"
+  status = 200
