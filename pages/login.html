@@ -182,9 +182,14 @@
     }
 
     async function sendPasswordResetEmail() {
-      const email = document.getElementById('forgotPasswordEmail').value.trim();
+      const email = document.getElementById('forgotPasswordEmail').value.trim().toLowerCase();
       if (!email) {
         alert('Please enter your email address');
+        return;
+      }
+
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        alert('Please enter a valid email address');
         return;
       }
 
@@ -193,10 +198,16 @@
         return;
       }
 
-      const redirectTo = `${window.location.origin}/reset-password.html`;
+      const canonicalHost = String(window.ESO_CANONICAL_HOST || '').trim();
+      const isLocalHost = ['localhost', '127.0.0.1'].includes(String(window.location.hostname || '').trim().toLowerCase());
+      const redirectOrigin = canonicalHost && !isLocalHost
+        ? `${window.location.protocol}//${canonicalHost}`
+        : window.location.origin;
+      const redirectTo = `${redirectOrigin}/reset-password.html`;
       const ok = await window.ESO_DB.requestPasswordReset(email, redirectTo);
       if (!ok) {
-        alert('Unable to send reset email. Please try again.');
+        const lastError = window.ESO_DB.getLastError ? window.ESO_DB.getLastError() : null;
+        alert(lastError?.message || 'Unable to send reset email. Please try again.');
         return;
       }
 

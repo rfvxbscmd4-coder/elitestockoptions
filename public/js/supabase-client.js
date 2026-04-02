@@ -140,13 +140,50 @@
     },
 
     async requestPasswordReset(email, redirectTo) {
-      const client = getClient();
-      if (!client) return null;
       return safe(async () => {
-        const { error } = await client.auth.resetPasswordForEmail(email, {
-          redirectTo
-        });
-        if (error) throw error;
+        if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+          throw new Error('Supabase is not configured.');
+        }
+
+        const response = await fetch(
+          `${SUPABASE_URL}/auth/v1/recover?redirect_to=${encodeURIComponent(redirectTo)}`,
+          {
+            method: 'POST',
+            headers: {
+              apikey: SUPABASE_ANON_KEY,
+              Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ email: String(email || '').trim().toLowerCase() })
+          }
+        );
+
+        if (!response.ok) {
+          let message = `Request failed with status ${response.status}`;
+          try {
+            const errorBody = await response.json();
+            message = errorBody?.msg || errorBody?.message || errorBody?.error_description || errorBody?.error || message;
+          } catch (_) {}
+          throw new Error(message);
+        }
+
+        const text = await response.text();
+        if (!text) {
+          return true;
+        }
+
+        try {
+          const parsed = JSON.parse(text);
+          if (parsed?.error || parsed?.msg || parsed?.message) {
+            throw new Error(parsed.error || parsed.msg || parsed.message);
+          }
+        } catch (error) {
+          if (error instanceof SyntaxError) {
+            return true;
+          }
+          throw error;
+        }
+
         return true;
       });
     },
