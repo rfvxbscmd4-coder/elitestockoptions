@@ -157,6 +157,17 @@ If you already ran the older secure SQL before this fix, rerun [SUPABASE_SETUP_S
 
 Upload/deploy the project after setting keys.
 
+## 4.1) Configure Supabase Auth redirect URLs
+
+In Supabase Dashboard -> Authentication -> URL Configuration:
+
+- Set `Site URL` to your live site, for example `https://www.elitestockoptions.net`
+- Add these `Redirect URLs`:
+  - `https://www.elitestockoptions.net/reset-password.html`
+  - `https://elitestockoptions.net/reset-password.html`
+
+If you use a Netlify preview or temporary domain, add that reset-password URL too.
+
 ## 5) Test
 
 1. Create user on phone.

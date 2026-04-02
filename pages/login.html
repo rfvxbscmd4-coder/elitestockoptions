@@ -193,7 +193,7 @@
         return;
       }
 
-      const redirectTo = `${window.location.origin}${window.location.pathname}`;
+      const redirectTo = `${window.location.origin}/reset-password.html`;
       const ok = await window.ESO_DB.requestPasswordReset(email, redirectTo);
       if (!ok) {
         alert('Unable to send reset email. Please try again.');
@@ -205,12 +205,17 @@
     }
 
     function maybeOpenRecoveryModal() {
+      const search = window.location.search || '';
       const hash = window.location.hash || '';
-      const isRecovery = hash.includes('type=recovery');
+      const isRecovery = hash.includes('type=recovery')
+        || hash.includes('access_token=')
+        || search.includes('type=recovery')
+        || search.includes('token_hash=')
+        || search.includes('code=');
       if (!isRecovery) return;
 
-      document.getElementById('resetPasswordModal').classList.remove('hidden');
-      document.getElementById('resetPasswordModal').classList.add('flex');
+      const target = `${window.location.origin}/reset-password.html${search}${hash}`;
+      window.location.replace(target);
     }
 
     async function completePasswordReset() {
