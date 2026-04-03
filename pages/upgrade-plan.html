@@ -249,38 +249,255 @@
       </div>
       <div class="flex space-x-3">
         <button onclick="closeUpgradeModal()" class="flex-1 py-3 border border-gray-200 rounded-xl font-medium hover:bg-gray-50">Cancel</button>
-        <button onclick="confirmUpgrade()" class="flex-1 py-3 gradient-bg text-white rounded-xl font-medium hover:opacity-90">Proceed</button>
+        <button id="upgradeProceedButton" onclick="confirmUpgrade()" class="flex-1 py-3 gradient-bg text-white rounded-xl font-medium hover:opacity-90">Proceed</button>
       </div>
     </div>
   </div>
 
   <script>
-    let currentUser = JSON.parse(localStorage.getItem('elitestockoptions_user') || localStorage.getItem('eso_currentUser'));
+    function safeParseStoredJson(primaryKey, fallbackKey = '') {
+      const rawPrimary = localStorage.getItem(primaryKey);
+      const rawFallback = fallbackKey ? localStorage.getItem(fallbackKey) : null;
+      const candidates = [rawPrimary, rawFallback].filter(value => typeof value === 'string' && value.trim());
+
+      for (const raw of candidates) {
+        try {
+          return JSON.parse(raw);
+        } catch (_) {}
+      }
+
+      return null;
+    }
+
+    function safeParseArray(rawValue) {
+      try {
+        const parsed = JSON.parse(rawValue || '[]');
+        return Array.isArray(parsed)
+          ? parsed.filter(item => item && typeof item === 'object')
+          : [];
+      } catch (_) {
+        return [];
+      }
+    }
+
+    let currentUser = safeParseStoredJson('elitestockoptions_user', 'eso_currentUser');
 
     if (!currentUser) {
       alert('Please login first');
       window.location.href = 'login.html';
     }
 
-    // Sync balance from shared users storage (new + legacy keys)
-    const allUsers = JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
-    const serverUser = allUsers.find(u => u.id === currentUser.id);
-    if (serverUser) {
-      currentUser.balance = serverUser.balance || 0;
-      currentUser.availableCash = serverUser.availableCash || 0;
-      currentUser.profitsBalance = serverUser.profitsBalance || 0;
-      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+    function hasUpgradeKycSubmission(userLike) {
+      if (!userLike) return false;
+      if (userLike.kycData || userLike.kycSubmittedAt) return true;
+
+      const docs = userLike.kycDocuments || {};
+      return !!(docs.front || docs.back || docs.selfie);
+    }
+
+    function getUpgradeUserSyncTimestamp(userLike) {
+      const timestamp = new Date(userLike?.updatedAt || userLike?.createdAt || 0).getTime();
+      return Number.isFinite(timestamp) ? timestamp : 0;
+    }
+
+    function mergeUpgradeUserData(targetUser, sourceUser) {
+      if (!targetUser || !sourceUser) return targetUser;
+
+      const sourceIsNewer = getUpgradeUserSyncTimestamp(sourceUser) > getUpgradeUserSyncTimestamp(targetUser);
+      const sourceDisplayName = String(sourceUser.fullName || sourceUser.name || '').trim();
+      if (!targetUser.fullName && sourceDisplayName) {
+        targetUser.fullName = sourceDisplayName;
+      }
+      if (!targetUser.name && sourceDisplayName) {
+        targetUser.name = sourceDisplayName;
+      }
+
+      ['email', 'phone', 'countryCode', 'phoneNumber', 'country', 'referralCode', 'password', 'auth_id', 'id', 'createdAt'].forEach((field) => {
+        if (!targetUser[field] && sourceUser[field]) {
+          targetUser[field] = sourceUser[field];
+        }
+      });
+
+      ['balance', 'availableCash', 'profitsBalance'].forEach((field) => {
+        const targetValue = Number(targetUser[field] || 0);
+        const sourceValue = Number(sourceUser[field] || 0);
+        if ((sourceIsNewer && targetValue !== sourceValue) || (targetValue === 0 && sourceValue !== 0)) {
+          targetUser[field] = sourceValue;
+        }
+      });
+
+      if ((sourceIsNewer && sourceUser.plan && sourceUser.plan !== targetUser.plan)
+        || ((!targetUser.plan || String(targetUser.plan).toLowerCase() === 'bronze') && sourceUser.plan)) {
+        targetUser.plan = sourceUser.plan;
+      }
+
+      const targetKycStatus = String(targetUser.kycStatus || '').trim().toLowerCase();
+      const sourceKycStatus = String(sourceUser.kycStatus || '').trim().toLowerCase();
+      const targetMissingKyc = !targetKycStatus
+        || targetKycStatus === 'not_submitted'
+        || (targetKycStatus === 'pending' && !hasUpgradeKycSubmission(targetUser));
+      const sourceHasKyc = sourceKycStatus === 'verified'
+        || sourceKycStatus === 'rejected'
+        || hasUpgradeKycSubmission(sourceUser);
+
+      if (targetMissingKyc && sourceHasKyc) {
+        targetUser.kycStatus = sourceUser.kycStatus || 'pending';
+      }
+      if (!targetUser.kycSubmittedAt && sourceUser.kycSubmittedAt) {
+        targetUser.kycSubmittedAt = sourceUser.kycSubmittedAt;
+      }
+      if (!targetUser.kycVerifiedAt && sourceUser.kycVerifiedAt) {
+        targetUser.kycVerifiedAt = sourceUser.kycVerifiedAt;
+      }
+      if (!targetUser.kycData && sourceUser.kycData) {
+        targetUser.kycData = sourceUser.kycData;
+      }
+      if (sourceIsNewer || (!targetUser.updatedAt && sourceUser.updatedAt)) {
+        targetUser.updatedAt = sourceUser.updatedAt;
+      }
+
+      return targetUser;
+    }
+
+    function buildSharedUserRecord(userLike) {
+      if (!userLike || typeof userLike !== 'object') return null;
+
+      return {
+        id: userLike.id || null,
+        auth_id: userLike.auth_id || null,
+        fullName: userLike.fullName || userLike.name || null,
+        name: userLike.name || userLike.fullName || null,
+        email: userLike.email || null,
+        phone: userLike.phone || null,
+        countryCode: userLike.countryCode || null,
+        phoneNumber: userLike.phoneNumber || null,
+        country: userLike.country || null,
+        referralCode: userLike.referralCode || null,
+        password: userLike.password || null,
+        plan: userLike.plan || 'Bronze',
+        balance: Number(userLike.balance || 0),
+        availableCash: Number(userLike.availableCash || 0),
+        profitsBalance: Number(userLike.profitsBalance || 0),
+        kycStatus: userLike.kycStatus || null,
+        kycSubmittedAt: userLike.kycSubmittedAt || null,
+        kycVerifiedAt: userLike.kycVerifiedAt || null,
+        kycData: userLike.kycData || null,
+        updatedAt: userLike.updatedAt || null,
+        createdAt: userLike.createdAt || null,
+        isAdmin: !!userLike.isAdmin
+      };
+    }
+
+    function writeCurrentUserCache(userLike) {
+      const fullUser = userLike ? { ...userLike } : null;
+      if (!fullUser) return;
+
+      try {
+        const serialized = JSON.stringify(fullUser);
+        localStorage.setItem('elitestockoptions_user', serialized);
+        localStorage.setItem('eso_currentUser', serialized);
+        return;
+      } catch (error) {
+        console.warn('Could not persist full upgrade user cache, retrying without heavy media fields', error);
+      }
+
+      const fallbackUser = {
+        ...fullUser,
+        kycDocuments: null,
+        profilePhoto: null,
+        avatar: fullUser.avatar || null
+      };
+
+      try {
+        const serializedFallback = JSON.stringify(fallbackUser);
+        localStorage.setItem('elitestockoptions_user', serializedFallback);
+        localStorage.setItem('eso_currentUser', serializedFallback);
+      } catch (error) {
+        console.warn('Could not persist fallback upgrade user cache', error);
+      }
+    }
+
+    function getUpgradeUsers() {
+      const primary = safeParseArray(localStorage.getItem('elitestockoptions_users'));
+      const legacy = safeParseArray(localStorage.getItem('eso_users'));
+      return [...primary, ...legacy];
+    }
+
+    function getUpgradeUserScore(userLike, preferredAuthId = '') {
+      if (!userLike || userLike.isAdmin) return Number.NEGATIVE_INFINITY;
+
+      const displayName = String(userLike.fullName || userLike.name || '').trim();
+      const emailPrefix = String(userLike.email || '').trim().toLowerCase().split('@')[0] || '';
+      let score = 0;
+
+      if (preferredAuthId && String(userLike.auth_id || '') === String(preferredAuthId)) score += 20;
+      if (currentUser?.id && String(userLike.id || '') === String(currentUser.id || '')) score += 10;
+      if (displayName && displayName.toLowerCase() !== emailPrefix) score += 20;
+      if (Number(userLike.balance || 0) !== 0) score += 18;
+      if (Number(userLike.availableCash || 0) !== 0) score += 12;
+      if (Number(userLike.profitsBalance || 0) !== 0) score += 12;
+      if (String(userLike.plan || '').trim().toLowerCase() && String(userLike.plan || '').trim().toLowerCase() !== 'bronze') score += 8;
+      if (userLike.phone || userLike.phoneNumber) score += 6;
+      if (String(userLike.kycStatus || '').trim().toLowerCase() === 'verified') score += 8;
+      else if (hasUpgradeKycSubmission(userLike)) score += 4;
+
+      const recency = new Date(userLike.updatedAt || userLike.createdAt || 0).getTime();
+      if (Number.isFinite(recency)) {
+        score += recency / 1e15;
+      }
+
+      return score;
+    }
+
+    function selectCanonicalUpgradeUser(candidates, preferredAuthId = '') {
+      const filtered = (Array.isArray(candidates) ? candidates : []).filter(userLike => userLike && !userLike.isAdmin);
+      if (!filtered.length) return null;
+
+      const ranked = filtered
+        .map(userLike => ({ user: userLike, score: getUpgradeUserScore(userLike, preferredAuthId) }))
+        .sort((a, b) => b.score - a.score);
+
+      let canonical = { ...ranked[0].user };
+      ranked.slice(1).forEach(({ user }) => {
+        canonical = mergeUpgradeUserData(canonical, user);
+      });
+
+      if (!canonical.fullName && canonical.name) canonical.fullName = canonical.name;
+      if (!canonical.name && canonical.fullName) canonical.name = canonical.fullName;
+      return canonical;
     }
 
     let selectedUpgrade = { plan: '', amount: 0 };
 
     function getSharedUsers() {
-      return JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
+      return getUpgradeUsers();
     }
 
     function saveSharedUsers(users) {
-      localStorage.setItem('elitestockoptions_users', JSON.stringify(users));
-      localStorage.setItem('eso_users', JSON.stringify(users));
+      const normalizedUsers = (Array.isArray(users) ? users : [])
+        .filter(userLike => userLike && typeof userLike === 'object')
+        .map(buildSharedUserRecord)
+        .filter(Boolean);
+
+      const dedupedUsers = [];
+      normalizedUsers.forEach((userLike) => {
+        const existingIndex = findSharedUserIndex(dedupedUsers, userLike);
+        if (existingIndex >= 0) {
+          dedupedUsers[existingIndex] = mergeUpgradeUserData({ ...dedupedUsers[existingIndex] }, userLike);
+        } else {
+          dedupedUsers.push(userLike);
+        }
+      });
+
+      try {
+        const serialized = JSON.stringify(dedupedUsers);
+        localStorage.setItem('elitestockoptions_users', serialized);
+        localStorage.setItem('eso_users', serialized);
+      } catch (error) {
+        console.warn('Could not persist upgrade shared users cache', error);
+      }
+
+      return dedupedUsers;
     }
 
     function findSharedUserIndex(users, userLike) {
@@ -298,17 +515,59 @@
       });
     }
 
+    function resolveUpgradeUserFromStore() {
+      if (!currentUser) return null;
+
+      const currentEmail = String(currentUser.email || '').toLowerCase();
+      const currentAuthId = String(currentUser.auth_id || '');
+      const currentId = String(currentUser.id || '');
+      const candidates = getSharedUsers().filter((userLike) => {
+        const sameId = currentId && String(userLike.id || '') === currentId;
+        const sameAuth = currentAuthId && String(userLike.auth_id || '') === currentAuthId;
+        const sameEmail = currentEmail && String(userLike.email || '').toLowerCase() === currentEmail;
+        return sameId || sameAuth || sameEmail;
+      });
+
+      return selectCanonicalUpgradeUser(candidates, currentAuthId);
+    }
+
+    function resolveCurrentUserIds() {
+      const ids = new Set();
+      if (currentUser?.id) ids.add(String(currentUser.id));
+      if (currentUser?.auth_id) ids.add(String(currentUser.auth_id));
+
+      const currentEmail = String(currentUser?.email || '').toLowerCase();
+      if (currentEmail) {
+        getSharedUsers()
+          .filter(userLike => String(userLike.email || '').toLowerCase() === currentEmail)
+          .forEach((userLike) => {
+            if (userLike?.id) ids.add(String(userLike.id));
+            if (userLike?.auth_id) ids.add(String(userLike.auth_id));
+          });
+      }
+
+      return ids;
+    }
+
+    const canonicalUserFromStore = resolveUpgradeUserFromStore();
+    if (canonicalUserFromStore) {
+      currentUser = mergeUpgradeUserData({ ...canonicalUserFromStore }, currentUser);
+      writeCurrentUserCache(currentUser);
+    }
+
     function syncCurrentUserStore(patch = {}) {
       currentUser = { ...currentUser, ...patch };
-      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
-      localStorage.setItem('eso_currentUser', JSON.stringify(currentUser));
+      currentUser.fullName = currentUser.fullName || currentUser.name || null;
+      currentUser.name = currentUser.name || currentUser.fullName || null;
+      writeCurrentUserCache(currentUser);
 
       const users = getSharedUsers();
       const userIndex = findSharedUserIndex(users, currentUser);
+      const sharedUserRecord = buildSharedUserRecord(currentUser);
       if (userIndex >= 0) {
-        users[userIndex] = { ...users[userIndex], ...currentUser };
+        users[userIndex] = mergeUpgradeUserData({ ...users[userIndex] }, sharedUserRecord);
       } else {
-        users.push({ ...currentUser });
+        users.push(sharedUserRecord);
       }
       saveSharedUsers(users);
     }
@@ -355,8 +614,8 @@
     }
 
     function getUpgradeStore() {
-      const primary = JSON.parse(localStorage.getItem('eso_upgrades') || '[]');
-      const secondary = JSON.parse(localStorage.getItem('elitestockoptions_upgrades') || '[]');
+      const primary = safeParseArray(localStorage.getItem('eso_upgrades'));
+      const secondary = safeParseArray(localStorage.getItem('elitestockoptions_upgrades'));
       const merged = [...primary, ...secondary];
       const deduped = [];
       const seen = new Set();
@@ -378,8 +637,8 @@
     }
 
     function getTradesStore() {
-      const primary = JSON.parse(localStorage.getItem('eso_trades') || '[]');
-      const secondary = JSON.parse(localStorage.getItem('elitestockoptions_trades') || '[]');
+      const primary = safeParseArray(localStorage.getItem('eso_trades'));
+      const secondary = safeParseArray(localStorage.getItem('elitestockoptions_trades'));
       const merged = [...primary, ...secondary];
       const deduped = [];
       const seen = new Set();
@@ -391,6 +650,11 @@
       });
 
       return deduped;
+    }
+
+    function getUpgradeRequestsForCurrentUser() {
+      const currentUserIds = resolveCurrentUserIds();
+      return getAllUpgradeRequests().filter(upgrade => currentUserIds.has(String(upgrade.userId || '')));
     }
 
     function saveTradesStore(trades) {
@@ -513,7 +777,7 @@
     }
 
     async function backfillPendingUpgradesToRemote() {
-      const pendingUpgrades = getAllUpgradeRequests().filter(upgrade => String(upgrade.userId) === String(currentUser.id) && upgrade.status === 'pending');
+      const pendingUpgrades = getUpgradeRequestsForCurrentUser().filter(upgrade => upgrade.status === 'pending');
       for (const upgrade of pendingUpgrades) {
         await persistUpgradeFallbackTrade(upgrade, upgrade.paymentSource || 'deposit');
       }
@@ -529,8 +793,30 @@
       }
       if (!remoteUser) return null;
 
-      syncCurrentUserStore(remoteUser);
-      return remoteUser;
+      const remoteEmail = String(remoteUser.email || currentUser?.email || '').toLowerCase();
+      const preferredAuthId = String(authUser?.id || remoteUser.auth_id || currentUser?.auth_id || '');
+      const matchedLocalUsers = getSharedUsers().filter((userLike) => {
+        const sameId = String(userLike.id || '') === String(remoteUser.id || currentUser?.id || '');
+        const sameEmail = remoteEmail && String(userLike.email || '').toLowerCase() === remoteEmail;
+        const sameAuth = preferredAuthId && String(userLike.auth_id || '') === preferredAuthId;
+        return sameId || sameEmail || sameAuth;
+      });
+
+      const canonicalUser = selectCanonicalUpgradeUser([
+        remoteUser,
+        currentUser,
+        ...matchedLocalUsers
+      ], preferredAuthId) || remoteUser;
+
+      canonicalUser.email = canonicalUser.email || remoteUser.email || currentUser?.email || null;
+      canonicalUser.id = canonicalUser.id || remoteUser.id || currentUser?.id || null;
+      canonicalUser.auth_id = preferredAuthId || canonicalUser.auth_id || null;
+      canonicalUser.fullName = canonicalUser.fullName || canonicalUser.name || null;
+      canonicalUser.name = canonicalUser.name || canonicalUser.fullName || null;
+      canonicalUser.updatedAt = remoteUser.updatedAt || canonicalUser.updatedAt || new Date().toISOString();
+
+      syncCurrentUserStore(canonicalUser);
+      return canonicalUser;
     }
 
     async function syncRemoteUpgradesToLocal() {
@@ -590,7 +876,7 @@
         approved: 'bg-green-100 text-green-800',
         rejected: 'bg-red-100 text-red-800'
       };
-      const upgrades = getAllUpgradeRequests().filter(upgrade => String(upgrade.userId) === String(currentUser.id));
+      const upgrades = getUpgradeRequestsForCurrentUser();
       const historyTable = document.getElementById('upgradeHistoryTable');
 
       const activeRow = `
@@ -615,7 +901,11 @@
     }
 
     async function initUpgradePlan() {
-      await syncRemoteUserToLocal();
+      const remoteUser = await syncRemoteUserToLocal();
+      const serverUser = resolveUpgradeUserFromStore() || remoteUser;
+      if (serverUser) {
+        syncCurrentUserStore(serverUser);
+      }
       await syncRemoteUpgradesToLocal();
       await backfillPendingUpgradesToRemote();
       document.getElementById('currentPlanDisplay').innerHTML = renderPlanBadge(currentUser.plan || 'Bronze');
@@ -635,6 +925,11 @@
             btn.textContent = index === currentIndex ? 'Current Plan' : 'Owned';
             btn.classList.add('bg-gray-100', 'text-gray-400');
             btn.classList.remove('gradient-bg', 'text-white');
+          } else {
+            btn.disabled = false;
+            btn.textContent = 'Upgrade';
+            btn.classList.remove('bg-gray-100', 'text-gray-400');
+            btn.classList.add('gradient-bg', 'text-white');
           }
         }
       });
@@ -654,98 +949,119 @@
     }
 
     async function confirmUpgrade() {
-      await syncRemoteUserToLocal();
+      const proceedButton = document.getElementById('upgradeProceedButton');
+      const originalButtonHtml = proceedButton ? proceedButton.innerHTML : '';
 
-      if (!selectedUpgrade.plan) return;
+      try {
+        if (proceedButton) {
+          proceedButton.disabled = true;
+          proceedButton.classList.add('opacity-70', 'cursor-not-allowed');
+          proceedButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Processing...';
+        }
 
-      const requiredAmount = Number(selectedUpgrade.amount || 0);
-      const availableFunds = Math.max(Number(currentUser.availableCash || 0), Number(currentUser.balance || 0));
-      const paymentSource = availableFunds >= requiredAmount ? 'balance' : 'deposit';
+        await syncRemoteUserToLocal();
 
-      // Create upgrade request
-      const upgradeRequest = {
-        id: Date.now().toString(),
-        userId: currentUser.id,
-        fromPlan: currentUser.plan || 'Bronze',
-        toPlan: selectedUpgrade.plan,
-        requiredDeposit: requiredAmount,
-        status: 'pending',
-        createdAt: new Date().toISOString()
-      };
-
-      const existingPendingRequest = getAllUpgradeRequests().find(upgrade => String(upgrade.userId) === String(currentUser.id) && upgrade.toPlan === selectedUpgrade.plan && upgrade.status === 'pending');
-      if (existingPendingRequest) {
-        const remotePendingVisible = await persistUpgradeFallbackTrade(
-          existingPendingRequest,
-          existingPendingRequest.paymentSource || paymentSource,
-          { saveLocal: false, saveRemote: true }
-        );
-        if (!remotePendingVisible) {
-          alert('This upgrade request is still not synced to the admin dashboard. Please sign in again and retry.');
+        if (!selectedUpgrade.plan) {
+          alert('Please select a plan to upgrade.');
           return;
         }
 
-        await persistUpgradeFallbackTrade(
-          existingPendingRequest,
-          existingPendingRequest.paymentSource || paymentSource,
-          { saveLocal: true, saveRemote: false }
-        );
+        const requiredAmount = Number(selectedUpgrade.amount || 0);
+        const availableFunds = Math.max(Number(currentUser.availableCash || 0), Number(currentUser.balance || 0));
+        const paymentSource = availableFunds >= requiredAmount ? 'balance' : 'deposit';
 
-        alert(existingPendingRequest.paymentSource === 'balance' || paymentSource === 'balance'
-          ? 'This plan upgrade is already pending for admin approval and your account balance already covers it.'
-          : 'This plan upgrade is already pending for admin approval. Complete the required deposit only if your balance does not already cover it.');
+        if (!currentUser.id) {
+          syncCurrentUserStore({ id: Date.now().toString() + '_' + Math.random().toString(36).slice(2, 7) });
+        }
+
+        const upgradeRequest = {
+          id: Date.now().toString(),
+          userId: currentUser.id,
+          fromPlan: currentUser.plan || 'Bronze',
+          toPlan: selectedUpgrade.plan,
+          requiredDeposit: requiredAmount,
+          status: 'pending',
+          createdAt: new Date().toISOString()
+        };
+
+        const existingPendingRequest = getUpgradeRequestsForCurrentUser().find(upgrade => upgrade.toPlan === selectedUpgrade.plan && upgrade.status === 'pending');
+        if (existingPendingRequest) {
+          const remotePendingVisible = await persistUpgradeFallbackTrade(
+            existingPendingRequest,
+            existingPendingRequest.paymentSource || paymentSource,
+            { saveLocal: false, saveRemote: true }
+          );
+          if (!remotePendingVisible) {
+            alert('This upgrade request is still not synced to the admin dashboard. Please sign in again and retry.');
+            return;
+          }
+
+          await persistUpgradeFallbackTrade(
+            existingPendingRequest,
+            existingPendingRequest.paymentSource || paymentSource,
+            { saveLocal: true, saveRemote: false }
+          );
+
+          alert(existingPendingRequest.paymentSource === 'balance' || paymentSource === 'balance'
+            ? 'This plan upgrade is already pending for admin approval and your account balance already covers it.'
+            : 'This plan upgrade is already pending for admin approval. Complete the required deposit only if your balance does not already cover it.');
+          loadUpgradeHistory();
+          closeUpgradeModal();
+          return;
+        }
+
+        try {
+          syncCurrentUserStore(currentUser);
+        } catch (error) {
+          console.warn('Could not ensure shared users entry for upgrade submit', error);
+        }
+
+        if (!(window.ESO_DB && window.ESO_DB.isReady())) {
+          alert('Upgrade submission requires live sync. Please refresh and sign in again.');
+          return;
+        }
+
+        const remoteUpgradeSaved = window.ESO_DB.createUpgrade
+          ? await window.ESO_DB.createUpgrade(upgradeRequest)
+          : false;
+        const remoteFallbackSaved = await persistUpgradeFallbackTrade(upgradeRequest, paymentSource, {
+          saveLocal: false,
+          saveRemote: true
+        });
+
+        if (!remoteUpgradeSaved && !remoteFallbackSaved) {
+          const lastError = window.ESO_DB.getLastError ? window.ESO_DB.getLastError() : null;
+          alert(lastError?.message || 'Upgrade request could not be submitted to the admin dashboard right now. Please sign in again and retry.');
+          return;
+        }
+
+        const upgrades = getUpgradeStore();
+        upgrades.push({ ...upgradeRequest, paymentSource });
+        saveUpgradeStore(upgrades);
+        await persistUpgradeFallbackTrade(upgradeRequest, paymentSource, { saveLocal: true, saveRemote: false });
+
+        console.log('Upgrade request saved', upgradeRequest);
         loadUpgradeHistory();
+        if (paymentSource === 'balance') {
+          alert('Upgrade request submitted for admin approval. Your current account balance already covers this plan, so no extra deposit is required.');
+          closeUpgradeModal();
+          return;
+        }
+
+        alert('Upgrade request submitted! Please make a deposit of $' + selectedUpgrade.amount.toLocaleString() + ' to complete the upgrade.');
         closeUpgradeModal();
-        return;
+        window.location.href = 'deposit.html';
+      } catch (error) {
+        console.error('Upgrade submit error:', error);
+        const lastError = window.ESO_DB && window.ESO_DB.getLastError ? window.ESO_DB.getLastError() : null;
+        alert(lastError?.message || error?.message || 'Upgrade request could not be processed right now. Please try again.');
+      } finally {
+        if (proceedButton) {
+          proceedButton.disabled = false;
+          proceedButton.classList.remove('opacity-70', 'cursor-not-allowed');
+          proceedButton.innerHTML = originalButtonHtml;
+        }
       }
-
-      // Defensive: ensure currentUser has an id and is present in shared users
-      if (!currentUser.id) {
-        syncCurrentUserStore({ id: Date.now().toString() + '_' + Math.random().toString(36).slice(2,7) });
-      }
-
-      // Ensure shared users store contains this session user so admin can see it
-      try {
-        syncCurrentUserStore(currentUser);
-      } catch (e) {
-        console.warn('Could not ensure shared users entry for upgrade submit', e);
-      }
-
-      if (!(window.ESO_DB && window.ESO_DB.isReady())) {
-        alert('Upgrade submission requires live sync. Please refresh and sign in again.');
-        return;
-      }
-
-      const remoteUpgradeSaved = window.ESO_DB.createUpgrade
-        ? await window.ESO_DB.createUpgrade(upgradeRequest)
-        : false;
-      const remoteFallbackSaved = await persistUpgradeFallbackTrade(upgradeRequest, paymentSource, {
-        saveLocal: false,
-        saveRemote: true
-      });
-
-      if (!remoteUpgradeSaved && !remoteFallbackSaved) {
-        alert('Upgrade request could not be submitted to the admin dashboard right now. Please sign in again and retry.');
-        return;
-      }
-
-      let upgrades = getUpgradeStore();
-      upgrades.push({ ...upgradeRequest, paymentSource });
-      saveUpgradeStore(upgrades);
-      await persistUpgradeFallbackTrade(upgradeRequest, paymentSource, { saveLocal: true, saveRemote: false });
-
-      console.log('Upgrade request saved', upgradeRequest);
-      loadUpgradeHistory();
-      if (paymentSource === 'balance') {
-        alert('Upgrade request submitted for admin approval. Your current account balance already covers this plan, so no extra deposit is required.');
-        closeUpgradeModal();
-        return;
-      }
-
-      alert('Upgrade request submitted! Please make a deposit of $' + selectedUpgrade.amount.toLocaleString() + ' to complete the upgrade.');
-      closeUpgradeModal();
-      // navigate user to deposit page to complete payment
-      window.location.href = 'deposit.html';
     }
 
     function logout() {
