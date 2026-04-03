@@ -1748,6 +1748,7 @@
     function loadWithdrawals() {
       const withdrawals = JSON.parse(localStorage.getItem('eso_withdrawals') || '[]').sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       const tbody = document.getElementById('withdrawalsTable');
+      const settledWithdrawals = getWithdrawalBalanceSettlements();
       
       if (withdrawals.length === 0) {
         tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">No withdrawals found</td></tr>';
@@ -1768,10 +1769,79 @@
             ${w.status === 'pending' ? `
               <button onclick="approveWithdrawal('${w.id}')" class="text-green-600 hover:text-green-800 mr-2"><i class="fas fa-check"></i></button>
               <button onclick="rejectWithdrawal('${w.id}')" class="text-red-600 hover:text-red-800"><i class="fas fa-times"></i></button>
+            ` : (w.status === 'approved' && shouldShowWithdrawalSettlementAction(w, settledWithdrawals)) ? `
+              <button onclick="settleApprovedWithdrawalBalance('${w.id}')" class="text-amber-600 hover:text-amber-800" title="Apply missing balance deduction"><i class="fas fa-wallet"></i></button>
             ` : '<span class="text-gray-400">-</span>'}
           </td>
         </tr>
       `).join('');
+    }
+
+    function getWithdrawalBalanceSettlements() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem('eso_withdrawal_balance_settlements') || '{}');
+        return parsed && typeof parsed === 'object' ? parsed : {};
+      } catch (_) {
+        return {};
+      }
+    }
+
+    function saveWithdrawalBalanceSettlements(map) {
+      localStorage.setItem('eso_withdrawal_balance_settlements', JSON.stringify(map && typeof map === 'object' ? map : {}));
+    }
+
+    function shouldShowWithdrawalSettlementAction(withdrawal, settlements = getWithdrawalBalanceSettlements()) {
+      if (!withdrawal || String(withdrawal.status || '').toLowerCase() !== 'approved') return false;
+
+      const source = String(withdrawal.source || 'total').toLowerCase();
+      if (source !== 'available' && source !== 'profits') return false;
+
+      return !settlements[String(withdrawal.id || '')];
+    }
+
+    async function settleApprovedWithdrawalBalance(withdrawalId) {
+      const settlements = getWithdrawalBalanceSettlements();
+      if (settlements[String(withdrawalId || '')]) {
+        showToast('This withdrawal balance has already been settled on this admin device.', 'error');
+        return;
+      }
+
+      let withdrawals = JSON.parse(localStorage.getItem('eso_withdrawals') || '[]');
+      const withdrawal = withdrawals.find(w => String(w.id || '') === String(withdrawalId || ''));
+      if (!withdrawal || !shouldShowWithdrawalSettlementAction(withdrawal, settlements)) {
+        showToast('No missing balance settlement was found for this withdrawal.', 'error');
+        return;
+      }
+
+      let users = getUsers();
+      const userIndex = users.findIndex(u => String(u.id || '') === String(withdrawal.userId || ''));
+      if (userIndex === -1) {
+        showToast('User not found for this approved withdrawal.', 'error');
+        return;
+      }
+
+      const user = users[userIndex];
+      const updatedUser = {
+        ...user,
+        balance: Math.max(0, Number(user.balance || 0) - Number(withdrawal.amount || 0))
+      };
+
+      if (window.ESO_DB && window.ESO_DB.isReady()) {
+        const userSaved = await window.ESO_DB.upsertUser(updatedUser);
+        if (!userSaved) {
+          const lastError = window.ESO_DB.getLastError ? window.ESO_DB.getLastError() : null;
+          showToast(lastError?.message || 'Could not sync the withdrawal balance settlement remotely.', 'error');
+          return;
+        }
+      }
+
+      users[userIndex] = updatedUser;
+      saveUsers(users);
+      settlements[String(withdrawal.id || '')] = new Date().toISOString();
+      saveWithdrawalBalanceSettlements(settlements);
+      showToast('Approved withdrawal balance settled.');
+      loadWithdrawals();
+      loadDashboard();
     }
 
     async function approveWithdrawal(withdrawalId) {
@@ -1815,7 +1885,15 @@
             if (!userSaved) {
               const lastError = window.ESO_DB.getLastError ? window.ESO_DB.getLastError() : null;
               showToast(lastError?.message || 'Withdrawal was approved, but the user balance could not be synced remotely.', 'error');
+            } else {
+              const settlements = getWithdrawalBalanceSettlements();
+              settlements[String(withdrawal.id || '')] = approvedAt;
+              saveWithdrawalBalanceSettlements(settlements);
             }
+          } else {
+            const settlements = getWithdrawalBalanceSettlements();
+            settlements[String(withdrawal.id || '')] = approvedAt;
+            saveWithdrawalBalanceSettlements(settlements);
           }
         } else {
           showToast('Withdrawal approved, but the user balance could not be updated locally.', 'error');
