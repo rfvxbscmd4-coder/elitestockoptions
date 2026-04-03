@@ -312,6 +312,13 @@
     function mergeFinancialFields(targetUser, sourceUser) {
       if (!targetUser || !sourceUser) return targetUser;
 
+      const getSyncTimestamp = (userLike) => {
+        const timestamp = new Date(userLike?.updatedAt || userLike?.createdAt || 0).getTime();
+        return Number.isFinite(timestamp) ? timestamp : 0;
+      };
+
+      const sourceIsNewer = getSyncTimestamp(sourceUser) > getSyncTimestamp(targetUser);
+
       const hasKycSubmission = (userLike) => {
         if (!userLike) return false;
         if (userLike.kycData) return true;
@@ -351,13 +358,18 @@
       numericFields.forEach((field) => {
         const targetValue = Number(targetUser[field] || 0);
         const sourceValue = Number(sourceUser[field] || 0);
-        if (targetValue === 0 && sourceValue !== 0) {
+        if ((sourceIsNewer && targetValue !== sourceValue) || (targetValue === 0 && sourceValue !== 0)) {
           targetUser[field] = sourceValue;
         }
       });
 
-      if ((!targetUser.plan || targetUser.plan === 'Bronze') && sourceUser.plan) {
+      if ((sourceIsNewer && sourceUser.plan && sourceUser.plan !== targetUser.plan)
+        || ((!targetUser.plan || targetUser.plan === 'Bronze') && sourceUser.plan)) {
         targetUser.plan = sourceUser.plan;
+      }
+
+      if (sourceIsNewer && sourceUser.updatedAt) {
+        targetUser.updatedAt = sourceUser.updatedAt;
       }
 
       const targetKycStatus = String(targetUser.kycStatus || '').trim().toLowerCase();

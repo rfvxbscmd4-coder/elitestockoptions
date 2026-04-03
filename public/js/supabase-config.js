@@ -100,8 +100,15 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 		return !!(docs.front || docs.back || docs.selfie);
 	}
 
+	function getUserSyncTimestamp(userLike) {
+		const timestamp = new Date(userLike?.updatedAt || userLike?.createdAt || 0).getTime();
+		return Number.isFinite(timestamp) ? timestamp : 0;
+	}
+
 	function mergeUserData(targetUser, sourceUser) {
 		if (!targetUser || !sourceUser) return targetUser;
+
+		const sourceIsNewer = getUserSyncTimestamp(sourceUser) > getUserSyncTimestamp(targetUser);
 
 		const sourceDisplayName = String(sourceUser.fullName || sourceUser.name || '').trim();
 		if (!targetUser.fullName && sourceDisplayName) {
@@ -120,12 +127,13 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 		['balance', 'availableCash', 'profitsBalance'].forEach((field) => {
 			const targetValue = Number(targetUser[field] || 0);
 			const sourceValue = Number(sourceUser[field] || 0);
-			if (targetValue === 0 && sourceValue !== 0) {
+			if ((sourceIsNewer && targetValue !== sourceValue) || (targetValue === 0 && sourceValue !== 0)) {
 				targetUser[field] = sourceValue;
 			}
 		});
 
-		if ((!targetUser.plan || String(targetUser.plan).toLowerCase() === 'bronze') && sourceUser.plan) {
+		if ((sourceIsNewer && sourceUser.plan && sourceUser.plan !== targetUser.plan)
+			|| ((!targetUser.plan || String(targetUser.plan).toLowerCase() === 'bronze') && sourceUser.plan)) {
 			targetUser.plan = sourceUser.plan;
 		}
 
@@ -154,7 +162,7 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 			targetUser.kycDocuments = sourceUser.kycDocuments;
 		}
 
-		if (!targetUser.updatedAt && sourceUser.updatedAt) {
+		if (sourceIsNewer || (!targetUser.updatedAt && sourceUser.updatedAt)) {
 			targetUser.updatedAt = sourceUser.updatedAt;
 		}
 
