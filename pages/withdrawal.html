@@ -137,7 +137,7 @@
         <!-- Withdrawal Form -->
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
           <h2 class="text-lg font-bold text-gray-900 mb-6">Withdrawal Details</h2>
-          <form id="withdrawalForm" class="space-y-6 max-w-2xl">
+          <form id="withdrawalForm" class="space-y-6 max-w-2xl" novalidate>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-2">Withdrawal Method</label>
@@ -230,29 +230,279 @@
   </div>
 
   <script>
-    let currentUser = JSON.parse(localStorage.getItem('elitestockoptions_user') || localStorage.getItem('eso_currentUser'));
+    function safeParseStoredJson(primaryKey, fallbackKey = '') {
+      const rawPrimary = localStorage.getItem(primaryKey);
+      const rawFallback = fallbackKey ? localStorage.getItem(fallbackKey) : null;
+      const candidates = [rawPrimary, rawFallback].filter(value => typeof value === 'string' && value.trim());
+
+      for (const raw of candidates) {
+        try {
+          return JSON.parse(raw);
+        } catch (_) {}
+      }
+
+      return null;
+    }
+
+    function safeParseArray(rawValue) {
+      try {
+        const parsed = JSON.parse(rawValue || '[]');
+        return Array.isArray(parsed)
+          ? parsed.filter(item => item && typeof item === 'object')
+          : [];
+      } catch (_) {
+        return [];
+      }
+    }
+
+    let currentUser = safeParseStoredJson('elitestockoptions_user', 'eso_currentUser');
     if (!currentUser) {
       alert('Please login first');
       window.location.href = 'login.html';
     }
 
-    // Sync balance from shared users store (supports both new and legacy keys)
-    const allUsers = JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
-    const serverUser = currentUser ? allUsers.find(u => String(u.id || '') === String(currentUser.id || '')) : null;
-    if (serverUser) {
-      currentUser.balance = serverUser.balance || 0;
-      currentUser.availableCash = serverUser.availableCash || 0;
-      currentUser.profitsBalance = serverUser.profitsBalance || 0;
-      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+    function hasWithdrawalKycSubmission(userLike) {
+      if (!userLike) return false;
+      if (userLike.kycData || userLike.kycSubmittedAt) return true;
+
+      const docs = userLike.kycDocuments || {};
+      return !!(docs.front || docs.back || docs.selfie);
+    }
+
+    function mergeWithdrawalUserData(targetUser, sourceUser) {
+      if (!targetUser || !sourceUser) return targetUser;
+
+      const sourceDisplayName = String(sourceUser.fullName || sourceUser.name || '').trim();
+      if (!targetUser.fullName && sourceDisplayName) {
+        targetUser.fullName = sourceDisplayName;
+      }
+      if (!targetUser.name && sourceDisplayName) {
+        targetUser.name = sourceDisplayName;
+      }
+
+      ['email', 'phone', 'countryCode', 'phoneNumber', 'country', 'referralCode', 'password', 'auth_id', 'id', 'createdAt'].forEach((field) => {
+        if (!targetUser[field] && sourceUser[field]) {
+          targetUser[field] = sourceUser[field];
+        }
+      });
+
+      ['balance', 'availableCash', 'profitsBalance'].forEach((field) => {
+        const targetValue = Number(targetUser[field] || 0);
+        const sourceValue = Number(sourceUser[field] || 0);
+        if (targetValue === 0 && sourceValue !== 0) {
+          targetUser[field] = sourceValue;
+        }
+      });
+
+      if ((!targetUser.plan || String(targetUser.plan).toLowerCase() === 'bronze') && sourceUser.plan) {
+        targetUser.plan = sourceUser.plan;
+      }
+
+      const targetKycStatus = String(targetUser.kycStatus || '').trim().toLowerCase();
+      const sourceKycStatus = String(sourceUser.kycStatus || '').trim().toLowerCase();
+      const targetMissingKyc = !targetKycStatus
+        || targetKycStatus === 'not_submitted'
+        || (targetKycStatus === 'pending' && !hasWithdrawalKycSubmission(targetUser));
+      const sourceHasKyc = sourceKycStatus === 'verified'
+        || sourceKycStatus === 'rejected'
+        || hasWithdrawalKycSubmission(sourceUser);
+
+      if (targetMissingKyc && sourceHasKyc) {
+        targetUser.kycStatus = sourceUser.kycStatus || 'pending';
+      }
+      if (!targetUser.kycSubmittedAt && sourceUser.kycSubmittedAt) {
+        targetUser.kycSubmittedAt = sourceUser.kycSubmittedAt;
+      }
+      if (!targetUser.kycVerifiedAt && sourceUser.kycVerifiedAt) {
+        targetUser.kycVerifiedAt = sourceUser.kycVerifiedAt;
+      }
+      if (!targetUser.kycData && sourceUser.kycData) {
+        targetUser.kycData = sourceUser.kycData;
+      }
+      if (!targetUser.updatedAt && sourceUser.updatedAt) {
+        targetUser.updatedAt = sourceUser.updatedAt;
+      }
+
+      return targetUser;
+    }
+
+    function buildSharedUserRecord(userLike) {
+      if (!userLike || typeof userLike !== 'object') return null;
+
+      return {
+        id: userLike.id || null,
+        auth_id: userLike.auth_id || null,
+        fullName: userLike.fullName || userLike.name || null,
+        name: userLike.name || userLike.fullName || null,
+        email: userLike.email || null,
+        phone: userLike.phone || null,
+        countryCode: userLike.countryCode || null,
+        phoneNumber: userLike.phoneNumber || null,
+        country: userLike.country || null,
+        referralCode: userLike.referralCode || null,
+        password: userLike.password || null,
+        plan: userLike.plan || 'Bronze',
+        balance: Number(userLike.balance || 0),
+        availableCash: Number(userLike.availableCash || 0),
+        profitsBalance: Number(userLike.profitsBalance || 0),
+        kycStatus: userLike.kycStatus || null,
+        kycSubmittedAt: userLike.kycSubmittedAt || null,
+        kycVerifiedAt: userLike.kycVerifiedAt || null,
+        kycData: userLike.kycData || null,
+        updatedAt: userLike.updatedAt || null,
+        createdAt: userLike.createdAt || null,
+        isAdmin: !!userLike.isAdmin
+      };
+    }
+
+    function writeCurrentUserCache(userLike) {
+      const fullUser = userLike ? { ...userLike } : null;
+      if (!fullUser) return;
+
+      try {
+        const serialized = JSON.stringify(fullUser);
+        localStorage.setItem('elitestockoptions_user', serialized);
+        localStorage.setItem('eso_currentUser', serialized);
+        return;
+      } catch (error) {
+        console.warn('Could not persist full withdrawal user cache, retrying without heavy media fields', error);
+      }
+
+      const fallbackUser = {
+        ...fullUser,
+        kycDocuments: null,
+        profilePhoto: null,
+        avatar: fullUser.avatar || null
+      };
+
+      try {
+        const serializedFallback = JSON.stringify(fallbackUser);
+        localStorage.setItem('elitestockoptions_user', serializedFallback);
+        localStorage.setItem('eso_currentUser', serializedFallback);
+      } catch (error) {
+        console.warn('Could not persist fallback withdrawal user cache', error);
+      }
+    }
+
+    function getWithdrawalUsers() {
+      const primary = safeParseArray(localStorage.getItem('elitestockoptions_users'));
+      const legacy = safeParseArray(localStorage.getItem('eso_users'));
+      return [...primary, ...legacy];
+    }
+
+    function getWithdrawalUserScore(userLike, preferredAuthId = '') {
+      if (!userLike || userLike.isAdmin) return Number.NEGATIVE_INFINITY;
+
+      const displayName = String(userLike.fullName || userLike.name || '').trim();
+      const emailPrefix = String(userLike.email || '').trim().toLowerCase().split('@')[0] || '';
+      let score = 0;
+
+      if (preferredAuthId && String(userLike.auth_id || '') === String(preferredAuthId)) score += 20;
+      if (currentUser?.id && String(userLike.id || '') === String(currentUser.id || '')) score += 10;
+      if (displayName && displayName.toLowerCase() !== emailPrefix) score += 20;
+      if (Number(userLike.balance || 0) !== 0) score += 18;
+      if (Number(userLike.availableCash || 0) !== 0) score += 12;
+      if (Number(userLike.profitsBalance || 0) !== 0) score += 12;
+      if (String(userLike.plan || '').trim().toLowerCase() && String(userLike.plan || '').trim().toLowerCase() !== 'bronze') score += 8;
+      if (userLike.phone || userLike.phoneNumber) score += 6;
+      if (String(userLike.kycStatus || '').trim().toLowerCase() === 'verified') score += 8;
+      else if (hasWithdrawalKycSubmission(userLike)) score += 4;
+
+      const recency = new Date(userLike.updatedAt || userLike.createdAt || 0).getTime();
+      if (Number.isFinite(recency)) {
+        score += recency / 1e15;
+      }
+
+      return score;
+    }
+
+    function selectCanonicalWithdrawalUser(candidates, preferredAuthId = '') {
+      const filtered = (Array.isArray(candidates) ? candidates : []).filter(userLike => userLike && !userLike.isAdmin);
+      if (!filtered.length) return null;
+
+      const ranked = filtered
+        .map(userLike => ({ user: userLike, score: getWithdrawalUserScore(userLike, preferredAuthId) }))
+        .sort((a, b) => b.score - a.score);
+
+      let canonical = { ...ranked[0].user };
+      ranked.slice(1).forEach(({ user }) => {
+        canonical = mergeWithdrawalUserData(canonical, user);
+      });
+
+      if (!canonical.fullName && canonical.name) canonical.fullName = canonical.name;
+      if (!canonical.name && canonical.fullName) canonical.name = canonical.fullName;
+      return canonical;
     }
 
     function getSharedUsers() {
-      return JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
+      return getWithdrawalUsers();
     }
 
     function saveSharedUsers(users) {
-      localStorage.setItem('elitestockoptions_users', JSON.stringify(users));
-      localStorage.setItem('eso_users', JSON.stringify(users));
+      const normalizedUsers = (Array.isArray(users) ? users : [])
+        .filter(userLike => userLike && typeof userLike === 'object')
+        .map(buildSharedUserRecord)
+        .filter(Boolean);
+
+      const dedupedUsers = [];
+      normalizedUsers.forEach((userLike) => {
+        const existingIndex = findSharedUserIndex(dedupedUsers, userLike);
+        if (existingIndex >= 0) {
+          dedupedUsers[existingIndex] = mergeWithdrawalUserData({ ...dedupedUsers[existingIndex] }, userLike);
+        } else {
+          dedupedUsers.push(userLike);
+        }
+      });
+
+      try {
+        const serialized = JSON.stringify(dedupedUsers);
+        localStorage.setItem('elitestockoptions_users', serialized);
+        localStorage.setItem('eso_users', serialized);
+      } catch (error) {
+        console.warn('Could not persist withdrawal shared users cache', error);
+      }
+
+      return dedupedUsers;
+    }
+
+    function resolveWithdrawalUserFromStore() {
+      if (!currentUser) return null;
+
+      const currentEmail = String(currentUser.email || '').toLowerCase();
+      const currentAuthId = String(currentUser.auth_id || '');
+      const currentId = String(currentUser.id || '');
+      const candidates = getSharedUsers().filter((userLike) => {
+        const sameId = currentId && String(userLike.id || '') === currentId;
+        const sameAuth = currentAuthId && String(userLike.auth_id || '') === currentAuthId;
+        const sameEmail = currentEmail && String(userLike.email || '').toLowerCase() === currentEmail;
+        return sameId || sameAuth || sameEmail;
+      });
+
+      return selectCanonicalWithdrawalUser(candidates, currentAuthId);
+    }
+
+    function resolveCurrentUserIds() {
+      const ids = new Set();
+      if (currentUser?.id) ids.add(String(currentUser.id));
+      if (currentUser?.auth_id) ids.add(String(currentUser.auth_id));
+
+      const currentEmail = String(currentUser?.email || '').toLowerCase();
+      if (currentEmail) {
+        getSharedUsers()
+          .filter(userLike => String(userLike.email || '').toLowerCase() === currentEmail)
+          .forEach((userLike) => {
+            if (userLike?.id) ids.add(String(userLike.id));
+            if (userLike?.auth_id) ids.add(String(userLike.auth_id));
+          });
+      }
+
+      return ids;
+    }
+
+    const canonicalUserFromStore = resolveWithdrawalUserFromStore();
+    if (canonicalUserFromStore) {
+      currentUser = mergeWithdrawalUserData({ ...canonicalUserFromStore }, currentUser);
+      writeCurrentUserCache(currentUser);
     }
 
     function findSharedUserIndex(users, userLike) {
@@ -272,15 +522,17 @@
 
     function syncCurrentUserStore(patch = {}) {
       currentUser = { ...currentUser, ...patch };
-      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
-      localStorage.setItem('eso_currentUser', JSON.stringify(currentUser));
+      currentUser.fullName = currentUser.fullName || currentUser.name || null;
+      currentUser.name = currentUser.name || currentUser.fullName || null;
+      writeCurrentUserCache(currentUser);
 
       const users = getSharedUsers();
       const userIndex = findSharedUserIndex(users, currentUser);
+      const sharedUserRecord = buildSharedUserRecord(currentUser);
       if (userIndex >= 0) {
-        users[userIndex] = { ...users[userIndex], ...currentUser };
+        users[userIndex] = mergeWithdrawalUserData({ ...users[userIndex] }, sharedUserRecord);
       } else {
-        users.push({ ...currentUser });
+        users.push(sharedUserRecord);
       }
       saveSharedUsers(users);
     }
@@ -336,8 +588,30 @@
       }
       if (!remoteUser) return null;
 
-      syncCurrentUserStore(remoteUser);
-      return remoteUser;
+      const remoteEmail = String(remoteUser.email || currentUser?.email || '').toLowerCase();
+      const preferredAuthId = String(authUser?.id || remoteUser.auth_id || currentUser?.auth_id || '');
+      const matchedLocalUsers = getSharedUsers().filter((userLike) => {
+        const sameId = String(userLike.id || '') === String(remoteUser.id || currentUser?.id || '');
+        const sameEmail = remoteEmail && String(userLike.email || '').toLowerCase() === remoteEmail;
+        const sameAuth = preferredAuthId && String(userLike.auth_id || '') === preferredAuthId;
+        return sameId || sameEmail || sameAuth;
+      });
+
+      const canonicalUser = selectCanonicalWithdrawalUser([
+        remoteUser,
+        currentUser,
+        ...matchedLocalUsers
+      ], preferredAuthId) || remoteUser;
+
+      canonicalUser.email = canonicalUser.email || remoteUser.email || currentUser?.email || null;
+      canonicalUser.id = canonicalUser.id || remoteUser.id || currentUser?.id || null;
+      canonicalUser.auth_id = preferredAuthId || canonicalUser.auth_id || null;
+      canonicalUser.fullName = canonicalUser.fullName || canonicalUser.name || null;
+      canonicalUser.name = canonicalUser.name || canonicalUser.fullName || null;
+      canonicalUser.updatedAt = remoteUser.updatedAt || canonicalUser.updatedAt || new Date().toISOString();
+
+      syncCurrentUserStore(canonicalUser);
+      return canonicalUser;
     }
 
     async function persistCurrentUserToRemote() {
@@ -369,7 +643,12 @@
     let selectedSource = 'total';
 
     async function initWithdrawal() {
-      await syncRemoteUserToLocal();
+      const remoteUser = await syncRemoteUserToLocal();
+      const serverUser = resolveWithdrawalUserFromStore() || remoteUser;
+      if (serverUser) {
+        syncCurrentUserStore(serverUser);
+      }
+
       document.getElementById('totalBalance').textContent = '$' + (currentUser.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
       document.getElementById('availableCash').textContent = '$' + (currentUser.availableCash || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
       document.getElementById('profitsBalance').textContent = '$' + (currentUser.profitsBalance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
@@ -445,82 +724,137 @@
     document.getElementById('withdrawalForm').addEventListener('submit', async function(e) {
       e.preventDefault();
 
-      await syncRemoteUserToLocal();
-      
-      const amount = parseFloat(document.getElementById('withdrawAmount').value);
-      const method = document.getElementById('withdrawMethod').value;
-      
-      let maxAmount = 0;
-      switch(selectedSource) {
-        case 'total': maxAmount = currentUser.balance || 0; break;
-        case 'available': maxAmount = currentUser.availableCash || 0; break;
-        case 'profits': maxAmount = currentUser.profitsBalance || 0; break;
+      const submitButton = this.querySelector('button[type="submit"]');
+      const originalButtonHtml = submitButton ? submitButton.innerHTML : '';
+
+      try {
+        if (submitButton) {
+          submitButton.disabled = true;
+          submitButton.classList.add('opacity-70', 'cursor-not-allowed');
+          submitButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Submitting...';
+        }
+
+        await syncRemoteUserToLocal();
+
+        const method = String(document.getElementById('withdrawMethod').value || '').trim();
+        const address = String(document.getElementById('walletAddress').value || '').trim();
+        const amount = parseFloat(document.getElementById('withdrawAmount').value);
+
+        if (!method) {
+          alert('Please select a withdrawal method.');
+          return;
+        }
+
+        if (!address) {
+          alert(method === 'crypto' ? 'Please enter your wallet address.' : 'Please enter your bank account number.');
+          return;
+        }
+
+        if (!Number.isFinite(amount) || amount <= 0) {
+          alert('Please enter a valid withdrawal amount.');
+          return;
+        }
+
+        let maxAmount = 0;
+        switch(selectedSource) {
+          case 'total': maxAmount = Number(currentUser.balance || 0); break;
+          case 'available': maxAmount = Number(currentUser.availableCash || 0); break;
+          case 'profits': maxAmount = Number(currentUser.profitsBalance || 0); break;
+        }
+
+        if (maxAmount <= 0) {
+          alert('No funds are available in the selected source.');
+          return;
+        }
+
+        if (amount < 50) {
+          alert('Minimum withdrawal is $50');
+          return;
+        }
+
+        if (amount > maxAmount) {
+          alert('Insufficient balance in selected source');
+          return;
+        }
+
+        const withdrawal = {
+          id: Date.now().toString(),
+          userId: currentUser.id,
+          userAuthId: currentUser.auth_id || null,
+          userEmail: currentUser.email || null,
+          source: selectedSource,
+          method: method,
+          cryptoType: method === 'crypto' ? document.getElementById('cryptoType').value : null,
+          address: address,
+          amount: amount,
+          fee: amount * 0.02,
+          netAmount: amount * 0.98,
+          status: 'pending',
+          createdAt: new Date().toISOString()
+        };
+
+        if (!(window.ESO_DB && window.ESO_DB.isReady())) {
+          alert('Withdrawal submission requires live sync. Please refresh and sign in again.');
+          return;
+        }
+
+        const remoteSaved = await window.ESO_DB.createWithdrawal(withdrawal);
+        if (!remoteSaved) {
+          const lastError = window.ESO_DB.getLastError ? window.ESO_DB.getLastError() : null;
+          alert(lastError?.message || 'Withdrawal request could not be submitted to the admin dashboard right now. Please sign in again and retry.');
+          return;
+        }
+
+        // Save withdrawal request
+        const withdrawals = safeParseArray(localStorage.getItem('eso_withdrawals'));
+        withdrawals.push(withdrawal);
+        localStorage.setItem('eso_withdrawals', JSON.stringify(withdrawals));
+        addPendingTransactionFromWithdrawal(withdrawal);
+        addUserNotification(
+          withdrawal.userId,
+          'Withdrawal Request Submitted',
+          `$${withdrawal.amount.toFixed(2)} withdrawal request submitted and pending review.`,
+          'warning'
+        );
+
+        // Deduct from balance
+        switch(selectedSource) {
+          case 'total': currentUser.balance = Number(currentUser.balance || 0) - amount; break;
+          case 'available': currentUser.availableCash = Number(currentUser.availableCash || 0) - amount; break;
+          case 'profits': currentUser.profitsBalance = Number(currentUser.profitsBalance || 0) - amount; break;
+        }
+        syncCurrentUserStore(currentUser);
+        await persistCurrentUserToRemote();
+
+        alert('Withdrawal request submitted! You will receive your funds within 24-48 hours after approval.');
+        document.getElementById('withdrawalForm').reset();
+        await initWithdrawal();
+      } catch (error) {
+        console.error('Withdrawal submit error:', error);
+        const lastError = window.ESO_DB && window.ESO_DB.getLastError ? window.ESO_DB.getLastError() : null;
+        alert(lastError?.message || error?.message || 'Withdrawal request could not be processed right now. Please try again.');
+      } finally {
+        if (submitButton) {
+          submitButton.disabled = false;
+          submitButton.classList.remove('opacity-70', 'cursor-not-allowed');
+          submitButton.innerHTML = originalButtonHtml;
+        }
       }
-
-      if (amount < 50) {
-        alert('Minimum withdrawal is $50');
-        return;
-      }
-
-      if (amount > maxAmount) {
-        alert('Insufficient balance in selected source');
-        return;
-      }
-
-      const withdrawal = {
-        id: Date.now().toString(),
-        userId: currentUser.id,
-        source: selectedSource,
-        method: method,
-        cryptoType: method === 'crypto' ? document.getElementById('cryptoType').value : null,
-        address: document.getElementById('walletAddress').value,
-        amount: amount,
-        fee: amount * 0.02,
-        netAmount: amount * 0.98,
-        status: 'pending',
-        createdAt: new Date().toISOString()
-      };
-
-      if (!(window.ESO_DB && window.ESO_DB.isReady())) {
-        alert('Withdrawal submission requires live sync. Please refresh and sign in again.');
-        return;
-      }
-
-      const remoteSaved = await window.ESO_DB.createWithdrawal(withdrawal);
-      if (!remoteSaved) {
-        alert('Withdrawal request could not be submitted to the admin dashboard right now. Please sign in again and retry.');
-        return;
-      }
-
-      // Save withdrawal request
-      let withdrawals = JSON.parse(localStorage.getItem('eso_withdrawals') || '[]');
-      withdrawals.push(withdrawal);
-      localStorage.setItem('eso_withdrawals', JSON.stringify(withdrawals));
-      addPendingTransactionFromWithdrawal(withdrawal);
-      addUserNotification(
-        withdrawal.userId,
-        'Withdrawal Request Submitted',
-        `$${withdrawal.amount.toFixed(2)} withdrawal request submitted and pending review.`,
-        'warning'
-      );
-
-      // Deduct from balance
-      switch(selectedSource) {
-        case 'total': currentUser.balance -= amount; break;
-        case 'available': currentUser.availableCash -= amount; break;
-        case 'profits': currentUser.profitsBalance -= amount; break;
-      }
-      syncCurrentUserStore(currentUser);
-      await persistCurrentUserToRemote();
-
-      alert('Withdrawal request submitted! You will receive your funds within 24-48 hours after approval.');
-      document.getElementById('withdrawalForm').reset();
-      initWithdrawal();
     });
 
     function loadWithdrawalHistory() {
-      const withdrawals = JSON.parse(localStorage.getItem('eso_withdrawals') || '[]');
-      const userWithdrawals = withdrawals.filter(w => String(w.userId || '') === String(currentUser.id || '')).slice(0, 10);
+      const withdrawals = safeParseArray(localStorage.getItem('eso_withdrawals'));
+      const currentUserIds = resolveCurrentUserIds();
+      const currentEmail = String(currentUser?.email || '').toLowerCase();
+      const currentAuthId = String(currentUser?.auth_id || '');
+      const userWithdrawals = withdrawals.filter((withdrawal) => {
+        const withdrawalUserId = String(withdrawal.userId || '');
+        const withdrawalUserEmail = String(withdrawal.userEmail || '').toLowerCase();
+        const withdrawalUserAuthId = String(withdrawal.userAuthId || '');
+        return currentUserIds.has(withdrawalUserId)
+          || (!!currentEmail && withdrawalUserEmail === currentEmail)
+          || (!!currentAuthId && withdrawalUserAuthId === currentAuthId);
+      }).slice(0, 10);
       
       const tbody = document.getElementById('withdrawalHistoryTable');
       if (userWithdrawals.length === 0) {
