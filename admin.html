@@ -1801,6 +1801,27 @@
       withdrawal.approvedAt = approvedAt;
       localStorage.setItem('eso_withdrawals', JSON.stringify(withdrawals));
 
+      const withdrawalSource = String(withdrawal.source || 'total').toLowerCase();
+      if (withdrawalSource === 'available' || withdrawalSource === 'profits') {
+        let users = getUsers();
+        const user = users.find(u => u.id === withdrawal.userId);
+
+        if (user) {
+          user.balance = Math.max(0, Number(user.balance || 0) - Number(withdrawal.amount || 0));
+          saveUsers(users);
+
+          if (window.ESO_DB && window.ESO_DB.isReady()) {
+            const userSaved = await window.ESO_DB.upsertUser(user);
+            if (!userSaved) {
+              const lastError = window.ESO_DB.getLastError ? window.ESO_DB.getLastError() : null;
+              showToast(lastError?.message || 'Withdrawal was approved, but the user balance could not be synced remotely.', 'error');
+            }
+          }
+        } else {
+          showToast('Withdrawal approved, but the user balance could not be updated locally.', 'error');
+        }
+      }
+
       upsertTransactionStatusByReference({
         userId: withdrawal.userId,
         type: 'withdrawal',
