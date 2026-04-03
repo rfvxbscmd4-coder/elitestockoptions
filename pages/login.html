@@ -7,8 +7,8 @@
   <link rel="icon" type="image/png" href="../public/logo.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="../public/js/supabase-config.js"></script>
-  <script src="../public/js/supabase-client.js"></script>
+  <script src="../public/js/supabase-config.js?v=20260403-01"></script>
+  <script src="../public/js/supabase-client.js?v=20260403-01"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     html { -webkit-text-size-adjust: 100%; }
@@ -288,19 +288,23 @@
       ];
 
       keys.forEach((key) => {
-        const data = JSON.parse(localStorage.getItem(key) || '[]');
-        if (!Array.isArray(data) || data.length === 0) return;
+        try {
+          const data = JSON.parse(localStorage.getItem(key) || '[]');
+          if (!Array.isArray(data) || data.length === 0) return;
 
-        let changed = false;
-        data.forEach((item) => {
-          if (item && item.userId === oldUserId) {
-            item.userId = newUserId;
-            changed = true;
+          let changed = false;
+          data.forEach((item) => {
+            if (item && item.userId === oldUserId) {
+              item.userId = newUserId;
+              changed = true;
+            }
+          });
+
+          if (changed) {
+            localStorage.setItem(key, JSON.stringify(data));
           }
-        });
-
-        if (changed) {
-          localStorage.setItem(key, JSON.stringify(data));
+        } catch (error) {
+          console.warn('Could not migrate user-scoped records for key:', key, error);
         }
       });
     }
@@ -316,6 +320,32 @@
         const docs = userLike.kycDocuments || {};
         return !!(docs.front || docs.back || docs.selfie);
       };
+
+      const sourceDisplayName = String(sourceUser.fullName || sourceUser.name || '').trim();
+      if (!targetUser.fullName && sourceDisplayName) {
+        targetUser.fullName = sourceDisplayName;
+      }
+      if (!targetUser.name && sourceDisplayName) {
+        targetUser.name = sourceDisplayName;
+      }
+      if (!targetUser.phone && sourceUser.phone) {
+        targetUser.phone = sourceUser.phone;
+      }
+      if (!targetUser.countryCode && sourceUser.countryCode) {
+        targetUser.countryCode = sourceUser.countryCode;
+      }
+      if (!targetUser.phoneNumber && sourceUser.phoneNumber) {
+        targetUser.phoneNumber = sourceUser.phoneNumber;
+      }
+      if ((!targetUser.country || targetUser.country === 'US') && sourceUser.country) {
+        targetUser.country = sourceUser.country;
+      }
+      if (!targetUser.referralCode && sourceUser.referralCode) {
+        targetUser.referralCode = sourceUser.referralCode;
+      }
+      if (!targetUser.createdAt && sourceUser.createdAt) {
+        targetUser.createdAt = sourceUser.createdAt;
+      }
 
       const numericFields = ['balance', 'availableCash', 'profitsBalance'];
       numericFields.forEach((field) => {
@@ -358,6 +388,83 @@
       return targetUser;
     }
 
+    function buildSharedUserRecord(userLike) {
+      if (!userLike || typeof userLike !== 'object') return null;
+
+      return {
+        id: userLike.id || null,
+        auth_id: userLike.auth_id || null,
+        fullName: userLike.fullName || userLike.name || null,
+        email: userLike.email || null,
+        phone: userLike.phone || null,
+        countryCode: userLike.countryCode || null,
+        phoneNumber: userLike.phoneNumber || null,
+        country: userLike.country || null,
+        referralCode: userLike.referralCode || null,
+        password: userLike.password || null,
+        plan: userLike.plan || 'Bronze',
+        balance: Number(userLike.balance || 0),
+        availableCash: Number(userLike.availableCash || 0),
+        profitsBalance: Number(userLike.profitsBalance || 0),
+        kycStatus: userLike.kycStatus || null,
+        kycSubmittedAt: userLike.kycSubmittedAt || null,
+        kycVerifiedAt: userLike.kycVerifiedAt || null,
+        kycData: userLike.kycData || null,
+        updatedAt: userLike.updatedAt || null,
+        createdAt: userLike.createdAt || null,
+        isAdmin: !!userLike.isAdmin
+      };
+    }
+
+    function saveSharedUsers(users) {
+      const normalizedUsers = (Array.isArray(users) ? users : [])
+        .filter(userLike => userLike && typeof userLike === 'object')
+        .map(buildSharedUserRecord)
+        .filter(Boolean);
+
+      try {
+        const serialized = JSON.stringify(normalizedUsers);
+        localStorage.setItem('elitestockoptions_users', serialized);
+        localStorage.setItem('eso_users', serialized);
+      } catch (error) {
+        console.warn('Could not persist shared users cache', error);
+      }
+
+      return normalizedUsers;
+    }
+
+    function writeCurrentUserCache(userLike) {
+      const fullUser = userLike ? { ...userLike } : null;
+      if (!fullUser) return null;
+
+      try {
+        const serialized = JSON.stringify(fullUser);
+        localStorage.setItem('elitestockoptions_user', serialized);
+        localStorage.setItem('eso_currentUser', serialized);
+        return fullUser;
+      } catch (error) {
+        console.warn('Could not persist full login user cache, retrying without heavy media fields', error);
+      }
+
+      const fallbackUser = {
+        ...fullUser,
+        kycDocuments: null,
+        profilePhoto: null,
+        avatar: fullUser.avatar || null
+      };
+
+      try {
+        const serializedFallback = JSON.stringify(fallbackUser);
+        localStorage.setItem('elitestockoptions_user', serializedFallback);
+        localStorage.setItem('eso_currentUser', serializedFallback);
+        return fallbackUser;
+      } catch (error) {
+        console.warn('Could not persist fallback login user cache', error);
+      }
+
+      return fullUser;
+    }
+
     function storeMergedUserRecord(users, mergedUser) {
       const normalizedEmail = String(mergedUser.email || '').toLowerCase();
       const dedupedUsers = (Array.isArray(users) ? users : []).filter(u => {
@@ -368,9 +475,7 @@
       });
 
       dedupedUsers.push(mergedUser);
-      localStorage.setItem('elitestockoptions_users', JSON.stringify(dedupedUsers));
-      localStorage.setItem('eso_users', JSON.stringify(dedupedUsers));
-      return dedupedUsers;
+      return saveSharedUsers(dedupedUsers);
     }
 
     async function provisionRemoteProfileForLocalUser(localUser, email, password, users) {
@@ -415,8 +520,13 @@
     function readUsersArray(key) {
       try {
         const parsed = JSON.parse(localStorage.getItem(key) || '[]');
-        return Array.isArray(parsed) ? parsed : [];
+        return Array.isArray(parsed)
+          ? parsed.filter(userLike => userLike && typeof userLike === 'object')
+          : [];
       } catch (_) {
+        try {
+          localStorage.removeItem(key);
+        } catch (_) {}
         return [];
       }
     }
@@ -457,9 +567,9 @@
       const newUsers = readUsersArray('elitestockoptions_users');
       const oldUsers = readUsersArray('eso_users');
       if (!newUsers.length && oldUsers.length) {
-        localStorage.setItem('elitestockoptions_users', JSON.stringify(oldUsers));
+        saveSharedUsers(oldUsers);
       } else if (newUsers.length && !oldUsers.length) {
-        localStorage.setItem('eso_users', JSON.stringify(newUsers));
+        saveSharedUsers(newUsers);
       }
 
       // Check for existing user (Supabase first, then local fallback)
@@ -483,6 +593,7 @@
           if (user) {
             user = {
               ...user,
+              fullName: user.fullName || user.name || null,
               auth_id: authUser.id,
               email,
               password: user.password || password,
@@ -521,12 +632,20 @@
           }
 
           const normalizedEmail = (user.email || email).toLowerCase();
+          if (localEmailMatch) {
+            mergeFinancialFields(user, localEmailMatch);
+          }
           const legacyUser = users.find(u => (u.email || '').toLowerCase() === normalizedEmail && u.id !== user.id);
 
           if (legacyUser) {
             migrateUserScopedRecords(legacyUser.id, user.id);
             mergeFinancialFields(user, legacyUser);
           }
+
+          user.fullName = user.fullName || user.name
+            || (authUser.user_metadata && (authUser.user_metadata.fullName || authUser.user_metadata.name))
+            || email.split('@')[0];
+          user.name = user.name || user.fullName;
 
           const idx = users.findIndex(u => String(u.id || '') === String(user.id || ''));
           if (idx >= 0) users[idx] = user;
@@ -540,9 +659,7 @@
             dedupedUsers.push(user);
           }
 
-          users = dedupedUsers;
-          localStorage.setItem('elitestockoptions_users', JSON.stringify(users));
-          localStorage.setItem('eso_users', JSON.stringify(users));
+          users = saveSharedUsers(dedupedUsers);
 
           if (window.ESO_DB && window.ESO_DB.isReady()) {
             await window.ESO_DB.upsertUser(user);
@@ -586,7 +703,7 @@
           return;
         }
 
-        localStorage.setItem('elitestockoptions_user', JSON.stringify(user));
+        writeCurrentUserCache(user);
         window.location.href = 'dashboard.html';
       } else {
         // Demo login
@@ -601,12 +718,11 @@
             kycStatus: 'not_submitted',
             createdAt: new Date().toISOString()
           };
-          localStorage.setItem('elitestockoptions_user', JSON.stringify(demoUser));
+          writeCurrentUserCache(demoUser);
           
           if (!users.find(u => (u.email || '').toLowerCase() === 'demo@example.com')) {
             users.push(demoUser);
-            localStorage.setItem('elitestockoptions_users', JSON.stringify(users));
-            localStorage.setItem('eso_users', JSON.stringify(users));
+            saveSharedUsers(users);
           }
           window.location.href = 'dashboard.html';
         } else {
@@ -620,7 +736,13 @@
 
       } catch (error) {
         console.error('Login submit error:', error);
-        alert('Sign in could not be processed right now. Please try again.');
+        const lastError = window.ESO_DB && window.ESO_DB.getLastError ? window.ESO_DB.getLastError() : null;
+        const errorMessage = String(lastError?.message || error?.message || '').trim();
+        if (/quota/i.test(errorMessage)) {
+          alert('Browser storage was full while preparing your session. The login cache was trimmed. Please try signing in again.');
+          return;
+        }
+        alert(errorMessage || 'Sign in could not be processed right now. Please try again.');
       }
     });
 
