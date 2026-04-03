@@ -7,7 +7,7 @@
   <link rel="icon" type="image/png" href="../public/logo.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="../public/js/supabase-config.js?v=20260403-01"></script>
+  <script src="../public/js/supabase-config.js?v=20260403-02"></script>
   <script src="../public/js/supabase-client.js?v=20260403-01"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -215,113 +215,63 @@
   </div>
 
   <script>
-    let currentUser = JSON.parse(localStorage.getItem('elitestockoptions_user') || localStorage.getItem('eso_currentUser'));
+    const session = window.ESO_SESSION || {};
+
+    function safeParseArray(rawValue) {
+      if (session.safeParseArray) {
+        return session.safeParseArray(rawValue);
+      }
+
+      try {
+        const parsed = JSON.parse(rawValue || '[]');
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (_) {
+        return [];
+      }
+    }
+
+    let currentUser = session.getCurrentUser ? session.getCurrentUser() : null;
+    if (!currentUser && session.safeParseStoredJson) {
+      currentUser = session.safeParseStoredJson('elitestockoptions_user', 'eso_currentUser');
+    }
     if (!currentUser) {
       window.location.href = 'login.html';
     }
 
-    // Sync balance from shared users store (supports both new and legacy keys)
-    const allUsers = JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
-    const serverUser = currentUser ? allUsers.find(u => String(u.id || '') === String(currentUser.id || '')) : null;
-    if (serverUser) {
-      currentUser.balance = serverUser.balance || 0;
-      currentUser.availableCash = serverUser.availableCash || 0;
-      currentUser.profitsBalance = serverUser.profitsBalance || 0;
-      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
-    }
-
-    function getSharedUsers() {
-      return JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
-    }
-
-    function saveSharedUsers(users) {
-      localStorage.setItem('elitestockoptions_users', JSON.stringify(users));
-      localStorage.setItem('eso_users', JSON.stringify(users));
-    }
-
-    function findSharedUserIndex(users, userLike) {
-      if (!Array.isArray(users) || !userLike) return -1;
-
-      const targetId = String(userLike.id || '');
-      const targetAuthId = String(userLike.auth_id || '');
-      const targetEmail = String(userLike.email || '').toLowerCase();
-
-      return users.findIndex(user => {
-        if (!user) return false;
-        if (targetId && String(user.id || '') === targetId) return true;
-        if (targetAuthId && String(user.auth_id || '') === targetAuthId) return true;
-        return !!targetEmail && String(user.email || '').toLowerCase() === targetEmail;
-      });
-    }
+    currentUser = (session.resolveCurrentUserFromStore && session.resolveCurrentUserFromStore(currentUser)) || currentUser;
 
     function syncCurrentUserStore(patch = {}) {
+      if (session.syncCurrentUserStore) {
+        currentUser = session.syncCurrentUserStore(currentUser, patch);
+        return currentUser;
+      }
+
       currentUser = { ...currentUser, ...patch };
       localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
       localStorage.setItem('eso_currentUser', JSON.stringify(currentUser));
-
-      const users = getSharedUsers();
-      const userIndex = findSharedUserIndex(users, currentUser);
-      if (userIndex >= 0) {
-        users[userIndex] = { ...users[userIndex], ...currentUser };
-      } else {
-        users.push({ ...currentUser });
-      }
-      saveSharedUsers(users);
+      return currentUser;
     }
 
     async function ensureSupabaseSessionForCurrentUser() {
-      if (!(window.ESO_DB && window.ESO_DB.isReady())) return null;
-
-      let authUser = await window.ESO_DB.getAuthUser();
-      if (authUser) return authUser;
-
-      const email = String(currentUser?.email || '').trim().toLowerCase();
-      const password = String(currentUser?.password || '');
-      if (!email || !password) return null;
-
-      authUser = await window.ESO_DB.signIn(email, password);
-      if (!authUser) {
-        const signedUpUser = await window.ESO_DB.signUp(email, password);
-        if (signedUpUser) {
-          authUser = await window.ESO_DB.signIn(email, password) || signedUpUser;
-        }
-      }
-
-      if (!authUser) return null;
-
-      const remoteUser = await window.ESO_DB.findUserByAuthId(authUser.id);
-      if (!remoteUser) {
-        const remoteByEmail = await window.ESO_DB.findUserByEmail(email);
-        const userToPersist = {
-          ...(remoteByEmail || currentUser),
-          ...currentUser,
-          email,
-          auth_id: authUser.id,
-          id: remoteByEmail?.id || authUser.id || currentUser.id,
-          updatedAt: new Date().toISOString()
-        };
-
-        const saved = await window.ESO_DB.upsertUser(userToPersist);
-        if (saved) {
-          syncCurrentUserStore(userToPersist);
-        }
-      }
-
+      if (!session.ensureSupabaseSessionForCurrentUser) return null;
+      const authUser = await session.ensureSupabaseSessionForCurrentUser(currentUser);
+      currentUser = (session.getCurrentUser && session.getCurrentUser()) || currentUser;
       return authUser;
     }
 
     async function syncRemoteUserToLocal() {
-      if (!(window.ESO_DB && window.ESO_DB.isReady())) return null;
+      if (!session.syncRemoteUserToLocal) return currentUser;
+      const syncedUser = await session.syncRemoteUserToLocal(currentUser);
+      if (syncedUser) currentUser = syncedUser;
+      return currentUser;
+    }
 
-      const authUser = await ensureSupabaseSessionForCurrentUser();
-      let remoteUser = authUser?.id ? await window.ESO_DB.findUserByAuthId(authUser.id) : null;
-      if (!remoteUser && currentUser?.email) {
-        remoteUser = await window.ESO_DB.findUserByEmail(currentUser.email);
+    function filterCurrentUserRecords(records, options = {}) {
+      if (session.filterRecordsForCurrentUser) {
+        return session.filterRecordsForCurrentUser(records, currentUser, options);
       }
-      if (!remoteUser) return null;
 
-      syncCurrentUserStore(remoteUser);
-      return remoteUser;
+      return (Array.isArray(records) ? records : []).filter(record => String(record?.userId || '') === String(currentUser?.id || ''));
     }
 
     let selectedCrypto = null;
@@ -340,8 +290,8 @@
       await syncRemoteUserToLocal();
       document.getElementById('currentBalance').textContent = '$' + (currentUser.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
 
-      const primaryWallets = JSON.parse(localStorage.getItem('eso_adminWallets') || '[]');
-      const secondaryWallets = JSON.parse(localStorage.getItem('elitestockoptions_adminWallets') || '[]');
+      const primaryWallets = safeParseArray(localStorage.getItem('eso_adminWallets'));
+      const secondaryWallets = safeParseArray(localStorage.getItem('elitestockoptions_adminWallets'));
       if (!primaryWallets.length && secondaryWallets.length) {
         localStorage.setItem('eso_adminWallets', JSON.stringify(secondaryWallets));
       } else if (primaryWallets.length && !secondaryWallets.length) {
@@ -356,10 +306,16 @@
           localStorage.setItem('eso_adminWallets', JSON.stringify(remoteWallets));
           localStorage.setItem('elitestockoptions_adminWallets', JSON.stringify(remoteWallets));
         } else {
-          adminWallets = JSON.parse(localStorage.getItem('eso_adminWallets') || localStorage.getItem('elitestockoptions_adminWallets') || '[]');
+          adminWallets = safeParseArray(localStorage.getItem('eso_adminWallets'));
+          if (!adminWallets.length) {
+            adminWallets = safeParseArray(localStorage.getItem('elitestockoptions_adminWallets'));
+          }
         }
       } else {
-        adminWallets = JSON.parse(localStorage.getItem('eso_adminWallets') || localStorage.getItem('elitestockoptions_adminWallets') || '[]');
+        adminWallets = safeParseArray(localStorage.getItem('eso_adminWallets'));
+        if (!adminWallets.length) {
+          adminWallets = safeParseArray(localStorage.getItem('elitestockoptions_adminWallets'));
+        }
       }
       
       renderCryptoGrid();
@@ -430,7 +386,7 @@
     }
 
     function addPendingTransactionFromDeposit(deposit) {
-      let transactions = JSON.parse(localStorage.getItem('eso_transactions') || '[]');
+      let transactions = safeParseArray(localStorage.getItem('eso_transactions'));
       transactions.unshift({
         id: `dep_tx_${deposit.id}`,
         userId: deposit.userId,
@@ -447,7 +403,7 @@
 
     function addUserNotification(userId, title, message, type = 'info') {
       const key = `eso_notifications_${userId}`;
-      let userNotifs = JSON.parse(localStorage.getItem(key) || '[]');
+      let userNotifs = safeParseArray(localStorage.getItem(key));
       userNotifs.unshift({
         id: `dep_notif_${Date.now()}`,
         title,
@@ -475,6 +431,8 @@
       const deposit = {
         id: Date.now().toString(),
         userId: currentUser.id,
+        userAuthId: currentUser.auth_id || null,
+        userEmail: currentUser.email || null,
         cryptoId: selectedCrypto.id,
         cryptoName: selectedCrypto.name,
         cryptoSymbol: selectedCrypto.symbol,
@@ -496,7 +454,7 @@
       }
 
       // Save deposit request
-      let deposits = JSON.parse(localStorage.getItem('eso_deposits') || '[]');
+      let deposits = safeParseArray(localStorage.getItem('eso_deposits'));
       deposits.push(deposit);
       localStorage.setItem('eso_deposits', JSON.stringify(deposits));
       addPendingTransactionFromDeposit(deposit);
@@ -513,7 +471,7 @@
     });
 
     async function loadPendingDeposits() {
-      let deposits = JSON.parse(localStorage.getItem('eso_deposits') || '[]');
+      let deposits = safeParseArray(localStorage.getItem('eso_deposits'));
 
       if (window.ESO_DB && window.ESO_DB.isReady()) {
         const remoteDeposits = await window.ESO_DB.getDeposits();
@@ -523,7 +481,11 @@
         }
       }
 
-      const userDeposits = deposits.filter(d => d.userId === currentUser.id).slice(0, 10);
+      const userDeposits = filterCurrentUserRecords(deposits, {
+        userIdField: 'userId',
+        authFields: ['userAuthId', 'auth_id'],
+        emailFields: ['userEmail', 'email']
+      }).slice(0, 10);
       
       const tbody = document.getElementById('pendingDepositsTable');
       if (userDeposits.length === 0) {
@@ -558,7 +520,9 @@
       window.location.href = '../index.html';
     }
 
-    initDeposit();
+    if (currentUser) {
+      initDeposit();
+    }
   </script>
 <script src="../public/js/back-button.js"></script>
 <script src="../public/js/theme.js"></script>

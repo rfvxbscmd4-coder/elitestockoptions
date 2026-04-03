@@ -7,7 +7,7 @@
   <link rel="icon" type="image/png" href="../public/logo.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="../public/js/supabase-config.js?v=20260403-01"></script>
+  <script src="../public/js/supabase-config.js?v=20260403-02"></script>
   <script src="../public/js/supabase-client.js?v=20260403-01"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script src="https://s3.tradingview.com/tv.js"></script>
@@ -337,140 +337,71 @@
   </div>
 
   <script>
-    let currentUser = JSON.parse(localStorage.getItem('elitestockoptions_user') || localStorage.getItem('eso_currentUser'));
+    const session = window.ESO_SESSION || {};
 
-    if (!currentUser || !currentUser.id) {
+    function safeParseArray(rawValue) {
+      if (session.safeParseArray) {
+        return session.safeParseArray(rawValue);
+      }
+
+      try {
+        const parsed = JSON.parse(rawValue || '[]');
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (_) {
+        return [];
+      }
+    }
+
+    let currentUser = session.getCurrentUser ? session.getCurrentUser() : null;
+    if (!currentUser && session.safeParseStoredJson) {
+      currentUser = session.safeParseStoredJson('elitestockoptions_user', 'eso_currentUser');
+    }
+
+    if (!currentUser) {
       window.location.href = 'login.html';
     }
 
-    // Sync balance from shared users storage (new + legacy keys)
-    const allUsers = JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
-    const serverUser = allUsers.find(u => u.id === currentUser.id);
-    if (serverUser) {
-      currentUser.balance = serverUser.balance || 0;
-      currentUser.availableCash = serverUser.availableCash || 0;
-      currentUser.profitsBalance = serverUser.profitsBalance || 0;
-      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
-    }
-
-    function getSharedUsers() {
-      return JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
-    }
-
-    function saveSharedUsers(users) {
-      localStorage.setItem('elitestockoptions_users', JSON.stringify(users));
-      localStorage.setItem('eso_users', JSON.stringify(users));
-    }
-
-    function findSharedUserIndex(users, userLike) {
-      if (!Array.isArray(users) || !userLike) return -1;
-
-      const targetId = String(userLike.id || '');
-      const targetAuthId = String(userLike.auth_id || '');
-      const targetEmail = String(userLike.email || '').toLowerCase();
-
-      return users.findIndex(user => {
-        if (!user) return false;
-        if (targetId && String(user.id || '') === targetId) return true;
-        if (targetAuthId && String(user.auth_id || '') === targetAuthId) return true;
-        return !!targetEmail && String(user.email || '').toLowerCase() === targetEmail;
-      });
-    }
+    currentUser = (session.resolveCurrentUserFromStore && session.resolveCurrentUserFromStore(currentUser)) || currentUser;
 
     function syncCurrentUserStore(patch = {}) {
+      if (session.syncCurrentUserStore) {
+        currentUser = session.syncCurrentUserStore(currentUser, patch);
+        return currentUser;
+      }
+
       currentUser = { ...currentUser, ...patch };
       localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
       localStorage.setItem('eso_currentUser', JSON.stringify(currentUser));
-
-      const users = getSharedUsers();
-      const userIndex = findSharedUserIndex(users, currentUser);
-      if (userIndex >= 0) {
-        users[userIndex] = { ...users[userIndex], ...currentUser };
-      } else {
-        users.push({ ...currentUser });
-      }
-      saveSharedUsers(users);
+      return currentUser;
     }
 
     async function ensureSupabaseSessionForCurrentUser() {
-      if (!(window.ESO_DB && window.ESO_DB.isReady())) return null;
-
-      let authUser = await window.ESO_DB.getAuthUser();
-      if (authUser) return authUser;
-
-      const email = String(currentUser?.email || '').trim().toLowerCase();
-      const password = String(currentUser?.password || '');
-      if (!email || !password) return null;
-
-      authUser = await window.ESO_DB.signIn(email, password);
-      if (!authUser) {
-        const signedUpUser = await window.ESO_DB.signUp(email, password);
-        if (signedUpUser) {
-          authUser = await window.ESO_DB.signIn(email, password) || signedUpUser;
-        }
-      }
-
-      if (!authUser) return null;
-
-      const remoteUser = await window.ESO_DB.findUserByAuthId(authUser.id);
-      if (!remoteUser) {
-        const remoteByEmail = await window.ESO_DB.findUserByEmail(email);
-        const userToPersist = {
-          ...(remoteByEmail || currentUser),
-          ...currentUser,
-          email,
-          auth_id: authUser.id,
-          id: remoteByEmail?.id || authUser.id || currentUser.id,
-          updatedAt: new Date().toISOString()
-        };
-
-        const saved = await window.ESO_DB.upsertUser(userToPersist);
-        if (saved) {
-          syncCurrentUserStore(userToPersist);
-        }
-      }
-
+      if (!session.ensureSupabaseSessionForCurrentUser) return null;
+      const authUser = await session.ensureSupabaseSessionForCurrentUser(currentUser);
+      currentUser = (session.getCurrentUser && session.getCurrentUser()) || currentUser;
       return authUser;
     }
 
     async function syncRemoteUserToLocal() {
-      if (!(window.ESO_DB && window.ESO_DB.isReady())) return null;
-
-      const authUser = await ensureSupabaseSessionForCurrentUser();
-      let remoteUser = authUser?.id ? await window.ESO_DB.findUserByAuthId(authUser.id) : null;
-      if (!remoteUser && currentUser?.email) {
-        remoteUser = await window.ESO_DB.findUserByEmail(currentUser.email);
-      }
-      if (!remoteUser) return null;
-
-      syncCurrentUserStore(remoteUser);
-      return remoteUser;
+      if (!session.syncRemoteUserToLocal) return currentUser;
+      const syncedUser = await session.syncRemoteUserToLocal(currentUser);
+      if (syncedUser) currentUser = syncedUser;
+      return currentUser;
     }
 
-    async function persistCurrentUserToRemote() {
-      if (!(window.ESO_DB && window.ESO_DB.isReady())) return false;
+    async function persistCurrentUserToRemote(overrides = {}) {
+      if (!session.persistCurrentUserToRemote) return null;
+      const savedUser = await session.persistCurrentUserToRemote(currentUser, overrides);
+      if (savedUser) currentUser = savedUser;
+      return savedUser;
+    }
 
-      const authUser = await ensureSupabaseSessionForCurrentUser();
-      let remoteUser = authUser?.id ? await window.ESO_DB.findUserByAuthId(authUser.id) : null;
-      if (!remoteUser && currentUser?.email) {
-        remoteUser = await window.ESO_DB.findUserByEmail(currentUser.email);
+    function filterCurrentUserRecords(records, options = {}) {
+      if (session.filterRecordsForCurrentUser) {
+        return session.filterRecordsForCurrentUser(records, currentUser, options);
       }
 
-      const userToPersist = {
-        ...(remoteUser || currentUser),
-        ...currentUser,
-        id: remoteUser?.id || authUser?.id || currentUser.id,
-        auth_id: authUser?.id || remoteUser?.auth_id || currentUser.auth_id,
-        updatedAt: new Date().toISOString()
-      };
-
-      if (!userToPersist.id || !userToPersist.email) return false;
-
-      const saved = await window.ESO_DB.upsertUser(userToPersist);
-      if (saved) {
-        syncCurrentUserStore(userToPersist);
-      }
-      return !!saved;
+      return (Array.isArray(records) ? records : []).filter(record => String(record?.userId || '') === String(currentUser?.id || ''));
     }
 
     let orderType = 'market';
@@ -480,7 +411,11 @@
       if (!(window.ESO_DB && window.ESO_DB.isReady())) return;
       const remoteTrades = await window.ESO_DB.getTrades();
       if (Array.isArray(remoteTrades)) {
-        const mergedTrades = [...remoteTrades, ...JSON.parse(localStorage.getItem('eso_trades') || '[]'), ...JSON.parse(localStorage.getItem('elitestockoptions_trades') || '[]')];
+        const mergedTrades = [
+          ...remoteTrades,
+          ...safeParseArray(localStorage.getItem('eso_trades')),
+          ...safeParseArray(localStorage.getItem('elitestockoptions_trades'))
+        ];
         const dedupedTrades = [];
         const seen = new Set();
 
@@ -786,6 +721,8 @@
       const trade = {
         id: Date.now().toString(),
         userId: currentUser.id,
+        userAuthId: currentUser.auth_id || null,
+        userEmail: currentUser.email || null,
         symbol: symbol,
         type: direction.toUpperCase(),
         orderType: orderType.toUpperCase(),
@@ -813,7 +750,7 @@
       }
 
       // Save trade
-      let trades = JSON.parse(localStorage.getItem('eso_trades') || '[]');
+      let trades = safeParseArray(localStorage.getItem('eso_trades'));
       trades.push(trade);
       localStorage.setItem('eso_trades', JSON.stringify(trades));
       localStorage.setItem('elitestockoptions_trades', JSON.stringify(trades));
@@ -836,10 +773,12 @@
     }
 
     function addTransaction(type, amount, description) {
-      let transactions = JSON.parse(localStorage.getItem('eso_transactions') || '[]');
+      let transactions = safeParseArray(localStorage.getItem('eso_transactions'));
       transactions.unshift({
         id: Date.now().toString(),
         userId: currentUser.id,
+        userAuthId: currentUser.auth_id || null,
+        userEmail: currentUser.email || null,
         type: type,
         amount: -amount,
         description: description,
@@ -849,8 +788,12 @@
     }
 
     function loadOpenTrades() {
-      const trades = JSON.parse(localStorage.getItem('eso_trades') || '[]');
-      const openTrades = trades.filter(t => String(t.userId) === String(currentUser.id) && t.status === 'open');
+      const trades = safeParseArray(localStorage.getItem('eso_trades'));
+      const openTrades = filterCurrentUserRecords(trades, {
+        userIdField: 'userId',
+        authFields: ['userAuthId', 'auth_id'],
+        emailFields: ['userEmail', 'email']
+      }).filter(t => t.status === 'open');
       
       document.getElementById('noOpenTrades').classList.toggle('hidden', openTrades.length > 0);
       
@@ -885,7 +828,7 @@
     }
 
     async function closeTrade(tradeId) {
-      let trades = JSON.parse(localStorage.getItem('eso_trades') || '[]');
+      let trades = safeParseArray(localStorage.getItem('eso_trades'));
       const tradeIndex = trades.findIndex(t => t.id === tradeId);
       if (tradeIndex === -1) return;
 
@@ -941,8 +884,12 @@
     }
 
     function loadClosedTrades() {
-      const trades = JSON.parse(localStorage.getItem('eso_trades') || '[]');
-      const closedTrades = trades.filter(t => String(t.userId) === String(currentUser.id) && t.status === 'closed');
+      const trades = safeParseArray(localStorage.getItem('eso_trades'));
+      const closedTrades = filterCurrentUserRecords(trades, {
+        userIdField: 'userId',
+        authFields: ['userAuthId', 'auth_id'],
+        emailFields: ['userEmail', 'email']
+      }).filter(t => t.status === 'closed');
       
       document.getElementById('closedTradesTable').innerHTML = closedTrades.map(trade => {
         const pnlClass = trade.pnl >= 0 ? 'text-green-600' : 'text-red-600';
@@ -966,8 +913,12 @@
     }
 
     function loadHistory() {
-      const transactions = JSON.parse(localStorage.getItem('eso_transactions') || '[]');
-      const userTransactions = transactions.filter(t => String(t.userId) === String(currentUser.id) && t.type === 'trade');
+      const transactions = safeParseArray(localStorage.getItem('eso_transactions'));
+      const userTransactions = filterCurrentUserRecords(transactions, {
+        userIdField: 'userId',
+        authFields: ['userAuthId', 'auth_id'],
+        emailFields: ['userEmail', 'email']
+      }).filter(t => t.type === 'trade');
       
       document.getElementById('historyTable').innerHTML = userTransactions.map(t => `
         <tr class="hover:bg-gray-50">
@@ -985,7 +936,9 @@
       window.location.href = '../index.html';
     }
 
-    initTrades();
+    if (currentUser) {
+      initTrades();
+    }
   </script>
 
 <script>

@@ -6,7 +6,7 @@
   <title>Create NFT - ELITESTOCKOPTIONS</title>
   <link rel="icon" type="image/png" href="../public/logo.png">
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="../public/js/supabase-config.js?v=20260403-01"></script>
+  <script src="../public/js/supabase-config.js?v=20260403-02"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script>
     tailwind.config = {
@@ -195,20 +195,38 @@
   </div>
 
   <script>
-    let currentUser = JSON.parse(localStorage.getItem('elitestockoptions_user') || localStorage.getItem('eso_currentUser'));
+    const session = window.ESO_SESSION || {};
 
-    // Sync balance from shared users storage (new + legacy keys)
-    const allUsers = JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
-    const serverUser = allUsers.find(u => u.id === currentUser.id);
-    if (serverUser) {
-      currentUser.balance = serverUser.balance || 0;
-      currentUser.availableCash = serverUser.availableCash || 0;
-      currentUser.profitsBalance = serverUser.profitsBalance || 0;
-      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+    function safeParseArray(rawValue) {
+      if (session.safeParseArray) {
+        return session.safeParseArray(rawValue);
+      }
+
+      try {
+        const parsed = JSON.parse(rawValue || '[]');
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (_) {
+        return [];
+      }
+    }
+
+    let currentUser = session.getCurrentUser ? session.getCurrentUser() : null;
+    if (!currentUser && session.safeParseStoredJson) {
+      currentUser = session.safeParseStoredJson('elitestockoptions_user', 'eso_currentUser');
     }
     if (!currentUser) {
       alert('Please login first');
       window.location.href = 'login.html';
+    }
+
+    currentUser = (session.resolveCurrentUserFromStore && session.resolveCurrentUserFromStore(currentUser)) || currentUser;
+
+    function filterCurrentUserRecords(records, options = {}) {
+      if (session.filterRecordsForCurrentUser) {
+        return session.filterRecordsForCurrentUser(records, currentUser, options);
+      }
+
+      return (Array.isArray(records) ? records : []).filter(record => String(record?.userId || '') === String(currentUser?.id || ''));
     }
 
     let selectedFile = null;
@@ -253,6 +271,8 @@
       const nft = {
         id: Date.now().toString(),
         userId: currentUser.id,
+        userAuthId: currentUser.auth_id || null,
+        userEmail: currentUser.email || null,
         name: document.getElementById('nftName').value,
         description: document.getElementById('nftDescription').value,
         category: document.getElementById('nftCategory').value,
@@ -264,7 +284,7 @@
       };
 
       // Save created NFT
-      let createdNfts = JSON.parse(localStorage.getItem('eso_createdNfts') || '[]');
+      let createdNfts = safeParseArray(localStorage.getItem('eso_createdNfts'));
       createdNfts.push(nft);
       localStorage.setItem('eso_createdNfts', JSON.stringify(createdNfts));
 
@@ -275,7 +295,11 @@
     });
 
     function loadCreatedNfts() {
-      const createdNfts = JSON.parse(localStorage.getItem('eso_createdNfts') || '[]').filter(n => n.userId === currentUser.id);
+      const createdNfts = filterCurrentUserRecords(safeParseArray(localStorage.getItem('eso_createdNfts')), {
+        userIdField: 'userId',
+        authFields: ['userAuthId', 'auth_id'],
+        emailFields: ['userEmail', 'email']
+      });
       const grid = document.getElementById('myCreatedNfts');
       
       if (createdNfts.length === 0) {
@@ -310,7 +334,9 @@
       window.location.href = '../index.html';
     }
 
-    loadCreatedNfts();
+    if (currentUser) {
+      loadCreatedNfts();
+    }
   </script>
 <script src="../public/js/back-button.js"></script>
 <script src="../public/js/theme.js"></script>

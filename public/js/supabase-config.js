@@ -75,6 +75,31 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 		}
 	}
 
+	function safeParseStoredJson(primaryKey, fallbackKey = '') {
+		const rawPrimary = localStorage.getItem(primaryKey);
+		const rawFallback = fallbackKey ? localStorage.getItem(fallbackKey) : null;
+		const candidates = [rawPrimary, rawFallback].filter(value => typeof value === 'string' && value.trim());
+
+		for (const raw of candidates) {
+			try {
+				return JSON.parse(raw);
+			} catch (_) {}
+		}
+
+		return null;
+	}
+
+	function safeParseArray(rawValue) {
+		try {
+			const parsed = JSON.parse(rawValue || '[]');
+			return Array.isArray(parsed)
+				? parsed.filter(item => item && typeof item === 'object')
+				: [];
+		} catch (_) {
+			return [];
+		}
+	}
+
 	function formatMoney(value) {
 		const amount = Number(value || 0);
 		return '$' + amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -98,6 +123,29 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 
 		const docs = userLike.kycDocuments || {};
 		return !!(docs.front || docs.back || docs.selfie);
+	}
+
+	function isReviewedKycStatus(status) {
+		return status === 'verified' || status === 'rejected';
+	}
+
+	function preserveReviewedKyc(targetUser, sourceUser, overrides = {}) {
+		if (!targetUser || !sourceUser) return targetUser;
+
+		const hasStatusOverride = Object.prototype.hasOwnProperty.call(overrides, 'kycStatus');
+		const sourceStatus = String(sourceUser.kycStatus || '').trim().toLowerCase();
+		if (!hasStatusOverride && !isReviewedKycStatus(sourceStatus)) {
+			return targetUser;
+		}
+
+		if (!hasStatusOverride) {
+			targetUser.kycStatus = sourceUser.kycStatus;
+		}
+		targetUser.kycSubmittedAt = sourceUser.kycSubmittedAt || targetUser.kycSubmittedAt || null;
+		targetUser.kycVerifiedAt = sourceUser.kycVerifiedAt || targetUser.kycVerifiedAt || null;
+		targetUser.kycData = sourceUser.kycData || targetUser.kycData || null;
+		targetUser.kycDocuments = sourceUser.kycDocuments || targetUser.kycDocuments || null;
+		return targetUser;
 	}
 
 	function getUserSyncTimestamp(userLike) {
@@ -197,6 +245,98 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 		return score;
 	}
 
+	function buildSharedUserRecord(userLike) {
+		if (!userLike || typeof userLike !== 'object') return null;
+
+		return {
+			id: userLike.id || null,
+			auth_id: userLike.auth_id || null,
+			fullName: userLike.fullName || userLike.name || null,
+			name: userLike.name || userLike.fullName || null,
+			email: userLike.email || null,
+			phone: userLike.phone || null,
+			countryCode: userLike.countryCode || null,
+			phoneNumber: userLike.phoneNumber || null,
+			country: userLike.country || null,
+			referralCode: userLike.referralCode || null,
+			password: userLike.password || null,
+			plan: userLike.plan || 'Bronze',
+			balance: Number(userLike.balance || 0),
+			availableCash: Number(userLike.availableCash || 0),
+			profitsBalance: Number(userLike.profitsBalance || 0),
+			kycStatus: userLike.kycStatus || null,
+			kycSubmittedAt: userLike.kycSubmittedAt || null,
+			kycVerifiedAt: userLike.kycVerifiedAt || null,
+			kycData: userLike.kycData || null,
+			updatedAt: userLike.updatedAt || null,
+			createdAt: userLike.createdAt || null,
+			avatar: userLike.avatar || null,
+			isAdmin: !!userLike.isAdmin
+		};
+	}
+
+	function findSharedUserIndex(users, userLike) {
+		if (!Array.isArray(users) || !userLike) return -1;
+
+		const targetId = String(userLike.id || '');
+		const targetAuthId = String(userLike.auth_id || '');
+		const targetEmail = String(userLike.email || '').trim().toLowerCase();
+
+		return users.findIndex((user) => {
+			if (!user) return false;
+			if (targetId && String(user.id || '') === targetId) return true;
+			if (targetAuthId && String(user.auth_id || '') === targetAuthId) return true;
+			return !!targetEmail && String(user.email || '').trim().toLowerCase() === targetEmail;
+		});
+	}
+
+	function getSharedUsers() {
+		const primary = safeParseArray(localStorage.getItem(USERS_KEY));
+		const legacy = safeParseArray(localStorage.getItem(LEGACY_USERS_KEY));
+		const dedupedUsers = [];
+
+		[...primary, ...legacy].forEach((userLike) => {
+			const sharedUser = buildSharedUserRecord(userLike);
+			if (!sharedUser) return;
+
+			const existingIndex = findSharedUserIndex(dedupedUsers, sharedUser);
+			if (existingIndex >= 0) {
+				dedupedUsers[existingIndex] = mergeUserData({ ...dedupedUsers[existingIndex] }, sharedUser);
+			} else {
+				dedupedUsers.push(sharedUser);
+			}
+		});
+
+		return dedupedUsers;
+	}
+
+	function saveSharedUsers(users) {
+		const normalizedUsers = (Array.isArray(users) ? users : [])
+			.filter(userLike => userLike && typeof userLike === 'object')
+			.map(buildSharedUserRecord)
+			.filter(Boolean);
+
+		const dedupedUsers = [];
+		normalizedUsers.forEach((userLike) => {
+			const existingIndex = findSharedUserIndex(dedupedUsers, userLike);
+			if (existingIndex >= 0) {
+				dedupedUsers[existingIndex] = mergeUserData({ ...dedupedUsers[existingIndex] }, userLike);
+			} else {
+				dedupedUsers.push(userLike);
+			}
+		});
+
+		try {
+			const serialized = JSON.stringify(dedupedUsers);
+			localStorage.setItem(USERS_KEY, serialized);
+			localStorage.setItem(LEGACY_USERS_KEY, serialized);
+		} catch (error) {
+			console.warn('Could not persist shared users cache', error);
+		}
+
+		return dedupedUsers;
+	}
+
 	function writeUserCache(userLike) {
 		const fullUser = userLike ? { ...userLike } : null;
 		if (!fullUser) return;
@@ -224,6 +364,211 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 		} catch (error) {
 			console.warn('Could not persist trimmed shared-session cache', error);
 		}
+	}
+
+	function resolveCurrentUserFromStore(currentUser = safeParseStoredJson(USER_KEY, 'eso_currentUser')) {
+		if (!currentUser || currentUser.isAdmin) return currentUser || null;
+
+		const latestUser = resolveLatestUser(currentUser, getSharedUsers());
+		if (!latestUser || latestUser.isAdmin) return currentUser;
+
+		const merged = mergeUserData({ ...latestUser }, currentUser);
+		if (!merged.fullName && merged.name) merged.fullName = merged.name;
+		if (!merged.name && merged.fullName) merged.name = merged.fullName;
+		writeUserCache(merged);
+		return merged;
+	}
+
+	function getCurrentUser() {
+		const currentUser = safeParseStoredJson(USER_KEY, 'eso_currentUser');
+		if (!currentUser || currentUser.isAdmin) return currentUser || null;
+		return resolveCurrentUserFromStore(currentUser) || currentUser;
+	}
+
+	function syncCurrentUserStore(currentUser, patch = {}) {
+		let nextUser = { ...(currentUser || {}), ...(patch || {}) };
+		if (!nextUser || nextUser.isAdmin) return nextUser || null;
+
+		nextUser.fullName = nextUser.fullName || nextUser.name || null;
+		nextUser.name = nextUser.name || nextUser.fullName || null;
+		writeUserCache(nextUser);
+
+		const users = getSharedUsers();
+		const sharedUserRecord = buildSharedUserRecord(nextUser);
+		if (sharedUserRecord) {
+			const userIndex = findSharedUserIndex(users, sharedUserRecord);
+			if (userIndex >= 0) {
+				users[userIndex] = mergeUserData({ ...users[userIndex] }, sharedUserRecord);
+			} else {
+				users.push(sharedUserRecord);
+			}
+			saveSharedUsers(users);
+		}
+
+		return nextUser;
+	}
+
+	function getEquivalentUserIds(currentUser) {
+		const ids = new Set();
+		if (!currentUser) return ids;
+
+		if (currentUser.id) ids.add(String(currentUser.id));
+		if (currentUser.auth_id) ids.add(String(currentUser.auth_id));
+
+		const currentEmail = String(currentUser.email || '').trim().toLowerCase();
+		if (!currentEmail) return ids;
+
+		getSharedUsers()
+			.filter(userLike => String(userLike.email || '').trim().toLowerCase() === currentEmail)
+			.forEach((userLike) => {
+				if (userLike.id) ids.add(String(userLike.id));
+				if (userLike.auth_id) ids.add(String(userLike.auth_id));
+			});
+
+		return ids;
+	}
+
+	function getFieldList(value, fallback) {
+		if (Array.isArray(value) && value.length) return value;
+		if (typeof value === 'string' && value.trim()) return [value.trim()];
+		return fallback;
+	}
+
+	function matchesCurrentUser(record, currentUser, options = {}) {
+		if (!record || !currentUser) return false;
+
+		const idFields = getFieldList(options.userIdFields || options.userIdField, ['userId']);
+		const authFields = getFieldList(options.authFields, ['userAuthId', 'auth_id']);
+		const emailFields = getFieldList(options.emailFields, ['userEmail', 'email']);
+		const equivalentIds = getEquivalentUserIds(currentUser);
+		const currentEmail = String(currentUser.email || '').trim().toLowerCase();
+
+		if (idFields.some(field => equivalentIds.has(String(record?.[field] || '')))) {
+			return true;
+		}
+
+		if (authFields.some(field => equivalentIds.has(String(record?.[field] || '')))) {
+			return true;
+		}
+
+		return !!currentEmail && emailFields.some(field => String(record?.[field] || '').trim().toLowerCase() === currentEmail);
+	}
+
+	function filterRecordsForCurrentUser(records, currentUser, options = {}) {
+		return (Array.isArray(records) ? records : []).filter(record => matchesCurrentUser(record, currentUser, options));
+	}
+
+	async function ensureSupabaseSessionForCurrentUser(currentUser) {
+		if (!currentUser || !(window.ESO_DB && window.ESO_DB.isReady())) return null;
+
+		let authUser = await window.ESO_DB.getAuthUser();
+		if (authUser) return authUser;
+
+		const email = String(currentUser.email || '').trim().toLowerCase();
+		const password = String(currentUser.password || '');
+		if (!email || !password) return null;
+
+		authUser = await window.ESO_DB.signIn(email, password);
+		if (!authUser) {
+			const signedUpUser = await window.ESO_DB.signUp(email, password);
+			if (signedUpUser) {
+				authUser = await window.ESO_DB.signIn(email, password) || signedUpUser;
+			}
+		}
+
+		if (!authUser) return null;
+
+		const remoteUser = await window.ESO_DB.findUserByAuthId(authUser.id);
+		if (!remoteUser) {
+			const remoteByEmail = await window.ESO_DB.findUserByEmail(email);
+			const userToPersist = {
+				...(remoteByEmail || currentUser),
+				...currentUser,
+				email,
+				auth_id: authUser.id,
+				id: remoteByEmail?.id || authUser.id || currentUser.id,
+				updatedAt: new Date().toISOString()
+			};
+			preserveReviewedKyc(userToPersist, remoteByEmail);
+
+			const saved = await window.ESO_DB.upsertUser(userToPersist);
+			if (saved) {
+				syncCurrentUserStore(currentUser, userToPersist);
+			}
+		}
+
+		return authUser;
+	}
+
+	async function syncRemoteUserToLocal(currentUser) {
+		if (!currentUser || !(window.ESO_DB && window.ESO_DB.isReady())) return currentUser || null;
+
+		const authUser = await ensureSupabaseSessionForCurrentUser(currentUser);
+		let remoteUser = authUser?.id ? await window.ESO_DB.findUserByAuthId(authUser.id) : null;
+		if (!remoteUser && currentUser?.email) {
+			remoteUser = await window.ESO_DB.findUserByEmail(currentUser.email);
+		}
+		if (!remoteUser) {
+			return resolveCurrentUserFromStore(currentUser) || currentUser;
+		}
+
+		const preferredAuthId = String(authUser?.id || remoteUser.auth_id || currentUser.auth_id || '');
+		const remoteEmail = String(remoteUser.email || currentUser.email || '').trim().toLowerCase();
+		const matchedLocalUsers = getSharedUsers().filter((userLike) => {
+			const sameId = String(userLike.id || '') === String(remoteUser.id || currentUser.id || '');
+			const sameEmail = remoteEmail && String(userLike.email || '').trim().toLowerCase() === remoteEmail;
+			const sameAuth = preferredAuthId && String(userLike.auth_id || '') === preferredAuthId;
+			return sameId || sameEmail || sameAuth;
+		});
+
+		const seededUser = {
+			...currentUser,
+			id: currentUser.id || remoteUser.id || null,
+			auth_id: preferredAuthId || currentUser.auth_id || null,
+			email: currentUser.email || remoteUser.email || null
+		};
+		const canonicalUser = resolveLatestUser(seededUser, [remoteUser, ...matchedLocalUsers])
+			|| mergeUserData({ ...remoteUser }, seededUser);
+
+		canonicalUser.id = canonicalUser.id || remoteUser.id || seededUser.id || null;
+		canonicalUser.auth_id = canonicalUser.auth_id || preferredAuthId || null;
+		canonicalUser.email = canonicalUser.email || remoteUser.email || seededUser.email || null;
+		canonicalUser.fullName = canonicalUser.fullName || canonicalUser.name || null;
+		canonicalUser.name = canonicalUser.name || canonicalUser.fullName || null;
+		canonicalUser.updatedAt = remoteUser.updatedAt || canonicalUser.updatedAt || new Date().toISOString();
+
+		return syncCurrentUserStore(seededUser, canonicalUser);
+	}
+
+	async function persistCurrentUserToRemote(currentUser, overrides = {}) {
+		if (!currentUser || !(window.ESO_DB && window.ESO_DB.isReady())) return null;
+
+		const authUser = await ensureSupabaseSessionForCurrentUser(currentUser);
+		let remoteUser = authUser?.id ? await window.ESO_DB.findUserByAuthId(authUser.id) : null;
+		if (!remoteUser && currentUser?.email) {
+			remoteUser = await window.ESO_DB.findUserByEmail(currentUser.email);
+		}
+
+		const canonicalUser = resolveCurrentUserFromStore(currentUser) || currentUser;
+		const userToPersist = {
+			...(remoteUser || {}),
+			...canonicalUser,
+			...overrides,
+			id: remoteUser?.id || canonicalUser.id || authUser?.id || null,
+			auth_id: authUser?.id || remoteUser?.auth_id || canonicalUser.auth_id || null,
+			email: String(remoteUser?.email || canonicalUser.email || authUser?.email || '').trim().toLowerCase() || null,
+			updatedAt: new Date().toISOString()
+		};
+		preserveReviewedKyc(userToPersist, remoteUser, overrides);
+
+		if (!userToPersist.id || !userToPersist.email) {
+			return syncCurrentUserStore(canonicalUser, overrides);
+		}
+
+		const saved = await window.ESO_DB.upsertUser(userToPersist);
+		if (!saved) return null;
+
+		return syncCurrentUserStore(canonicalUser, userToPersist);
 	}
 
 	function reflectCommonUserUI(user) {
@@ -291,11 +636,10 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 	}
 
 	function syncUserSessionFromStore() {
-		const currentUser = safeParse(localStorage.getItem(USER_KEY), null);
+		const currentUser = getCurrentUser();
 		if (!currentUser || currentUser.isAdmin) return;
 
-		const users = safeParse(localStorage.getItem(USERS_KEY), null)
-			|| safeParse(localStorage.getItem(LEGACY_USERS_KEY), []);
+		const users = getSharedUsers();
 		if (!Array.isArray(users) || !users.length) return;
 
 		const latestUser = resolveLatestUser(currentUser, users);
@@ -322,6 +666,34 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 			syncUserSessionFromStore();
 		}
 	});
+
+	window.ESO_SESSION = {
+		safeParse,
+		safeParseStoredJson,
+		safeParseArray,
+		formatMoney,
+		getDisplayName,
+		hasKycSubmission,
+		getUserSyncTimestamp,
+		mergeUserData,
+		getUserRank,
+		buildSharedUserRecord,
+		findSharedUserIndex,
+		getSharedUsers,
+		saveSharedUsers,
+		writeUserCache,
+		getCurrentUser,
+		resolveCurrentUserFromStore,
+		syncCurrentUserStore,
+		getEquivalentUserIds,
+		matchesCurrentUser,
+		filterRecordsForCurrentUser,
+		isReviewedKycStatus,
+		preserveReviewedKyc,
+		ensureSupabaseSessionForCurrentUser,
+		syncRemoteUserToLocal,
+		persistCurrentUserToRemote
+	};
 
 	document.addEventListener('visibilitychange', function () {
 		if (!document.hidden) syncUserSessionFromStore();

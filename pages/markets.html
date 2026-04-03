@@ -6,7 +6,7 @@
   <title>Markets - ELITESTOCKOPTIONS</title>
   <link rel="icon" type="image/png" href="../public/logo.png">
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="../public/js/supabase-config.js?v=20260403-01"></script>
+  <script src="../public/js/supabase-config.js?v=20260403-02"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     .sidebar-link { transition: all 0.3s ease; }
@@ -255,19 +255,21 @@
   <script src="../public/js/plan-theme.js"></script>
 
   <script>
-    const user = JSON.parse(localStorage.getItem('elitestockoptions_user'));
+    const session = window.ESO_SESSION || {};
+    const user = (session.getCurrentUser && session.getCurrentUser())
+      || (session.safeParseStoredJson && session.safeParseStoredJson('elitestockoptions_user', 'eso_currentUser'));
     if (!user) window.location.href = '../index.html';
     
     // Handle both name and fullName fields
-    const displayName = user.fullName || user.name || 'User';
+    const displayName = user?.fullName || user?.name || 'User';
     document.getElementById('user-name').textContent = displayName;
     document.getElementById('user-initials').textContent = displayName.split(' ').map(n => n[0]).join('');
     if (window.ESO_PLANS) {
-      const userPlan = user.plan || 'Bronze';
+      const userPlan = user?.plan || 'Bronze';
       document.getElementById('user-plan-badge').innerHTML = window.ESO_PLANS.renderBadge(userPlan, { size: 'sm' });
       document.getElementById('user-plan-avatar').style.background = window.ESO_PLANS.getTheme(userPlan).gradient;
     } else {
-      document.getElementById('user-plan-badge').textContent = (user.plan || 'Bronze') + ' Plan';
+      document.getElementById('user-plan-badge').textContent = (user?.plan || 'Bronze') + ' Plan';
     }
 
     let currentAsset = null;

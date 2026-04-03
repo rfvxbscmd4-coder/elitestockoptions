@@ -6,7 +6,7 @@
   <title>Copy Trader - ELITESTOCKOPTIONS</title>
   <link rel="icon" type="image/png" href="../public/logo.png">
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="../public/js/supabase-config.js?v=20260403-01"></script>
+  <script src="../public/js/supabase-config.js?v=20260403-02"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script>
     tailwind.config = {
@@ -158,20 +158,50 @@
   </div>
 
   <script>
-    let currentUser = JSON.parse(localStorage.getItem('elitestockoptions_user') || localStorage.getItem('eso_currentUser'));
+    const session = window.ESO_SESSION || {};
 
-    // Sync balance from shared users storage (new + legacy keys)
-    const allUsers = JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
-    const serverUser = allUsers.find(u => u.id === currentUser.id);
-    if (serverUser) {
-      currentUser.balance = serverUser.balance || 0;
-      currentUser.availableCash = serverUser.availableCash || 0;
-      currentUser.profitsBalance = serverUser.profitsBalance || 0;
-      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+    function safeParseArray(rawValue) {
+      if (session.safeParseArray) {
+        return session.safeParseArray(rawValue);
+      }
+
+      try {
+        const parsed = JSON.parse(rawValue || '[]');
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (_) {
+        return [];
+      }
+    }
+
+    let currentUser = session.getCurrentUser ? session.getCurrentUser() : null;
+    if (!currentUser && session.safeParseStoredJson) {
+      currentUser = session.safeParseStoredJson('elitestockoptions_user', 'eso_currentUser');
     }
     if (!currentUser) {
       alert('Please login first');
       window.location.href = 'login.html';
+    }
+
+    currentUser = (session.resolveCurrentUserFromStore && session.resolveCurrentUserFromStore(currentUser)) || currentUser;
+
+    function syncCurrentUserStore(patch = {}) {
+      if (session.syncCurrentUserStore) {
+        currentUser = session.syncCurrentUserStore(currentUser, patch);
+        return currentUser;
+      }
+
+      currentUser = { ...currentUser, ...patch };
+      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+      localStorage.setItem('eso_currentUser', JSON.stringify(currentUser));
+      return currentUser;
+    }
+
+    function filterCurrentUserRecords(records, options = {}) {
+      if (session.filterRecordsForCurrentUser) {
+        return session.filterRecordsForCurrentUser(records, currentUser, options);
+      }
+
+      return (Array.isArray(records) ? records : []).filter(record => String(record?.userId || '') === String(currentUser?.id || ''));
     }
 
     const topTraders = [
@@ -257,6 +287,8 @@
       const copyTrade = {
         id: Date.now().toString(),
         userId: currentUser.id,
+        userAuthId: currentUser.auth_id || null,
+        userEmail: currentUser.email || null,
         traderId: selectedTrader.id,
         traderName: selectedTrader.name,
         traderAvatar: selectedTrader.avatar,
@@ -264,13 +296,13 @@
         startedAt: new Date().toISOString()
       };
 
-      let copyTrades = JSON.parse(localStorage.getItem('eso_copyTrades') || '[]');
+      let copyTrades = safeParseArray(localStorage.getItem('eso_copyTrades'));
       copyTrades.push(copyTrade);
       localStorage.setItem('eso_copyTrades', JSON.stringify(copyTrades));
 
-      // Deduct amount
-      currentUser.availableCash -= amount;
-      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+      syncCurrentUserStore({
+        availableCash: Number(currentUser.availableCash || 0) - amount
+      });
 
       alert(`You are now copying ${selectedTrader.name}!`);
       closeCopyModal();
@@ -278,7 +310,12 @@
     });
 
     function loadMyCopyTrading() {
-      const copyTrades = JSON.parse(localStorage.getItem('eso_copyTrades') || '[]').filter(c => c.userId === currentUser.id);
+      document.getElementById('availableForCopy').textContent = (currentUser.availableCash || 0).toFixed(2);
+      const copyTrades = filterCurrentUserRecords(safeParseArray(localStorage.getItem('eso_copyTrades')), {
+        userIdField: 'userId',
+        authFields: ['userAuthId', 'auth_id'],
+        emailFields: ['userEmail', 'email']
+      });
       const container = document.getElementById('myCopyTrading');
 
       if (copyTrades.length === 0) {
@@ -319,13 +356,13 @@
     function stopCopying(copyId) {
       if (!confirm('Are you sure you want to stop copying this trader?')) return;
 
-      let copyTrades = JSON.parse(localStorage.getItem('eso_copyTrades') || '[]');
+      let copyTrades = safeParseArray(localStorage.getItem('eso_copyTrades'));
       const copyTrade = copyTrades.find(c => c.id === copyId);
       
       if (copyTrade) {
-        // Return invested amount
-        currentUser.availableCash += copyTrade.amount;
-        localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
+        syncCurrentUserStore({
+          availableCash: Number(currentUser.availableCash || 0) + Number(copyTrade.amount || 0)
+        });
       }
 
       copyTrades = copyTrades.filter(c => c.id !== copyId);
@@ -339,7 +376,9 @@
       window.location.href = '../index.html';
     }
 
-    initCopyTrader();
+    if (currentUser) {
+      initCopyTrader();
+    }
   </script>
 <script src="../public/js/back-button.js"></script>
 <script src="../public/js/theme.js"></script>

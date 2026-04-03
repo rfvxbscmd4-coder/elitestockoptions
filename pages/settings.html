@@ -7,7 +7,7 @@
   <link rel="icon" type="image/png" href="../public/logo.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="../public/js/supabase-config.js?v=20260403-01"></script>
+  <script src="../public/js/supabase-config.js?v=20260403-02"></script>
   <script src="../public/js/supabase-client.js?v=20260403-01"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script>
@@ -326,66 +326,65 @@
   </div>
 
   <script>
-    let currentUser = JSON.parse(localStorage.getItem('elitestockoptions_user') || localStorage.getItem('eso_currentUser'));
+    const session = window.ESO_SESSION || {};
+
+    function safeParseArray(rawValue) {
+      if (session.safeParseArray) {
+        return session.safeParseArray(rawValue);
+      }
+
+      try {
+        const parsed = JSON.parse(rawValue || '[]');
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (_) {
+        return [];
+      }
+    }
+
+    let currentUser = session.getCurrentUser ? session.getCurrentUser() : null;
+    if (!currentUser && session.safeParseStoredJson) {
+      currentUser = session.safeParseStoredJson('elitestockoptions_user', 'eso_currentUser');
+    }
 
     if (!currentUser) {
       alert('Please login first');
       window.location.href = 'login.html';
     }
 
-    // Sync balance from shared users storage (new + legacy keys)
-    const allUsers = JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
-    const serverUser = currentUser ? allUsers.find(u => u.id === currentUser.id) : null;
-    if (serverUser) {
-      currentUser.balance = serverUser.balance || 0;
-      currentUser.availableCash = serverUser.availableCash || 0;
-      currentUser.profitsBalance = serverUser.profitsBalance || 0;
-      try {
-        localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
-      } catch (error) {
-        console.warn('Could not refresh local user cache from shared store', error);
-      }
-    }
+    currentUser = (session.resolveCurrentUserFromStore && session.resolveCurrentUserFromStore(currentUser)) || currentUser;
 
     function getSharedUsers() {
-      return JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
+      if (session.getSharedUsers) {
+        return session.getSharedUsers();
+      }
+
+      return safeParseArray(localStorage.getItem('elitestockoptions_users'));
     }
 
     function buildSharedUserRecord(userLike) {
-      if (!userLike || typeof userLike !== 'object') return userLike;
+      if (session.buildSharedUserRecord) {
+        return session.buildSharedUserRecord(userLike);
+      }
 
-      return {
-        id: userLike.id || null,
-        auth_id: userLike.auth_id || null,
-        fullName: userLike.fullName || userLike.name || null,
-        email: userLike.email || null,
-        phone: userLike.phone || null,
-        countryCode: userLike.countryCode || null,
-        phoneNumber: userLike.phoneNumber || null,
-        country: userLike.country || null,
-        referralCode: userLike.referralCode || null,
-        password: userLike.password || null,
-        plan: userLike.plan || 'Bronze',
-        balance: Number(userLike.balance || 0),
-        availableCash: Number(userLike.availableCash || 0),
-        profitsBalance: Number(userLike.profitsBalance || 0),
-        kycStatus: userLike.kycStatus || null,
-        kycSubmittedAt: userLike.kycSubmittedAt || null,
-        kycVerifiedAt: userLike.kycVerifiedAt || null,
-        kycData: userLike.kycData || null,
-        updatedAt: userLike.updatedAt || null,
-        createdAt: userLike.createdAt || null,
-        isAdmin: !!userLike.isAdmin
-      };
+      return userLike && typeof userLike === 'object' ? { ...userLike } : userLike;
     }
 
     function saveSharedUsers(users) {
+      if (session.saveSharedUsers) {
+        return session.saveSharedUsers(users);
+      }
+
       const normalizedUsers = (Array.isArray(users) ? users : []).map(buildSharedUserRecord);
       localStorage.setItem('elitestockoptions_users', JSON.stringify(normalizedUsers));
       localStorage.setItem('eso_users', JSON.stringify(normalizedUsers));
+      return normalizedUsers;
     }
 
     function findSharedUserIndex(users, userLike) {
+      if (session.findSharedUserIndex) {
+        return session.findSharedUserIndex(users, userLike);
+      }
+
       if (!Array.isArray(users) || !userLike) return -1;
       const targetId = String(userLike.id || '');
       const targetAuthId = String(userLike.auth_id || '');
@@ -418,10 +417,18 @@
     }
 
     function isReviewedKycStatus(status) {
+      if (session.isReviewedKycStatus) {
+        return session.isReviewedKycStatus(status);
+      }
+
       return status === 'verified' || status === 'rejected';
     }
 
     function preserveReviewedKyc(targetUser, sourceUser, overrides = {}) {
+      if (session.preserveReviewedKyc) {
+        return session.preserveReviewedKyc(targetUser, sourceUser, overrides);
+      }
+
       if (!targetUser || !sourceUser) return targetUser;
 
       const hasStatusOverride = Object.prototype.hasOwnProperty.call(overrides, 'kycStatus');
@@ -441,6 +448,10 @@
     }
 
     function writeCurrentUserCache(userLike) {
+      if (session.writeUserCache) {
+        return session.writeUserCache(userLike);
+      }
+
       const fullUser = userLike ? { ...userLike } : null;
       if (!fullUser) return;
 
@@ -471,6 +482,11 @@
 
     function persistCurrentUserToStores() {
       if (!currentUser) return;
+
+      if (session.syncCurrentUserStore) {
+        currentUser = session.syncCurrentUserStore(currentUser);
+        return;
+      }
 
       writeCurrentUserCache(currentUser);
 
@@ -527,73 +543,17 @@
     }
 
     async function ensureSupabaseSessionForCurrentUser() {
-      if (!(window.ESO_DB && window.ESO_DB.isReady())) return null;
-
-      let authUser = await window.ESO_DB.getAuthUser();
-      if (authUser) return authUser;
-
-      const email = String(currentUser?.email || '').trim().toLowerCase();
-      const password = String(currentUser?.password || '');
-      if (!email || !password) return null;
-
-      authUser = await window.ESO_DB.signIn(email, password);
-      if (!authUser) {
-        const signedUpUser = await window.ESO_DB.signUp(email, password);
-        if (signedUpUser) {
-          authUser = await window.ESO_DB.signIn(email, password) || signedUpUser;
-        }
-      }
-
-      if (!authUser) return null;
-
-      const remoteUser = await window.ESO_DB.findUserByAuthId(authUser.id);
-      if (!remoteUser) {
-        const remoteByEmail = await window.ESO_DB.findUserByEmail(email);
-        const userToPersist = {
-          ...(remoteByEmail || currentUser),
-          ...currentUser,
-          email,
-          auth_id: authUser.id,
-          id: remoteByEmail?.id || authUser.id || currentUser.id,
-          updatedAt: new Date().toISOString()
-        };
-
-        preserveReviewedKyc(userToPersist, remoteByEmail);
-
-        const saved = await window.ESO_DB.upsertUser(userToPersist);
-        if (saved) {
-          currentUser = { ...currentUser, ...userToPersist };
-          writeCurrentUserCache(currentUser);
-
-          const users = getSharedUsers();
-          const userIndex = findSharedUserIndex(users, currentUser);
-          const sharedUserRecord = buildSharedUserRecord(userToPersist);
-          if (userIndex >= 0) {
-            users[userIndex] = { ...users[userIndex], ...sharedUserRecord };
-          } else {
-            users.push(sharedUserRecord);
-          }
-          saveSharedUsers(users);
-        }
-      }
-
+      if (!session.ensureSupabaseSessionForCurrentUser) return null;
+      const authUser = await session.ensureSupabaseSessionForCurrentUser(currentUser);
+      currentUser = (session.getCurrentUser && session.getCurrentUser()) || currentUser;
       return authUser;
     }
 
     async function syncRemoteUserToLocal() {
-      if (!(window.ESO_DB && window.ESO_DB.isReady())) return null;
-
-      const authUser = await ensureSupabaseSessionForCurrentUser();
-      let remoteProfile = authUser?.id ? await window.ESO_DB.findUserByAuthId(authUser.id) : null;
-      if (!remoteProfile && currentUser?.email) {
-        remoteProfile = await window.ESO_DB.findUserByEmail(currentUser.email);
-      }
-      if (!remoteProfile) return null;
-
-      currentUser = { ...currentUser, ...remoteProfile };
-      persistCurrentUserToStores();
-
-      return remoteProfile;
+      if (!session.syncRemoteUserToLocal) return currentUser;
+      const syncedUser = await session.syncRemoteUserToLocal(currentUser);
+      if (syncedUser) currentUser = syncedUser;
+      return currentUser;
     }
 
     async function syncExistingKycToSupabase() {
@@ -695,7 +655,7 @@
       const reader = new FileReader();
       reader.onload = function(e) {
         currentUser.profilePhoto = e.target.result;
-        writeCurrentUserCache(currentUser);
+        persistCurrentUserToStores();
         document.getElementById('profileAvatarImg').src = e.target.result;
         
         alert('Profile photo updated!');
@@ -778,20 +738,20 @@
       document.getElementById('passwordForm').classList.toggle('hidden');
     }
 
-    document.getElementById('profileForm').addEventListener('submit', function(e) {
+    document.getElementById('profileForm').addEventListener('submit', async function(e) {
       e.preventDefault();
       currentUser.fullName = document.getElementById('profileName').value;
       currentUser.phone = document.getElementById('profilePhone').value;
       currentUser.country = document.getElementById('profileCountry').value;
-      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
 
-      let users = getSharedUsers();
-      const userIndex = users.findIndex(u => u.id === currentUser.id);
-      if (userIndex >= 0) {
-        users[userIndex].fullName = currentUser.fullName;
-        users[userIndex].phone = currentUser.phone;
-        users[userIndex].country = currentUser.country;
-        saveSharedUsers(users);
+      persistCurrentUserToStores();
+
+      if (window.ESO_DB && window.ESO_DB.isReady()) {
+        await persistCurrentUserToRemote({
+          fullName: currentUser.fullName,
+          phone: currentUser.phone,
+          country: currentUser.country
+        });
       }
 
       alert('Profile updated successfully!');
@@ -896,17 +856,10 @@
 
       // Update local fallback password
       currentUser.password = newPwd;
-      localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
-      
-      // Update in shared users storage
-      let users = getSharedUsers();
+      persistCurrentUserToStores();
+
+      const users = getSharedUsers();
       const userIndex = findSharedUserIndex(users, currentUser);
-      if (userIndex >= 0) {
-        users[userIndex].password = newPwd;
-        currentUser.id = users[userIndex].id || currentUser.id;
-        currentUser.auth_id = users[userIndex].auth_id || currentUser.auth_id;
-        saveSharedUsers(users);
-      }
 
       if (supabaseReady && window.ESO_DB) {
         let remoteProfile = null;
@@ -936,7 +889,9 @@
       window.location.href = '../index.html';
     }
 
-    initSettings();
+    if (currentUser) {
+      initSettings();
+    }
   </script>
 <script src="../public/js/back-button.js"></script>
 <script src="../public/js/tawk-chat.js?v=20260301-05"></script>
