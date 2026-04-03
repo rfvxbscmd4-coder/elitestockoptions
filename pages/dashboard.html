@@ -7,8 +7,8 @@
   <link rel="icon" type="image/png" href="../public/logo.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="../public/js/supabase-config.js?v=20260403-01"></script>
-  <script src="../public/js/supabase-client.js?v=20260403-01"></script>
+  <script src="../public/js/supabase-config.js?v=20260403-03"></script>
+  <script src="../public/js/supabase-client.js?v=20260403-03"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script src="https://s3.tradingview.com/tv.js"></script>
   <script>
@@ -435,7 +435,9 @@
 
   <script src="../public/js/plan-theme.js"></script>
   <script>
-    function safeParseStoredJson(primaryKey, fallbackKey = '') {
+    const sharedSession = window.ESO_SESSION || null;
+
+    function readStoredJson(primaryKey, fallbackKey = '') {
       const rawPrimary = localStorage.getItem(primaryKey);
       const rawFallback = fallbackKey ? localStorage.getItem(fallbackKey) : null;
       const candidates = [rawPrimary, rawFallback].filter(value => typeof value === 'string' && value.trim());
@@ -449,18 +451,43 @@
       return null;
     }
 
-    // Check authentication - support both old and new key names
-    const currentUser = safeParseStoredJson('elitestockoptions_user', 'eso_currentUser');
+    function safeParseArray(rawValue) {
+      if (sharedSession && typeof sharedSession.safeParseArray === 'function') {
+        return sharedSession.safeParseArray(rawValue);
+      }
+
+      try {
+        const parsed = JSON.parse(rawValue || '[]');
+        return Array.isArray(parsed)
+          ? parsed.filter(item => item && typeof item === 'object')
+          : [];
+      } catch (_) {
+        return [];
+      }
+    }
+
+    function getStoredCurrentUser() {
+      if (sharedSession && typeof sharedSession.getCurrentUser === 'function') {
+        return sharedSession.getCurrentUser();
+      }
+
+      if (sharedSession && typeof sharedSession.safeParseStoredJson === 'function') {
+        return sharedSession.safeParseStoredJson('elitestockoptions_user', 'eso_currentUser');
+      }
+
+      return readStoredJson('elitestockoptions_user', 'eso_currentUser');
+    }
+
+    let currentUser = getStoredCurrentUser();
     let tradesRefreshTimer = null;
     let notificationsPanelOpen = false;
     if (!currentUser) {
-      // Not logged in - show demo option instead of redirecting
       console.log('Not logged in - user can still view but will need to login for full features');
     }
 
     function getTradesStore() {
-      const primary = JSON.parse(localStorage.getItem('eso_trades') || '[]');
-      const legacy = JSON.parse(localStorage.getItem('elitestockoptions_trades') || '[]');
+      const primary = safeParseArray(localStorage.getItem('eso_trades'));
+      const legacy = safeParseArray(localStorage.getItem('elitestockoptions_trades'));
       const merged = [...primary, ...legacy];
       const deduped = [];
       const seen = new Set();
@@ -477,99 +504,11 @@
       localStorage.setItem('elitestockoptions_trades', JSON.stringify(trades));
     }
 
-    function safeParseDashboardArray(rawValue) {
-      try {
-        const parsed = JSON.parse(rawValue || '[]');
-        return Array.isArray(parsed)
-          ? parsed.filter(userLike => userLike && typeof userLike === 'object')
-          : [];
-      } catch (_) {
-        return [];
-      }
-    }
-
-    function getDashboardUsers() {
-      const primary = safeParseDashboardArray(localStorage.getItem('elitestockoptions_users'));
-      const legacy = safeParseDashboardArray(localStorage.getItem('eso_users'));
-      return [...primary, ...legacy];
-    }
-
-    function buildSharedDashboardUserRecord(userLike) {
-      if (!userLike || typeof userLike !== 'object') return null;
-
-      return {
-        id: userLike.id || null,
-        auth_id: userLike.auth_id || null,
-        fullName: userLike.fullName || userLike.name || null,
-        name: userLike.name || userLike.fullName || null,
-        email: userLike.email || null,
-        phone: userLike.phone || null,
-        countryCode: userLike.countryCode || null,
-        phoneNumber: userLike.phoneNumber || null,
-        country: userLike.country || null,
-        referralCode: userLike.referralCode || null,
-        password: userLike.password || null,
-        plan: userLike.plan || 'Bronze',
-        balance: Number(userLike.balance || 0),
-        availableCash: Number(userLike.availableCash || 0),
-        profitsBalance: Number(userLike.profitsBalance || 0),
-        kycStatus: userLike.kycStatus || null,
-        kycSubmittedAt: userLike.kycSubmittedAt || null,
-        kycVerifiedAt: userLike.kycVerifiedAt || null,
-        kycData: userLike.kycData || null,
-        updatedAt: userLike.updatedAt || null,
-        createdAt: userLike.createdAt || null,
-        isAdmin: !!userLike.isAdmin
-      };
-    }
-
-    function saveDashboardUsers(users) {
-      const normalizedUsers = (Array.isArray(users) ? users : [])
-        .filter(userLike => userLike && typeof userLike === 'object')
-        .map(buildSharedDashboardUserRecord)
-        .filter(Boolean);
-
-      try {
-        const serialized = JSON.stringify(normalizedUsers);
-        localStorage.setItem('elitestockoptions_users', serialized);
-        localStorage.setItem('eso_users', serialized);
-      } catch (error) {
-        console.warn('Could not persist dashboard shared users cache', error);
-      }
-
-      return normalizedUsers;
-    }
-
-    function writeDashboardCurrentUser(userLike) {
-      const fullUser = userLike ? { ...userLike } : null;
-      if (!fullUser) return;
-
-      try {
-        const serialized = JSON.stringify(fullUser);
-        localStorage.setItem('elitestockoptions_user', serialized);
-        localStorage.setItem('eso_currentUser', serialized);
-        return;
-      } catch (error) {
-        console.warn('Could not persist full dashboard user cache, retrying without heavy media fields', error);
-      }
-
-      const fallbackUser = {
-        ...fullUser,
-        kycDocuments: null,
-        profilePhoto: null,
-        avatar: fullUser.avatar || null
-      };
-
-      try {
-        const serializedFallback = JSON.stringify(fallbackUser);
-        localStorage.setItem('elitestockoptions_user', serializedFallback);
-        localStorage.setItem('eso_currentUser', serializedFallback);
-      } catch (error) {
-        console.warn('Could not persist fallback dashboard user cache', error);
-      }
-    }
-
     function getDashboardDisplayName(userLike) {
+      if (sharedSession && typeof sharedSession.getDisplayName === 'function') {
+        return sharedSession.getDisplayName(userLike);
+      }
+
       const rawName = String(userLike?.fullName || userLike?.name || '').trim();
       if (rawName) return rawName;
 
@@ -581,157 +520,61 @@
       return 'Trader';
     }
 
-    function hasDashboardKycSubmission(userLike) {
-      if (!userLike) return false;
-      if (userLike.kycData || userLike.kycSubmittedAt) return true;
-
-      const docs = userLike.kycDocuments || {};
-      return !!(docs.front || docs.back || docs.selfie);
-    }
-
-    function getDashboardUserSyncTimestamp(userLike) {
-      const timestamp = new Date(userLike?.updatedAt || userLike?.createdAt || 0).getTime();
-      return Number.isFinite(timestamp) ? timestamp : 0;
-    }
-
-    function mergeDashboardUserData(targetUser, sourceUser) {
-      if (!targetUser || !sourceUser) return targetUser;
-
-      const sourceIsNewer = getDashboardUserSyncTimestamp(sourceUser) > getDashboardUserSyncTimestamp(targetUser);
-
-      const sourceDisplayName = String(sourceUser.fullName || sourceUser.name || '').trim();
-      if (!targetUser.fullName && sourceDisplayName) {
-        targetUser.fullName = sourceDisplayName;
-      }
-      if (!targetUser.name && sourceDisplayName) {
-        targetUser.name = sourceDisplayName;
-      }
-
-      ['email', 'phone', 'countryCode', 'phoneNumber', 'country', 'referralCode', 'password', 'auth_id', 'id', 'createdAt'].forEach((field) => {
-        if (!targetUser[field] && sourceUser[field]) {
-          targetUser[field] = sourceUser[field];
-        }
-      });
-
-      ['balance', 'availableCash', 'profitsBalance'].forEach((field) => {
-        const targetValue = Number(targetUser[field] || 0);
-        const sourceValue = Number(sourceUser[field] || 0);
-        if ((sourceIsNewer && targetValue !== sourceValue) || (targetValue === 0 && sourceValue !== 0)) {
-          targetUser[field] = sourceValue;
-        }
-      });
-
-      if ((sourceIsNewer && sourceUser.plan && sourceUser.plan !== targetUser.plan)
-        || ((!targetUser.plan || String(targetUser.plan).toLowerCase() === 'bronze') && sourceUser.plan)) {
-        targetUser.plan = sourceUser.plan;
-      }
-
-      const targetKycStatus = String(targetUser.kycStatus || '').trim().toLowerCase();
-      const sourceKycStatus = String(sourceUser.kycStatus || '').trim().toLowerCase();
-      const targetMissingKyc = !targetKycStatus
-        || targetKycStatus === 'not_submitted'
-        || (targetKycStatus === 'pending' && !hasDashboardKycSubmission(targetUser));
-      const sourceHasKyc = sourceKycStatus === 'verified'
-        || sourceKycStatus === 'rejected'
-        || hasDashboardKycSubmission(sourceUser);
-
-      if (targetMissingKyc && sourceHasKyc) {
-        targetUser.kycStatus = sourceUser.kycStatus || 'pending';
-      }
-      if (!targetUser.kycSubmittedAt && sourceUser.kycSubmittedAt) {
-        targetUser.kycSubmittedAt = sourceUser.kycSubmittedAt;
-      }
-      if (!targetUser.kycVerifiedAt && sourceUser.kycVerifiedAt) {
-        targetUser.kycVerifiedAt = sourceUser.kycVerifiedAt;
-      }
-      if (!targetUser.kycData && sourceUser.kycData) {
-        targetUser.kycData = sourceUser.kycData;
-      }
-      if (!targetUser.kycDocuments && sourceUser.kycDocuments) {
-        targetUser.kycDocuments = sourceUser.kycDocuments;
-      }
-      if (sourceIsNewer || (!targetUser.updatedAt && sourceUser.updatedAt)) {
-        targetUser.updatedAt = sourceUser.updatedAt;
-      }
-
-      return targetUser;
-    }
-
-    function getDashboardUserScore(userLike, preferredAuthId = '') {
-      if (!userLike || userLike.isAdmin) return Number.NEGATIVE_INFINITY;
-
-      const displayName = getDashboardDisplayName(userLike);
-      const emailPrefix = String(userLike?.email || '').trim().toLowerCase().split('@')[0] || '';
-      let score = 0;
-
-      if (preferredAuthId && String(userLike.auth_id || '') === String(preferredAuthId)) score += 20;
-      if (currentUser?.id && String(userLike.id || '') === String(currentUser.id || '')) score += 10;
-      if (displayName && displayName.toLowerCase() !== emailPrefix) score += 20;
-      if (Number(userLike.balance || 0) !== 0) score += 18;
-      if (Number(userLike.availableCash || 0) !== 0) score += 12;
-      if (Number(userLike.profitsBalance || 0) !== 0) score += 12;
-      if (String(userLike.plan || '').trim().toLowerCase() && String(userLike.plan || '').trim().toLowerCase() !== 'bronze') score += 8;
-      if (userLike.phone || userLike.phoneNumber) score += 6;
-      if (String(userLike.kycStatus || '').trim().toLowerCase() === 'verified') score += 8;
-      else if (hasDashboardKycSubmission(userLike)) score += 4;
-
-      const recency = new Date(userLike.updatedAt || userLike.createdAt || 0).getTime();
-      if (Number.isFinite(recency)) {
-        score += recency / 1e15;
-      }
-
-      return score;
-    }
-
-    function selectCanonicalDashboardUser(candidates, preferredAuthId = '') {
-      const filtered = (Array.isArray(candidates) ? candidates : []).filter(userLike => userLike && !userLike.isAdmin);
-      if (!filtered.length) return null;
-
-      const ranked = filtered
-        .map(userLike => ({ user: userLike, score: getDashboardUserScore(userLike, preferredAuthId) }))
-        .sort((a, b) => b.score - a.score);
-
-      let canonical = { ...ranked[0].user };
-      ranked.slice(1).forEach(({ user }) => {
-        canonical = mergeDashboardUserData(canonical, user);
-      });
-
-      if (!canonical.fullName && canonical.name) canonical.fullName = canonical.name;
-      if (!canonical.name && canonical.fullName) canonical.name = canonical.fullName;
-      return canonical;
-    }
-
     function resolveDashboardUserFromStore() {
-      if (!currentUser) return null;
-      const allUsers = getDashboardUsers();
-      if (!allUsers.length) return null;
+      if (sharedSession && typeof sharedSession.resolveCurrentUserFromStore === 'function') {
+        return sharedSession.resolveCurrentUserFromStore(currentUser);
+      }
 
-      const currentEmail = String(currentUser.email || '').toLowerCase();
-      const currentAuthId = String(currentUser.auth_id || '');
-      const currentId = String(currentUser.id || '');
+      return currentUser;
+    }
 
-      const candidates = allUsers.filter((userLike) => {
-        const sameId = currentId && String(userLike.id || '') === currentId;
-        const sameAuth = currentAuthId && String(userLike.auth_id || '') === currentAuthId;
-        const sameEmail = currentEmail && String(userLike.email || '').toLowerCase() === currentEmail;
-        return sameId || sameAuth || sameEmail;
-      });
+    function syncCurrentUserStore(patch = {}) {
+      if (sharedSession && typeof sharedSession.syncCurrentUserStore === 'function') {
+        currentUser = sharedSession.syncCurrentUserStore(currentUser, patch) || { ...(currentUser || {}), ...(patch || {}) };
+        return currentUser;
+      }
 
-      return selectCanonicalDashboardUser(candidates, currentAuthId);
+      currentUser = { ...(currentUser || {}), ...(patch || {}) };
+      return currentUser;
+    }
+
+    function resolveCurrentUserIds() {
+      if (sharedSession && typeof sharedSession.getEquivalentUserIds === 'function') {
+        return sharedSession.getEquivalentUserIds(currentUser);
+      }
+
+      const ids = new Set();
+      if (currentUser?.id) ids.add(String(currentUser.id));
+      if (currentUser?.auth_id) ids.add(String(currentUser.auth_id));
+      return ids;
+    }
+
+    function filterCurrentUserRecords(records, options = {}) {
+      if (sharedSession && typeof sharedSession.filterRecordsForCurrentUser === 'function') {
+        return sharedSession.filterRecordsForCurrentUser(records, currentUser, options);
+      }
+
+      return Array.isArray(records) ? records : [];
     }
 
     async function ensureSupabaseSessionForCurrentUser() {
-      if (!(window.ESO_DB && window.ESO_DB.isReady()) || !currentUser) return null;
+      if (!(sharedSession && typeof sharedSession.ensureSupabaseSessionForCurrentUser === 'function')) {
+        return null;
+      }
 
-      let authUser = await window.ESO_DB.getAuthUser();
-      if (authUser) return authUser;
+      return sharedSession.ensureSupabaseSessionForCurrentUser(currentUser);
+    }
 
-      const email = String(currentUser.email || '').trim().toLowerCase();
-      const password = String(currentUser.password || '');
-      if (!email || !password) return null;
+    async function syncRemoteUserToLocal() {
+      if (!(sharedSession && typeof sharedSession.syncRemoteUserToLocal === 'function')) {
+        return currentUser || null;
+      }
 
-      authUser = await window.ESO_DB.signIn(email, password);
-      return authUser || null;
+      const syncedUser = await sharedSession.syncRemoteUserToLocal(currentUser);
+      if (syncedUser) {
+        currentUser = syncedUser;
+      }
+      return syncedUser;
     }
 
     function applyDashboardPlanBranding(plan) {
@@ -832,25 +675,6 @@
       } else {
         kycBanner.classList.add('hidden');
       }
-    }
-
-    function resolveCurrentUserIds() {
-      const ids = new Set();
-      if (currentUser?.id) ids.add(String(currentUser.id));
-      if (currentUser?.auth_id) ids.add(String(currentUser.auth_id));
-
-      const allUsers = JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
-      const email = String(currentUser?.email || '').toLowerCase();
-      if (email && Array.isArray(allUsers)) {
-        allUsers
-          .filter(u => String(u.email || '').toLowerCase() === email)
-          .forEach(u => {
-            if (u?.id) ids.add(String(u.id));
-            if (u?.auth_id) ids.add(String(u.auth_id));
-          });
-      }
-
-      return ids;
     }
 
     function getUserBonuses() {
@@ -1046,78 +870,16 @@
       }
     }
 
-    async function syncRemoteUserToLocal() {
-      if (!(window.ESO_DB && window.ESO_DB.isReady())) return null;
-
-      const authUser = await ensureSupabaseSessionForCurrentUser();
-      if (!authUser) return null;
-
-      let remoteUser = await window.ESO_DB.findUserByAuthId(authUser.id);
-      if (!remoteUser && currentUser?.email) {
-        remoteUser = await window.ESO_DB.findUserByEmail(currentUser.email);
-      }
-      if (!remoteUser) return null;
-
-      const localUsers = getDashboardUsers();
-      const remoteEmail = String(remoteUser.email || currentUser?.email || '').toLowerCase();
-      const preferredAuthId = String(authUser.id || remoteUser.auth_id || currentUser?.auth_id || '');
-      const matchedLocalUsers = localUsers.filter((userLike) => {
-        const sameId = String(userLike.id || '') === String(remoteUser.id || currentUser?.id || '');
-        const sameEmail = remoteEmail && String(userLike.email || '').toLowerCase() === remoteEmail;
-        const sameAuth = preferredAuthId && String(userLike.auth_id || '') === preferredAuthId;
-        return sameId || sameEmail || sameAuth;
-      });
-
-      const canonicalUser = selectCanonicalDashboardUser([
-        remoteUser,
-        currentUser,
-        ...matchedLocalUsers
-      ], preferredAuthId) || remoteUser;
-
-      canonicalUser.email = canonicalUser.email || remoteUser.email || currentUser?.email || null;
-      canonicalUser.id = canonicalUser.id || remoteUser.id || currentUser?.id || null;
-      canonicalUser.auth_id = preferredAuthId || canonicalUser.auth_id || null;
-      canonicalUser.fullName = canonicalUser.fullName || canonicalUser.name || getDashboardDisplayName(canonicalUser);
-      canonicalUser.name = canonicalUser.name || canonicalUser.fullName;
-      canonicalUser.updatedAt = remoteUser.updatedAt || canonicalUser.updatedAt || new Date().toISOString();
-
-      const deduped = localUsers.filter((userLike) => {
-        const sameId = canonicalUser.id && String(userLike.id || '') === String(canonicalUser.id || '');
-        const sameEmail = canonicalUser.email && String(userLike.email || '').toLowerCase() === String(canonicalUser.email || '').toLowerCase();
-        const sameAuth = canonicalUser.auth_id && String(userLike.auth_id || '') === String(canonicalUser.auth_id || '');
-        return !(sameId || sameEmail || sameAuth);
-      });
-      deduped.push(buildSharedDashboardUserRecord(canonicalUser));
-      saveDashboardUsers(deduped);
-
-      Object.assign(currentUser, canonicalUser);
-      writeDashboardCurrentUser(currentUser);
-      return canonicalUser;
-    }
-
     // Initialize dashboard
     async function initDashboard() {
-      if (!currentUser?.id) return;
+      if (!currentUser) return;
 
       const remoteUser = await syncRemoteUserToLocal();
 
       // Sync balance and profile from canonical shared users storage
-      const serverUser = resolveDashboardUserFromStore() || remoteUser;
+      const serverUser = resolveDashboardUserFromStore() || remoteUser || currentUser;
       if (serverUser) {
-        currentUser.id = serverUser.id || currentUser.id;
-        currentUser.auth_id = serverUser.auth_id || currentUser.auth_id;
-        currentUser.fullName = serverUser.fullName || serverUser.name || currentUser.fullName || currentUser.name;
-        currentUser.name = currentUser.name || currentUser.fullName;
-        currentUser.email = serverUser.email || currentUser.email;
-        currentUser.balance = Number(serverUser.balance ?? currentUser.balance ?? 0);
-        currentUser.availableCash = Number(serverUser.availableCash ?? currentUser.availableCash ?? 0);
-        currentUser.profitsBalance = Number(serverUser.profitsBalance ?? currentUser.profitsBalance ?? 0);
-        currentUser.plan = serverUser.plan || currentUser.plan;
-        currentUser.kycStatus = serverUser.kycStatus || currentUser.kycStatus;
-        currentUser.kycSubmittedAt = serverUser.kycSubmittedAt || currentUser.kycSubmittedAt;
-        currentUser.kycVerifiedAt = serverUser.kycVerifiedAt || currentUser.kycVerifiedAt;
-        currentUser.kycData = serverUser.kycData || currentUser.kycData;
-        writeDashboardCurrentUser(currentUser);
+        currentUser = syncCurrentUserStore(serverUser);
       }
 
       // Update user info
@@ -1193,7 +955,11 @@
 
     function loadOpenTrades() {
       const trades = getTradesStore();
-      const openTrades = trades.filter(t => String(t.userId) === String(currentUser?.id) && t.status === 'open');
+      const openTrades = filterCurrentUserRecords(trades, {
+        userIdFields: ['userId'],
+        authFields: ['userAuthId', 'auth_id'],
+        emailFields: ['userEmail', 'email']
+      }).filter(t => t.status === 'open');
       
       document.getElementById('openTradesCount').textContent = openTrades.length;
       
@@ -1222,9 +988,13 @@
     }
 
     function loadRecentActivity() {
-      const transactions = JSON.parse(localStorage.getItem('eso_transactions') || '[]');
-      const userTransactions = transactions
-        .filter(t => String(t.userId) === String(currentUser.id) && t.type !== 'admin_adjustment')
+      const transactions = safeParseArray(localStorage.getItem('eso_transactions'));
+      const userTransactions = filterCurrentUserRecords(transactions, {
+        userIdFields: ['userId'],
+        authFields: ['userAuthId', 'auth_id'],
+        emailFields: ['userEmail', 'email']
+      })
+        .filter(t => t.type !== 'admin_adjustment')
         .slice(0, 5);
       
       if (userTransactions.length === 0) {
@@ -1319,27 +1089,11 @@
         saveBonusesStore(updatedBonuses);
 
         const credited = Number(totalAmount || 0);
-        currentUser.balance = Number(currentUser.balance || 0) + credited;
-        currentUser.availableCash = Number(currentUser.availableCash || 0) + credited;
-        currentUser.profitsBalance = Number(currentUser.profitsBalance || 0) + credited;
-        localStorage.setItem('elitestockoptions_user', JSON.stringify(currentUser));
-        localStorage.setItem('eso_currentUser', JSON.stringify(currentUser));
-
-        const users = JSON.parse(localStorage.getItem('elitestockoptions_users') || localStorage.getItem('eso_users') || '[]');
-        if (Array.isArray(users)) {
-          const userIds = resolveCurrentUserIds();
-          const updatedUsers = users.map(u => {
-            if (!userIds.has(String(u.id || '')) && !userIds.has(String(u.auth_id || ''))) return u;
-            return {
-              ...u,
-              balance: Number(currentUser.balance || 0),
-              availableCash: Number(currentUser.availableCash || 0),
-              profitsBalance: Number(currentUser.profitsBalance || 0)
-            };
-          });
-          localStorage.setItem('elitestockoptions_users', JSON.stringify(updatedUsers));
-          localStorage.setItem('eso_users', JSON.stringify(updatedUsers));
-        }
+        currentUser = syncCurrentUserStore({
+          balance: Number(currentUser.balance || 0) + credited,
+          availableCash: Number(currentUser.availableCash || 0) + credited,
+          profitsBalance: Number(currentUser.profitsBalance || 0) + credited
+        });
 
         document.getElementById('totalBalance').textContent = '$' + (currentUser.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
         document.getElementById('availableCash').textContent = '$' + (currentUser.availableCash || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });

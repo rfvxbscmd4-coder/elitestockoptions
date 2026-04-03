@@ -7,8 +7,8 @@
   <link rel="icon" type="image/png" href="../public/logo.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="../public/js/supabase-config.js?v=20260403-01"></script>
-  <script src="../public/js/supabase-client.js?v=20260403-01"></script>
+  <script src="../public/js/supabase-config.js?v=20260403-03"></script>
+  <script src="../public/js/supabase-client.js?v=20260403-03"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script>
     tailwind.config = {
@@ -230,7 +230,9 @@
   </div>
 
   <script>
-    function safeParseStoredJson(primaryKey, fallbackKey = '') {
+    const sharedSession = window.ESO_SESSION || null;
+
+    function readStoredJson(primaryKey, fallbackKey = '') {
       const rawPrimary = localStorage.getItem(primaryKey);
       const rawFallback = fallbackKey ? localStorage.getItem(fallbackKey) : null;
       const candidates = [rawPrimary, rawFallback].filter(value => typeof value === 'string' && value.trim());
@@ -245,6 +247,10 @@
     }
 
     function safeParseArray(rawValue) {
+      if (sharedSession && typeof sharedSession.safeParseArray === 'function') {
+        return sharedSession.safeParseArray(rawValue);
+      }
+
       try {
         const parsed = JSON.parse(rawValue || '[]');
         return Array.isArray(parsed)
@@ -255,397 +261,98 @@
       }
     }
 
-    let currentUser = safeParseStoredJson('elitestockoptions_user', 'eso_currentUser');
+    function getStoredCurrentUser() {
+      if (sharedSession && typeof sharedSession.getCurrentUser === 'function') {
+        return sharedSession.getCurrentUser();
+      }
+
+      if (sharedSession && typeof sharedSession.safeParseStoredJson === 'function') {
+        return sharedSession.safeParseStoredJson('elitestockoptions_user', 'eso_currentUser');
+      }
+
+      return readStoredJson('elitestockoptions_user', 'eso_currentUser');
+    }
+
+    let currentUser = getStoredCurrentUser();
     if (!currentUser) {
       alert('Please login first');
       window.location.href = 'login.html';
     }
 
-    function hasWithdrawalKycSubmission(userLike) {
-      if (!userLike) return false;
-      if (userLike.kycData || userLike.kycSubmittedAt) return true;
-
-      const docs = userLike.kycDocuments || {};
-      return !!(docs.front || docs.back || docs.selfie);
-    }
-
-    function getWithdrawalUserSyncTimestamp(userLike) {
-      const timestamp = new Date(userLike?.updatedAt || userLike?.createdAt || 0).getTime();
-      return Number.isFinite(timestamp) ? timestamp : 0;
-    }
-
-    function mergeWithdrawalUserData(targetUser, sourceUser) {
-      if (!targetUser || !sourceUser) return targetUser;
-
-      const sourceIsNewer = getWithdrawalUserSyncTimestamp(sourceUser) > getWithdrawalUserSyncTimestamp(targetUser);
-
-      const sourceDisplayName = String(sourceUser.fullName || sourceUser.name || '').trim();
-      if (!targetUser.fullName && sourceDisplayName) {
-        targetUser.fullName = sourceDisplayName;
-      }
-      if (!targetUser.name && sourceDisplayName) {
-        targetUser.name = sourceDisplayName;
-      }
-
-      ['email', 'phone', 'countryCode', 'phoneNumber', 'country', 'referralCode', 'password', 'auth_id', 'id', 'createdAt'].forEach((field) => {
-        if (!targetUser[field] && sourceUser[field]) {
-          targetUser[field] = sourceUser[field];
-        }
-      });
-
-      ['balance', 'availableCash', 'profitsBalance'].forEach((field) => {
-        const targetValue = Number(targetUser[field] || 0);
-        const sourceValue = Number(sourceUser[field] || 0);
-        if ((sourceIsNewer && targetValue !== sourceValue) || (targetValue === 0 && sourceValue !== 0)) {
-          targetUser[field] = sourceValue;
-        }
-      });
-
-      if ((sourceIsNewer && sourceUser.plan && sourceUser.plan !== targetUser.plan)
-        || ((!targetUser.plan || String(targetUser.plan).toLowerCase() === 'bronze') && sourceUser.plan)) {
-        targetUser.plan = sourceUser.plan;
-      }
-
-      const targetKycStatus = String(targetUser.kycStatus || '').trim().toLowerCase();
-      const sourceKycStatus = String(sourceUser.kycStatus || '').trim().toLowerCase();
-      const targetMissingKyc = !targetKycStatus
-        || targetKycStatus === 'not_submitted'
-        || (targetKycStatus === 'pending' && !hasWithdrawalKycSubmission(targetUser));
-      const sourceHasKyc = sourceKycStatus === 'verified'
-        || sourceKycStatus === 'rejected'
-        || hasWithdrawalKycSubmission(sourceUser);
-
-      if (targetMissingKyc && sourceHasKyc) {
-        targetUser.kycStatus = sourceUser.kycStatus || 'pending';
-      }
-      if (!targetUser.kycSubmittedAt && sourceUser.kycSubmittedAt) {
-        targetUser.kycSubmittedAt = sourceUser.kycSubmittedAt;
-      }
-      if (!targetUser.kycVerifiedAt && sourceUser.kycVerifiedAt) {
-        targetUser.kycVerifiedAt = sourceUser.kycVerifiedAt;
-      }
-      if (!targetUser.kycData && sourceUser.kycData) {
-        targetUser.kycData = sourceUser.kycData;
-      }
-      if (sourceIsNewer || (!targetUser.updatedAt && sourceUser.updatedAt)) {
-        targetUser.updatedAt = sourceUser.updatedAt;
-      }
-
-      return targetUser;
-    }
-
-    function buildSharedUserRecord(userLike) {
-      if (!userLike || typeof userLike !== 'object') return null;
-
-      return {
-        id: userLike.id || null,
-        auth_id: userLike.auth_id || null,
-        fullName: userLike.fullName || userLike.name || null,
-        name: userLike.name || userLike.fullName || null,
-        email: userLike.email || null,
-        phone: userLike.phone || null,
-        countryCode: userLike.countryCode || null,
-        phoneNumber: userLike.phoneNumber || null,
-        country: userLike.country || null,
-        referralCode: userLike.referralCode || null,
-        password: userLike.password || null,
-        plan: userLike.plan || 'Bronze',
-        balance: Number(userLike.balance || 0),
-        availableCash: Number(userLike.availableCash || 0),
-        profitsBalance: Number(userLike.profitsBalance || 0),
-        kycStatus: userLike.kycStatus || null,
-        kycSubmittedAt: userLike.kycSubmittedAt || null,
-        kycVerifiedAt: userLike.kycVerifiedAt || null,
-        kycData: userLike.kycData || null,
-        updatedAt: userLike.updatedAt || null,
-        createdAt: userLike.createdAt || null,
-        isAdmin: !!userLike.isAdmin
-      };
-    }
-
-    function writeCurrentUserCache(userLike) {
-      const fullUser = userLike ? { ...userLike } : null;
-      if (!fullUser) return;
-
-      try {
-        const serialized = JSON.stringify(fullUser);
-        localStorage.setItem('elitestockoptions_user', serialized);
-        localStorage.setItem('eso_currentUser', serialized);
-        return;
-      } catch (error) {
-        console.warn('Could not persist full withdrawal user cache, retrying without heavy media fields', error);
-      }
-
-      const fallbackUser = {
-        ...fullUser,
-        kycDocuments: null,
-        profilePhoto: null,
-        avatar: fullUser.avatar || null
-      };
-
-      try {
-        const serializedFallback = JSON.stringify(fallbackUser);
-        localStorage.setItem('elitestockoptions_user', serializedFallback);
-        localStorage.setItem('eso_currentUser', serializedFallback);
-      } catch (error) {
-        console.warn('Could not persist fallback withdrawal user cache', error);
-      }
-    }
-
-    function getWithdrawalUsers() {
-      const primary = safeParseArray(localStorage.getItem('elitestockoptions_users'));
-      const legacy = safeParseArray(localStorage.getItem('eso_users'));
-      return [...primary, ...legacy];
-    }
-
-    function getWithdrawalUserScore(userLike, preferredAuthId = '') {
-      if (!userLike || userLike.isAdmin) return Number.NEGATIVE_INFINITY;
-
-      const displayName = String(userLike.fullName || userLike.name || '').trim();
-      const emailPrefix = String(userLike.email || '').trim().toLowerCase().split('@')[0] || '';
-      let score = 0;
-
-      if (preferredAuthId && String(userLike.auth_id || '') === String(preferredAuthId)) score += 20;
-      if (currentUser?.id && String(userLike.id || '') === String(currentUser.id || '')) score += 10;
-      if (displayName && displayName.toLowerCase() !== emailPrefix) score += 20;
-      if (Number(userLike.balance || 0) !== 0) score += 18;
-      if (Number(userLike.availableCash || 0) !== 0) score += 12;
-      if (Number(userLike.profitsBalance || 0) !== 0) score += 12;
-      if (String(userLike.plan || '').trim().toLowerCase() && String(userLike.plan || '').trim().toLowerCase() !== 'bronze') score += 8;
-      if (userLike.phone || userLike.phoneNumber) score += 6;
-      if (String(userLike.kycStatus || '').trim().toLowerCase() === 'verified') score += 8;
-      else if (hasWithdrawalKycSubmission(userLike)) score += 4;
-
-      const recency = new Date(userLike.updatedAt || userLike.createdAt || 0).getTime();
-      if (Number.isFinite(recency)) {
-        score += recency / 1e15;
-      }
-
-      return score;
-    }
-
-    function selectCanonicalWithdrawalUser(candidates, preferredAuthId = '') {
-      const filtered = (Array.isArray(candidates) ? candidates : []).filter(userLike => userLike && !userLike.isAdmin);
-      if (!filtered.length) return null;
-
-      const ranked = filtered
-        .map(userLike => ({ user: userLike, score: getWithdrawalUserScore(userLike, preferredAuthId) }))
-        .sort((a, b) => b.score - a.score);
-
-      let canonical = { ...ranked[0].user };
-      ranked.slice(1).forEach(({ user }) => {
-        canonical = mergeWithdrawalUserData(canonical, user);
-      });
-
-      if (!canonical.fullName && canonical.name) canonical.fullName = canonical.name;
-      if (!canonical.name && canonical.fullName) canonical.name = canonical.fullName;
-      return canonical;
-    }
-
-    function getSharedUsers() {
-      return getWithdrawalUsers();
-    }
-
-    function saveSharedUsers(users) {
-      const normalizedUsers = (Array.isArray(users) ? users : [])
-        .filter(userLike => userLike && typeof userLike === 'object')
-        .map(buildSharedUserRecord)
-        .filter(Boolean);
-
-      const dedupedUsers = [];
-      normalizedUsers.forEach((userLike) => {
-        const existingIndex = findSharedUserIndex(dedupedUsers, userLike);
-        if (existingIndex >= 0) {
-          dedupedUsers[existingIndex] = mergeWithdrawalUserData({ ...dedupedUsers[existingIndex] }, userLike);
-        } else {
-          dedupedUsers.push(userLike);
-        }
-      });
-
-      try {
-        const serialized = JSON.stringify(dedupedUsers);
-        localStorage.setItem('elitestockoptions_users', serialized);
-        localStorage.setItem('eso_users', serialized);
-      } catch (error) {
-        console.warn('Could not persist withdrawal shared users cache', error);
-      }
-
-      return dedupedUsers;
-    }
-
     function resolveWithdrawalUserFromStore() {
-      if (!currentUser) return null;
-
-      const currentEmail = String(currentUser.email || '').toLowerCase();
-      const currentAuthId = String(currentUser.auth_id || '');
-      const currentId = String(currentUser.id || '');
-      const candidates = getSharedUsers().filter((userLike) => {
-        const sameId = currentId && String(userLike.id || '') === currentId;
-        const sameAuth = currentAuthId && String(userLike.auth_id || '') === currentAuthId;
-        const sameEmail = currentEmail && String(userLike.email || '').toLowerCase() === currentEmail;
-        return sameId || sameAuth || sameEmail;
-      });
-
-      return selectCanonicalWithdrawalUser(candidates, currentAuthId);
-    }
-
-    function resolveCurrentUserIds() {
-      const ids = new Set();
-      if (currentUser?.id) ids.add(String(currentUser.id));
-      if (currentUser?.auth_id) ids.add(String(currentUser.auth_id));
-
-      const currentEmail = String(currentUser?.email || '').toLowerCase();
-      if (currentEmail) {
-        getSharedUsers()
-          .filter(userLike => String(userLike.email || '').toLowerCase() === currentEmail)
-          .forEach((userLike) => {
-            if (userLike?.id) ids.add(String(userLike.id));
-            if (userLike?.auth_id) ids.add(String(userLike.auth_id));
-          });
+      if (sharedSession && typeof sharedSession.resolveCurrentUserFromStore === 'function') {
+        return sharedSession.resolveCurrentUserFromStore(currentUser);
       }
 
-      return ids;
+      return currentUser;
     }
 
     const canonicalUserFromStore = resolveWithdrawalUserFromStore();
     if (canonicalUserFromStore) {
-      currentUser = mergeWithdrawalUserData({ ...canonicalUserFromStore }, currentUser);
-      writeCurrentUserCache(currentUser);
-    }
-
-    function findSharedUserIndex(users, userLike) {
-      if (!Array.isArray(users) || !userLike) return -1;
-
-      const targetId = String(userLike.id || '');
-      const targetAuthId = String(userLike.auth_id || '');
-      const targetEmail = String(userLike.email || '').toLowerCase();
-
-      return users.findIndex(user => {
-        if (!user) return false;
-        if (targetId && String(user.id || '') === targetId) return true;
-        if (targetAuthId && String(user.auth_id || '') === targetAuthId) return true;
-        return !!targetEmail && String(user.email || '').toLowerCase() === targetEmail;
-      });
+      currentUser = canonicalUserFromStore;
     }
 
     function syncCurrentUserStore(patch = {}) {
-      currentUser = { ...currentUser, ...patch };
-      currentUser.fullName = currentUser.fullName || currentUser.name || null;
-      currentUser.name = currentUser.name || currentUser.fullName || null;
-      writeCurrentUserCache(currentUser);
-
-      const users = getSharedUsers();
-      const userIndex = findSharedUserIndex(users, currentUser);
-      const sharedUserRecord = buildSharedUserRecord(currentUser);
-      if (userIndex >= 0) {
-        users[userIndex] = mergeWithdrawalUserData({ ...users[userIndex] }, sharedUserRecord);
-      } else {
-        users.push(sharedUserRecord);
+      if (sharedSession && typeof sharedSession.syncCurrentUserStore === 'function') {
+        currentUser = sharedSession.syncCurrentUserStore(currentUser, patch) || { ...(currentUser || {}), ...(patch || {}) };
+        return currentUser;
       }
-      saveSharedUsers(users);
+
+      currentUser = { ...(currentUser || {}), ...(patch || {}) };
+      return currentUser;
+    }
+
+    function resolveCurrentUserIds() {
+      if (sharedSession && typeof sharedSession.getEquivalentUserIds === 'function') {
+        return sharedSession.getEquivalentUserIds(currentUser);
+      }
+
+      const ids = new Set();
+      if (currentUser?.id) ids.add(String(currentUser.id));
+      if (currentUser?.auth_id) ids.add(String(currentUser.auth_id));
+      return ids;
+    }
+
+    function filterCurrentUserRecords(records, options = {}) {
+      if (sharedSession && typeof sharedSession.filterRecordsForCurrentUser === 'function') {
+        return sharedSession.filterRecordsForCurrentUser(records, currentUser, options);
+      }
+
+      return Array.isArray(records) ? records : [];
     }
 
     async function ensureSupabaseSessionForCurrentUser() {
-      if (!(window.ESO_DB && window.ESO_DB.isReady())) return null;
-
-      let authUser = await window.ESO_DB.getAuthUser();
-      if (authUser) return authUser;
-
-      const email = String(currentUser?.email || '').trim().toLowerCase();
-      const password = String(currentUser?.password || '');
-      if (!email || !password) return null;
-
-      authUser = await window.ESO_DB.signIn(email, password);
-      if (!authUser) {
-        const signedUpUser = await window.ESO_DB.signUp(email, password);
-        if (signedUpUser) {
-          authUser = await window.ESO_DB.signIn(email, password) || signedUpUser;
-        }
+      if (!(sharedSession && typeof sharedSession.ensureSupabaseSessionForCurrentUser === 'function')) {
+        return null;
       }
 
-      if (!authUser) return null;
-
-      const remoteUser = await window.ESO_DB.findUserByAuthId(authUser.id);
-      if (!remoteUser) {
-        const remoteByEmail = await window.ESO_DB.findUserByEmail(email);
-        const userToPersist = {
-          ...(remoteByEmail || currentUser),
-          ...currentUser,
-          email,
-          auth_id: authUser.id,
-          id: remoteByEmail?.id || authUser.id || currentUser.id,
-          updatedAt: new Date().toISOString()
-        };
-
-        const saved = await window.ESO_DB.upsertUser(userToPersist);
-        if (saved) {
-          syncCurrentUserStore(userToPersist);
-        }
-      }
-
-      return authUser;
+      return sharedSession.ensureSupabaseSessionForCurrentUser(currentUser);
     }
 
     async function syncRemoteUserToLocal() {
-      if (!(window.ESO_DB && window.ESO_DB.isReady())) return null;
-
-      const authUser = await ensureSupabaseSessionForCurrentUser();
-      let remoteUser = authUser?.id ? await window.ESO_DB.findUserByAuthId(authUser.id) : null;
-      if (!remoteUser && currentUser?.email) {
-        remoteUser = await window.ESO_DB.findUserByEmail(currentUser.email);
+      if (!(sharedSession && typeof sharedSession.syncRemoteUserToLocal === 'function')) {
+        return currentUser || null;
       }
-      if (!remoteUser) return null;
 
-      const remoteEmail = String(remoteUser.email || currentUser?.email || '').toLowerCase();
-      const preferredAuthId = String(authUser?.id || remoteUser.auth_id || currentUser?.auth_id || '');
-      const matchedLocalUsers = getSharedUsers().filter((userLike) => {
-        const sameId = String(userLike.id || '') === String(remoteUser.id || currentUser?.id || '');
-        const sameEmail = remoteEmail && String(userLike.email || '').toLowerCase() === remoteEmail;
-        const sameAuth = preferredAuthId && String(userLike.auth_id || '') === preferredAuthId;
-        return sameId || sameEmail || sameAuth;
-      });
-
-      const canonicalUser = selectCanonicalWithdrawalUser([
-        remoteUser,
-        currentUser,
-        ...matchedLocalUsers
-      ], preferredAuthId) || remoteUser;
-
-      canonicalUser.email = canonicalUser.email || remoteUser.email || currentUser?.email || null;
-      canonicalUser.id = canonicalUser.id || remoteUser.id || currentUser?.id || null;
-      canonicalUser.auth_id = preferredAuthId || canonicalUser.auth_id || null;
-      canonicalUser.fullName = canonicalUser.fullName || canonicalUser.name || null;
-      canonicalUser.name = canonicalUser.name || canonicalUser.fullName || null;
-      canonicalUser.updatedAt = remoteUser.updatedAt || canonicalUser.updatedAt || new Date().toISOString();
-
-      syncCurrentUserStore(canonicalUser);
-      return canonicalUser;
+      const syncedUser = await sharedSession.syncRemoteUserToLocal(currentUser);
+      if (syncedUser) {
+        currentUser = syncedUser;
+      }
+      return syncedUser;
     }
 
-    async function persistCurrentUserToRemote() {
-      if (!(window.ESO_DB && window.ESO_DB.isReady())) return false;
-
-      const authUser = await ensureSupabaseSessionForCurrentUser();
-      let remoteUser = authUser?.id ? await window.ESO_DB.findUserByAuthId(authUser.id) : null;
-      if (!remoteUser && currentUser?.email) {
-        remoteUser = await window.ESO_DB.findUserByEmail(currentUser.email);
+    async function persistCurrentUserToRemote(overrides = {}) {
+      if (!(sharedSession && typeof sharedSession.persistCurrentUserToRemote === 'function')) {
+        return false;
       }
 
-      const userToPersist = {
-        ...(remoteUser || currentUser),
-        ...currentUser,
-        id: remoteUser?.id || authUser?.id || currentUser.id,
-        auth_id: authUser?.id || remoteUser?.auth_id || currentUser.auth_id,
-        updatedAt: new Date().toISOString()
-      };
-
-      if (!userToPersist.id || !userToPersist.email) return false;
-
-      const saved = await window.ESO_DB.upsertUser(userToPersist);
-      if (saved) {
-        syncCurrentUserStore(userToPersist);
+      const persistedUser = await sharedSession.persistCurrentUserToRemote(currentUser, overrides);
+      if (!persistedUser) {
+        return false;
       }
-      return !!saved;
+
+      currentUser = persistedUser;
+      return true;
     }
 
     let selectedSource = 'total';
@@ -852,16 +559,10 @@
 
     function loadWithdrawalHistory() {
       const withdrawals = safeParseArray(localStorage.getItem('eso_withdrawals'));
-      const currentUserIds = resolveCurrentUserIds();
-      const currentEmail = String(currentUser?.email || '').toLowerCase();
-      const currentAuthId = String(currentUser?.auth_id || '');
-      const userWithdrawals = withdrawals.filter((withdrawal) => {
-        const withdrawalUserId = String(withdrawal.userId || '');
-        const withdrawalUserEmail = String(withdrawal.userEmail || '').toLowerCase();
-        const withdrawalUserAuthId = String(withdrawal.userAuthId || '');
-        return currentUserIds.has(withdrawalUserId)
-          || (!!currentEmail && withdrawalUserEmail === currentEmail)
-          || (!!currentAuthId && withdrawalUserAuthId === currentAuthId);
+      const userWithdrawals = filterCurrentUserRecords(withdrawals, {
+        userIdFields: ['userId'],
+        authFields: ['userAuthId', 'auth_id'],
+        emailFields: ['userEmail', 'email']
       }).slice(0, 10);
       
       const tbody = document.getElementById('withdrawalHistoryTable');

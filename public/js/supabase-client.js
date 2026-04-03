@@ -62,6 +62,91 @@
     'isAdmin'
   ];
 
+  const DEPOSIT_COLUMNS = [
+    'id',
+    'userId',
+    'cryptoId',
+    'cryptoName',
+    'cryptoSymbol',
+    'amount',
+    'txHash',
+    'status',
+    'createdAt',
+    'approvedAt'
+  ];
+
+  const WITHDRAWAL_COLUMNS = [
+    'id',
+    'userId',
+    'source',
+    'method',
+    'cryptoType',
+    'address',
+    'amount',
+    'fee',
+    'netAmount',
+    'status',
+    'createdAt',
+    'approvedAt'
+  ];
+
+  const TRADE_COLUMNS = [
+    'id',
+    'userId',
+    'symbol',
+    'type',
+    'orderType',
+    'amount',
+    'leverage',
+    'entryPrice',
+    'currentPrice',
+    'exitPrice',
+    'tpPrice',
+    'slPrice',
+    'status',
+    'pnl',
+    'pnlPercent',
+    'openedAt',
+    'closedAt'
+  ];
+
+  const UPGRADE_COLUMNS = [
+    'id',
+    'userId',
+    'fromPlan',
+    'toPlan',
+    'requiredDeposit',
+    'status',
+    'createdAt',
+    'approvedAt',
+    'rejectedAt'
+  ];
+
+  const LOAN_COLUMNS = [
+    'id',
+    'userId',
+    'amount',
+    'period',
+    'purpose',
+    'status',
+    'createdAt',
+    'approvedAt',
+    'rejectedAt'
+  ];
+
+  function sanitizePayload(record, allowedColumns) {
+    if (!record || typeof record !== 'object') return record;
+
+    const payload = {};
+    (Array.isArray(allowedColumns) ? allowedColumns : []).forEach((key) => {
+      if (Object.prototype.hasOwnProperty.call(record, key) && typeof record[key] !== 'undefined') {
+        payload[key] = record[key];
+      }
+    });
+
+    return payload;
+  }
+
   function sanitizeUserPayload(user) {
     if (!user || typeof user !== 'object') return user;
 
@@ -370,7 +455,8 @@
       const client = getClient();
       if (!client) return null;
       return safe(async () => {
-        const { error } = await client.from('eso_deposits').insert(deposit);
+        const payload = sanitizePayload(deposit, DEPOSIT_COLUMNS);
+        const { error } = await client.from('eso_deposits').insert(payload);
         if (error) throw error;
         return true;
       });
@@ -380,9 +466,11 @@
       const client = getClient();
       if (!client) return null;
       return safe(async () => {
+        const payload = sanitizePayload(patch, DEPOSIT_COLUMNS);
+        if (!Object.keys(payload || {}).length) return true;
         const { error } = await client
           .from('eso_deposits')
-          .update(patch)
+          .update(payload)
           .eq('id', id);
         if (error) throw error;
         return true;
@@ -406,7 +494,8 @@
       const client = getClient();
       if (!client) return null;
       return safe(async () => {
-        const { error } = await client.from('eso_withdrawals').insert(withdrawal);
+        const payload = sanitizePayload(withdrawal, WITHDRAWAL_COLUMNS);
+        const { error } = await client.from('eso_withdrawals').insert(payload);
         if (error) throw error;
         return true;
       });
@@ -416,9 +505,11 @@
       const client = getClient();
       if (!client) return null;
       return safe(async () => {
+        const payload = sanitizePayload(patch, WITHDRAWAL_COLUMNS);
+        if (!Object.keys(payload || {}).length) return true;
         const { error } = await client
           .from('eso_withdrawals')
-          .update(patch)
+          .update(payload)
           .eq('id', id);
         if (error) throw error;
         return true;
@@ -442,7 +533,8 @@
       const client = getClient();
       if (!client) return null;
       return safe(async () => {
-        const { error } = await client.from('eso_trades').insert(trade);
+        const payload = sanitizePayload(trade, TRADE_COLUMNS);
+        const { error } = await client.from('eso_trades').insert(payload);
         if (error) throw error;
         return true;
       });
@@ -452,9 +544,11 @@
       const client = getClient();
       if (!client) return null;
       return safe(async () => {
+        const payload = sanitizePayload(patch, TRADE_COLUMNS);
+        if (!Object.keys(payload || {}).length) return true;
         const { error } = await client
           .from('eso_trades')
-          .update(patch)
+          .update(payload)
           .eq('id', id);
         if (error) throw error;
         return true;
@@ -465,9 +559,10 @@
       const client = getClient();
       if (!client) return null;
       return safe(async () => {
+        const payload = sanitizePayload(trade, TRADE_COLUMNS);
         const { error } = await client
           .from('eso_trades')
-          .upsert(trade, { onConflict: 'id' });
+          .upsert(payload, { onConflict: 'id' });
         if (error) throw error;
         return true;
       });
@@ -490,7 +585,8 @@
       const client = getClient();
       if (!client) return null;
       return safe(async () => {
-        const { error } = await client.from('eso_upgrades').insert(upgrade);
+        const payload = sanitizePayload(upgrade, UPGRADE_COLUMNS);
+        const { error } = await client.from('eso_upgrades').insert(payload);
         if (error) throw error;
         return true;
       });
@@ -500,9 +596,11 @@
       const client = getClient();
       if (!client) return null;
       return safe(async () => {
+        const payload = sanitizePayload(patch, UPGRADE_COLUMNS);
+        if (!Object.keys(payload || {}).length) return true;
         const { error } = await client
           .from('eso_upgrades')
-          .update(patch)
+          .update(payload)
           .eq('id', id);
         if (error) throw error;
         return true;
@@ -526,7 +624,8 @@
       const client = getClient();
       if (!client) return null;
       return safe(async () => {
-        const { error } = await client.from('eso_loans').insert(loan);
+        const payload = sanitizePayload(loan, LOAN_COLUMNS);
+        const { error } = await client.from('eso_loans').insert(payload);
         if (error) throw error;
         return true;
       });
@@ -536,9 +635,11 @@
       const client = getClient();
       if (!client) return null;
       return safe(async () => {
+        const payload = sanitizePayload(patch, LOAN_COLUMNS);
+        if (!Object.keys(payload || {}).length) return true;
         const { error } = await client
           .from('eso_loans')
-          .update(patch)
+          .update(payload)
           .eq('id', id);
         if (error) throw error;
         return true;
