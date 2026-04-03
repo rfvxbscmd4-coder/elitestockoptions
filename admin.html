@@ -1774,13 +1774,31 @@
       `).join('');
     }
 
-    function approveWithdrawal(withdrawalId) {
+    async function approveWithdrawal(withdrawalId) {
       let withdrawals = JSON.parse(localStorage.getItem('eso_withdrawals') || '[]');
       const withdrawal = withdrawals.find(w => w.id === withdrawalId);
-      if (!withdrawal) return;
+      if (!withdrawal) {
+        showToast('Withdrawal not found!', 'error');
+        return;
+      }
+
+      const approvedAt = new Date().toISOString();
+
+      if (window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.updateWithdrawal) {
+        const remoteSaved = await window.ESO_DB.updateWithdrawal(withdrawal.id, {
+          status: 'approved',
+          approvedAt
+        });
+
+        if (!remoteSaved) {
+          const lastError = window.ESO_DB.getLastError ? window.ESO_DB.getLastError() : null;
+          showToast(lastError?.message || 'Withdrawal could not be approved right now.', 'error');
+          return;
+        }
+      }
 
       withdrawal.status = 'approved';
-      withdrawal.approvedAt = new Date().toISOString();
+      withdrawal.approvedAt = approvedAt;
       localStorage.setItem('eso_withdrawals', JSON.stringify(withdrawals));
 
       upsertTransactionStatusByReference({
@@ -1791,46 +1809,77 @@
         status: 'completed',
         referenceType: 'withdrawal',
         referenceId: withdrawal.id,
-        date: withdrawal.approvedAt || new Date().toISOString()
+        date: withdrawal.approvedAt || approvedAt
       });
+
       showToast('Withdrawal approved!');
       loadWithdrawals();
+      loadDashboard();
     }
 
-    function rejectWithdrawal(withdrawalId) {
+    async function rejectWithdrawal(withdrawalId) {
       if (!confirm('Reject this withdrawal? Funds will be returned to user.')) return;
       let withdrawals = JSON.parse(localStorage.getItem('eso_withdrawals') || '[]');
       const withdrawal = withdrawals.find(w => w.id === withdrawalId);
-      if (withdrawal) {
-        withdrawal.status = 'rejected';
-        localStorage.setItem('eso_withdrawals', JSON.stringify(withdrawals));
-        
-        let users = getUsers();
-        const user = users.find(u => u.id === withdrawal.userId);
-        if (user) {
-          if (withdrawal.source === 'available') {
-            user.availableCash = (user.availableCash || 0) + withdrawal.amount;
-          } else if (withdrawal.source === 'profits') {
-            user.profitsBalance = (user.profitsBalance || 0) + withdrawal.amount;
-          } else {
-            user.balance = (user.balance || 0) + withdrawal.amount;
-          }
-          saveUsers(users);
-        }
-
-        upsertTransactionStatusByReference({
-          userId: withdrawal.userId,
-          type: 'withdrawal',
-          amount: -withdrawal.amount,
-          description: 'Withdrawal failed',
-          status: 'failed',
-          referenceType: 'withdrawal',
-          referenceId: withdrawal.id,
-          date: new Date().toISOString()
-        });
+      if (!withdrawal) {
+        showToast('Withdrawal not found!', 'error');
+        return;
       }
+
+      const rejectedAt = new Date().toISOString();
+      if (window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.updateWithdrawal) {
+        const remoteSaved = await window.ESO_DB.updateWithdrawal(withdrawal.id, {
+          status: 'rejected',
+          approvedAt: null
+        });
+
+        if (!remoteSaved) {
+          const lastError = window.ESO_DB.getLastError ? window.ESO_DB.getLastError() : null;
+          showToast(lastError?.message || 'Withdrawal could not be rejected right now.', 'error');
+          return;
+        }
+      }
+
+      withdrawal.status = 'rejected';
+      withdrawal.rejectedAt = rejectedAt;
+      withdrawal.approvedAt = null;
+      localStorage.setItem('eso_withdrawals', JSON.stringify(withdrawals));
+        
+      let users = getUsers();
+      const user = users.find(u => u.id === withdrawal.userId);
+      if (user) {
+        if (withdrawal.source === 'available') {
+          user.availableCash = (user.availableCash || 0) + withdrawal.amount;
+        } else if (withdrawal.source === 'profits') {
+          user.profitsBalance = (user.profitsBalance || 0) + withdrawal.amount;
+        } else {
+          user.balance = (user.balance || 0) + withdrawal.amount;
+        }
+        saveUsers(users);
+
+        if (window.ESO_DB && window.ESO_DB.isReady()) {
+          const userSaved = await window.ESO_DB.upsertUser(user);
+          if (!userSaved) {
+            const lastError = window.ESO_DB.getLastError ? window.ESO_DB.getLastError() : null;
+            showToast(lastError?.message || 'Withdrawal was rejected, but the refunded balance could not be synced remotely.', 'error');
+          }
+        }
+      }
+
+      upsertTransactionStatusByReference({
+        userId: withdrawal.userId,
+        type: 'withdrawal',
+        amount: -withdrawal.amount,
+        description: 'Withdrawal failed',
+        status: 'failed',
+        referenceType: 'withdrawal',
+        referenceId: withdrawal.id,
+        date: rejectedAt
+      });
+
       showToast('Withdrawal rejected! Funds returned.');
       loadWithdrawals();
+      loadDashboard();
     }
 
     function loadBonusForm() {
