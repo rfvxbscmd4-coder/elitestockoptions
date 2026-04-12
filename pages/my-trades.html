@@ -324,10 +324,10 @@
 
           <!-- Trade Buttons -->
           <div class="grid grid-cols-2 gap-4">
-            <button type="button" onclick="placeTrade('long')" class="trade-btn long-btn text-white py-4 rounded-xl font-bold text-lg">
+            <button type="button" onclick="placeTrade('long')" data-direction="long" class="trade-btn long-btn text-white py-4 rounded-xl font-bold text-lg disabled:opacity-60 disabled:cursor-not-allowed">
               <i class="fas fa-arrow-up mr-2"></i>BUY / LONG
             </button>
-            <button type="button" onclick="placeTrade('short')" class="trade-btn short-btn text-white py-4 rounded-xl font-bold text-lg">
+            <button type="button" onclick="placeTrade('short')" data-direction="short" class="trade-btn short-btn text-white py-4 rounded-xl font-bold text-lg disabled:opacity-60 disabled:cursor-not-allowed">
               <i class="fas fa-arrow-down mr-2"></i>SELL / SHORT
             </button>
           </div>
@@ -406,6 +406,32 @@
 
     let orderType = 'market';
     let currentPrice = 43250.50;
+    let tradeSubmitInFlight = false;
+
+    function isTrackProfitAdjustmentTrade(trade) {
+      return !!trade
+        && String(trade.type || '').toUpperCase() === 'TRACK_PNL_ADJUSTMENT'
+        && String(trade.symbol || '').startsWith('TRACK_PNL:');
+    }
+
+    function setTradeSubmitState(isPending, activeDirection = '') {
+      tradeSubmitInFlight = isPending;
+
+      document.querySelectorAll('.trade-btn').forEach((button) => {
+        if (!button.dataset.defaultLabel) {
+          button.dataset.defaultLabel = button.innerHTML;
+        }
+
+        const buttonDirection = String(button.dataset.direction || '').toLowerCase();
+        const isActiveButton = isPending && buttonDirection === String(activeDirection || '').toLowerCase();
+
+        button.disabled = isPending;
+        button.setAttribute('aria-busy', isActiveButton ? 'true' : 'false');
+        button.innerHTML = isActiveButton
+          ? '<i class="fas fa-circle-notch fa-spin mr-2"></i>SUBMITTING...'
+          : button.dataset.defaultLabel;
+      });
+    }
 
     async function syncRemoteTradesToLocal() {
       if (!(window.ESO_DB && window.ESO_DB.isReady())) return;
@@ -702,7 +728,7 @@
     }
 
     async function placeTrade(direction) {
-      await syncRemoteUserToLocal();
+      if (tradeSubmitInFlight) return;
 
       const symbol = document.getElementById('tradeSymbol').value;
       const amount = parseFloat(document.getElementById('investmentAmount').value);
@@ -713,63 +739,70 @@
         return;
       }
 
-      if (amount > (currentUser.availableCash || 0)) {
-        alert('Insufficient balance');
-        return;
-      }
-
-      const trade = {
-        id: Date.now().toString(),
-        userId: currentUser.id,
-        userAuthId: currentUser.auth_id || null,
-        userEmail: currentUser.email || null,
-        symbol: symbol,
-        type: direction.toUpperCase(),
-        orderType: orderType.toUpperCase(),
-        amount: amount,
-        leverage: leverage,
-        entryPrice: currentPrice,
-        currentPrice: currentPrice,
-        tpPrice: document.getElementById('tpEnabled').checked ? parseFloat(document.getElementById('tpPrice').value) : null,
-        slPrice: document.getElementById('slEnabled').checked ? parseFloat(document.getElementById('slPrice').value) : null,
-        status: 'open',
-        pnl: 0,
-        pnlPercent: 0,
-        openedAt: new Date().toISOString()
-      };
-
       if (!(window.ESO_DB && window.ESO_DB.isReady())) {
         alert('Trade submission requires live sync. Please refresh and sign in again.');
         return;
       }
 
-      const remoteSaved = await window.ESO_DB.createTrade(trade);
-      if (!remoteSaved) {
-        alert('Trade could not be submitted for admin visibility right now. Please sign in again and retry.');
-        return;
+      setTradeSubmitState(true, direction);
+
+      try {
+        await syncRemoteUserToLocal();
+
+        if (amount > Number(currentUser.availableCash || 0)) {
+          alert('Insufficient balance');
+          return;
+        }
+
+        const trade = {
+          id: window.crypto && typeof window.crypto.randomUUID === 'function'
+            ? window.crypto.randomUUID()
+            : Date.now().toString(),
+          userId: currentUser.id,
+          userAuthId: currentUser.auth_id || null,
+          userEmail: currentUser.email || null,
+          symbol: symbol,
+          type: direction.toUpperCase(),
+          orderType: orderType.toUpperCase(),
+          amount: amount,
+          leverage: leverage,
+          entryPrice: currentPrice,
+          currentPrice: currentPrice,
+          tpPrice: document.getElementById('tpEnabled').checked ? parseFloat(document.getElementById('tpPrice').value) : null,
+          slPrice: document.getElementById('slEnabled').checked ? parseFloat(document.getElementById('slPrice').value) : null,
+          status: 'open',
+          pnl: 0,
+          pnlPercent: 0,
+          openedAt: new Date().toISOString()
+        };
+
+        const remoteSaved = await window.ESO_DB.createTrade(trade);
+        if (!remoteSaved) {
+          const lastError = window.ESO_DB.getLastError ? window.ESO_DB.getLastError() : null;
+          alert(lastError?.message || 'Trade could not be submitted for admin visibility right now. Please sign in again and retry.');
+          return;
+        }
+
+        let trades = safeParseArray(localStorage.getItem('eso_trades'));
+        trades.push(trade);
+        localStorage.setItem('eso_trades', JSON.stringify(trades));
+        localStorage.setItem('elitestockoptions_trades', JSON.stringify(trades));
+
+        currentUser = syncCurrentUserStore({
+          balance: Number(currentUser.balance || 0) - amount,
+          availableCash: Number(currentUser.availableCash || 0) - amount
+        });
+        await persistCurrentUserToRemote();
+
+        addTransaction('trade', amount, `Opened ${direction.toUpperCase()} position on ${symbol}`);
+
+        document.getElementById('availableBalance').textContent = (currentUser.availableCash || 0).toFixed(2);
+        alert('Trade placed successfully!');
+        closeNewTradeModal();
+        loadOpenTrades();
+      } finally {
+        setTradeSubmitState(false);
       }
-
-      // Save trade
-      let trades = safeParseArray(localStorage.getItem('eso_trades'));
-      trades.push(trade);
-      localStorage.setItem('eso_trades', JSON.stringify(trades));
-      localStorage.setItem('elitestockoptions_trades', JSON.stringify(trades));
-
-      // Update balance in both session and shared users storage
-      // Deduct from BOTH total balance AND available cash
-      syncCurrentUserStore({
-        balance: Number(currentUser.balance || 0) - amount,
-        availableCash: Number(currentUser.availableCash || 0) - amount
-      });
-      await persistCurrentUserToRemote();
-
-      // Add transaction
-      addTransaction('trade', amount, `Opened ${direction.toUpperCase()} position on ${symbol}`);
-
-      document.getElementById('availableBalance').textContent = (currentUser.availableCash || 0).toFixed(2);
-      alert('Trade placed successfully!');
-      closeNewTradeModal();
-      loadOpenTrades();
     }
 
     function addTransaction(type, amount, description) {
@@ -793,7 +826,7 @@
         userIdField: 'userId',
         authFields: ['userAuthId', 'auth_id'],
         emailFields: ['userEmail', 'email']
-      }).filter(t => t.status === 'open');
+      }).filter(t => t.status === 'open' && !isTrackProfitAdjustmentTrade(t));
       
       document.getElementById('noOpenTrades').classList.toggle('hidden', openTrades.length > 0);
       
@@ -889,7 +922,7 @@
         userIdField: 'userId',
         authFields: ['userAuthId', 'auth_id'],
         emailFields: ['userEmail', 'email']
-      }).filter(t => t.status === 'closed');
+      }).filter(t => t.status === 'closed' && !isTrackProfitAdjustmentTrade(t));
       
       document.getElementById('closedTradesTable').innerHTML = closedTrades.map(trade => {
         const pnlClass = trade.pnl >= 0 ? 'text-green-600' : 'text-red-600';

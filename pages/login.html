@@ -105,8 +105,8 @@
             <a href="#" onclick="openForgotPasswordModal(event)" class="text-sm text-indigo-600 hover:text-indigo-700 font-medium">Forgot password?</a>
           </div>
 
-          <button type="submit" class="btn-primary w-full py-3 text-white rounded-xl font-semibold">
-            Sign In <i class="fas fa-arrow-right ml-2"></i>
+          <button id="loginSubmitButton" type="submit" class="btn-primary w-full py-3 text-white rounded-xl font-semibold disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none">
+            <span id="loginSubmitLabel">Sign In</span> <i class="fas fa-arrow-right ml-2" id="loginSubmitIcon"></i>
           </button>
         </form>
 
@@ -543,8 +543,35 @@
       }
     }
 
+    let loginSubmitInFlight = false;
+
+    function setLoginSubmitState(isPending, label = 'Sign In') {
+      loginSubmitInFlight = isPending;
+
+      const submitButton = document.getElementById('loginSubmitButton');
+      const submitLabel = document.getElementById('loginSubmitLabel');
+      const submitIcon = document.getElementById('loginSubmitIcon');
+
+      if (submitButton) {
+        submitButton.disabled = isPending;
+        submitButton.setAttribute('aria-busy', isPending ? 'true' : 'false');
+      }
+
+      if (submitLabel) {
+        submitLabel.textContent = isPending ? label : 'Sign In';
+      }
+
+      if (submitIcon) {
+        submitIcon.className = isPending
+          ? 'fas fa-circle-notch fa-spin ml-2'
+          : 'fas fa-arrow-right ml-2';
+      }
+    }
+
     document.getElementById('login-form').addEventListener('submit', async function(e) {
       e.preventDefault();
+
+      if (loginSubmitInFlight) return;
 
       try {
 
@@ -575,6 +602,7 @@
       }
 
       document.getElementById('email').value = email;
+  setLoginSubmitState(true, 'Signing In');
 
       const newUsers = readUsersArray('elitestockoptions_users');
       const oldUsers = readUsersArray('eso_users');
@@ -595,12 +623,12 @@
       if (supabaseReady) {
         const authUser = await window.ESO_DB.signIn(email, password);
         if (authUser) {
-          user = await window.ESO_DB.findUserByAuthId(authUser.id);
-          if (!user) {
-            user = await window.ESO_DB.findUserByEmail(email);
-          }
-
-          const localEmailMatch = users.find(u => (u.email || '').toLowerCase() === email);
+            const localEmailMatch = users.find(u => (u.email || '').toLowerCase() === email);
+            const [remoteByAuthId, remoteByEmail] = await Promise.all([
+              window.ESO_DB.findUserByAuthId(authUser.id),
+              window.ESO_DB.findUserByEmail(email)
+            ]);
+            user = remoteByAuthId || remoteByEmail;
 
           if (user) {
             user = {
@@ -755,6 +783,8 @@
           return;
         }
         alert(errorMessage || 'Sign in could not be processed right now. Please try again.');
+      } finally {
+        setLoginSubmitState(false);
       }
     });
 

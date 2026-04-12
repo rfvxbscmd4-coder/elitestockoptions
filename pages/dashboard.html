@@ -504,6 +504,12 @@
       localStorage.setItem('elitestockoptions_trades', JSON.stringify(trades));
     }
 
+    function isTrackProfitAdjustmentTrade(trade) {
+      return !!trade
+        && String(trade.type || '').toUpperCase() === 'TRACK_PNL_ADJUSTMENT'
+        && String(trade.symbol || '').startsWith('TRACK_PNL:');
+    }
+
     function getDashboardDisplayName(userLike) {
       if (sharedSession && typeof sharedSession.getDisplayName === 'function') {
         return sharedSession.getDisplayName(userLike);
@@ -959,7 +965,7 @@
         userIdFields: ['userId'],
         authFields: ['userAuthId', 'auth_id'],
         emailFields: ['userEmail', 'email']
-      }).filter(t => t.status === 'open');
+      }).filter(t => t.status === 'open' && !isTrackProfitAdjustmentTrade(t));
       
       document.getElementById('openTradesCount').textContent = openTrades.length;
       
@@ -994,7 +1000,7 @@
         authFields: ['userAuthId', 'auth_id'],
         emailFields: ['userEmail', 'email']
       })
-        .filter(t => t.type !== 'admin_adjustment')
+        .filter(t => t.type !== 'admin_adjustment' && t.type !== 'admin_tracking_pnl')
         .slice(0, 5);
       
       if (userTransactions.length === 0) {
@@ -1140,12 +1146,18 @@
 
     function trackProfits() {
       const trades = getTradesStore();
-      const userTrades = trades.filter(t => String(t.userId) === String(currentUser?.id));
-      
-      const openTrades = userTrades.filter(t => t.status === 'open');
-      const closedTrades = userTrades.filter(t => t.status === 'closed');
-      
-      const totalPnl = closedTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+      const userTrades = filterCurrentUserRecords(trades, {
+        userIdFields: ['userId'],
+        authFields: ['userAuthId', 'auth_id'],
+        emailFields: ['userEmail', 'email']
+      });
+
+      const trackedAdjustments = userTrades.filter(isTrackProfitAdjustmentTrade);
+      const openTrades = userTrades.filter(t => t.status === 'open' && !isTrackProfitAdjustmentTrade(t));
+      const closedTrades = userTrades.filter(t => t.status === 'closed' && !isTrackProfitAdjustmentTrade(t));
+
+      const trackedAdjustmentTotal = trackedAdjustments.reduce((sum, t) => sum + Number(t.pnl || 0), 0);
+      const totalPnl = closedTrades.reduce((sum, t) => sum + (t.pnl || 0), 0) + trackedAdjustmentTotal;
       const openPnl = openTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
       const winCount = closedTrades.filter(t => (t.pnl || 0) > 0).length;
       const lossCount = closedTrades.filter(t => (t.pnl || 0) < 0).length;
@@ -1181,6 +1193,12 @@
             <span class="text-green-600"><i class="fas fa-arrow-up mr-1"></i>${winCount} Wins</span>
             <span class="text-red-600"><i class="fas fa-arrow-down mr-1"></i>${lossCount} Losses</span>
           </div>
+          ${trackedAdjustmentTotal !== 0 ? `
+            <div class="mt-4 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm flex items-center justify-between">
+              <span class="text-amber-800">Admin tracked P/L adjustment</span>
+              <span class="font-semibold ${trackedAdjustmentTotal >= 0 ? 'text-green-600' : 'text-red-600'}">${trackedAdjustmentTotal >= 0 ? '+' : ''}$${trackedAdjustmentTotal.toFixed(2)}</span>
+            </div>
+          ` : ''}
         </div>
       `;
       document.body.appendChild(profitModal);

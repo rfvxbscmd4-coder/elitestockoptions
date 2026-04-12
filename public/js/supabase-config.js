@@ -222,12 +222,14 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 
 		const currentAuthId = String(currentUser?.auth_id || '');
 		const currentId = String(currentUser?.id || '');
+		const currentEmail = String(currentUser?.email || '').trim().toLowerCase();
 		const displayName = getDisplayName(userLike);
 		const emailPrefix = String(userLike?.email || '').trim().toLowerCase().split('@')[0] || '';
 		let score = 0;
 
-		if (currentAuthId && String(userLike.auth_id || '') === currentAuthId) score += 20;
-		if (currentId && String(userLike.id || '') === currentId) score += 10;
+		if (currentAuthId && String(userLike.auth_id || '') === currentAuthId) score += 1000;
+		if (currentId && String(userLike.id || '') === currentId) score += 600;
+		if (currentEmail && String(userLike.email || '').trim().toLowerCase() === currentEmail) score += 120;
 		if (displayName && displayName.toLowerCase() !== emailPrefix) score += 20;
 		if (Number(userLike.balance || 0) !== 0) score += 18;
 		if (Number(userLike.availableCash || 0) !== 0) score += 12;
@@ -504,10 +506,11 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 		if (!currentUser || !(window.ESO_DB && window.ESO_DB.isReady())) return currentUser || null;
 
 		const authUser = await ensureSupabaseSessionForCurrentUser(currentUser);
-		let remoteUser = authUser?.id ? await window.ESO_DB.findUserByAuthId(authUser.id) : null;
-		if (!remoteUser && currentUser?.email) {
-			remoteUser = await window.ESO_DB.findUserByEmail(currentUser.email);
-		}
+		const [remoteByAuthId, remoteByEmail] = await Promise.all([
+			authUser?.id ? window.ESO_DB.findUserByAuthId(authUser.id) : Promise.resolve(null),
+			currentUser?.email ? window.ESO_DB.findUserByEmail(currentUser.email) : Promise.resolve(null)
+		]);
+		let remoteUser = remoteByAuthId || remoteByEmail;
 		if (!remoteUser) {
 			return resolveCurrentUserFromStore(currentUser) || currentUser;
 		}
@@ -544,10 +547,11 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 		if (!currentUser || !(window.ESO_DB && window.ESO_DB.isReady())) return null;
 
 		const authUser = await ensureSupabaseSessionForCurrentUser(currentUser);
-		let remoteUser = authUser?.id ? await window.ESO_DB.findUserByAuthId(authUser.id) : null;
-		if (!remoteUser && currentUser?.email) {
-			remoteUser = await window.ESO_DB.findUserByEmail(currentUser.email);
-		}
+		const [remoteByAuthId, remoteByEmail] = await Promise.all([
+			authUser?.id ? window.ESO_DB.findUserByAuthId(authUser.id) : Promise.resolve(null),
+			currentUser?.email ? window.ESO_DB.findUserByEmail(currentUser.email) : Promise.resolve(null)
+		]);
+		const remoteUser = remoteByAuthId || remoteByEmail;
 
 		const canonicalUser = resolveCurrentUserFromStore(currentUser) || currentUser;
 		const userToPersist = {
@@ -630,6 +634,9 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 		});
 
 		canonical = mergeUserData(canonical, currentUser);
+		if (currentId) canonical.id = currentUser.id;
+		if (currentAuthId) canonical.auth_id = currentUser.auth_id;
+		if (currentEmail) canonical.email = currentUser.email;
 		if (!canonical.fullName && canonical.name) canonical.fullName = canonical.name;
 		if (!canonical.name && canonical.fullName) canonical.name = canonical.fullName;
 		return canonical;
