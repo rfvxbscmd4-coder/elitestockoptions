@@ -316,12 +316,9 @@
     const eligiblePlans = ['Gold', 'Diamond', 'Premium'];
     let selectedLoanAmount = 0;
 
-    async function initLoan() {
-      await syncRemoteUserToLocal();
-      await syncRemoteLoansToLocal();
-
+    function renderLoanAccessState() {
       const userPlan = currentUser.plan || 'Bronze';
-      
+
       if (!eligiblePlans.includes(userPlan)) {
         document.getElementById('accessDenied').classList.remove('hidden');
         document.getElementById('loanContent').classList.add('hidden');
@@ -330,6 +327,20 @@
         document.getElementById('loanContent').classList.remove('hidden');
         loadLoans();
       }
+    }
+
+    async function initLoan() {
+      renderLoanAccessState();
+
+      syncRemoteUserToLocal().then((syncedUser) => {
+        if (!syncedUser) return;
+        currentUser = syncedUser;
+        renderLoanAccessState();
+      }).catch(() => {});
+
+      syncRemoteLoansToLocal().then(() => {
+        renderLoanAccessState();
+      }).catch(() => {});
     }
 
     function selectLoan(amount) {

@@ -583,6 +583,21 @@
       return syncedUser;
     }
 
+    function renderDashboardUserState(userLike = currentUser) {
+      if (!userLike) return;
+
+      const displayName = getDashboardDisplayName(userLike);
+      document.getElementById('userName').textContent = displayName.split(' ')[0] || 'Trader';
+      document.getElementById('headerUserName').textContent = displayName || 'Trader';
+      document.getElementById('userAvatar').textContent = (displayName[0] || 'T').toUpperCase();
+      applyDashboardPlanBranding(userLike.plan || 'Bronze');
+
+      document.getElementById('totalBalance').textContent = '$' + (userLike.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
+      document.getElementById('availableCash').textContent = '$' + (userLike.availableCash || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
+      document.getElementById('profitsBalance').textContent = '$' + (userLike.profitsBalance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
+      updateKycBanner(userLike.kycStatus || 'not_submitted');
+    }
+
     function applyDashboardPlanBranding(plan) {
       const normalizedPlan = plan || 'Bronze';
       const userPlanEl = document.getElementById('userPlan');
@@ -880,29 +895,13 @@
     async function initDashboard() {
       if (!currentUser) return;
 
-      const remoteUser = await syncRemoteUserToLocal();
-
       // Sync balance and profile from canonical shared users storage
-      const serverUser = resolveDashboardUserFromStore() || remoteUser || currentUser;
+      const serverUser = resolveDashboardUserFromStore() || currentUser;
       if (serverUser) {
         currentUser = syncCurrentUserStore(serverUser);
       }
 
-      // Update user info
-      const displayName = getDashboardDisplayName(currentUser);
-      document.getElementById('userName').textContent = displayName.split(' ')[0] || 'Trader';
-      document.getElementById('headerUserName').textContent = displayName || 'Trader';
-      document.getElementById('userAvatar').textContent = (displayName[0] || 'T').toUpperCase();
-      applyDashboardPlanBranding(currentUser.plan || 'Bronze');
-
-      // Update balances
-      document.getElementById('totalBalance').textContent = '$' + (currentUser.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
-      document.getElementById('availableCash').textContent = '$' + (currentUser.availableCash || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
-      document.getElementById('profitsBalance').textContent = '$' + (currentUser.profitsBalance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
-
-      // Show/hide KYC banner
-      const kycStatus = serverUser?.kycStatus || currentUser.kycStatus || 'not_submitted';
-      updateKycBanner(kycStatus);
+      renderDashboardUserState(currentUser);
 
       // Load TradingView chart
       loadTradingViewChart();
@@ -922,18 +921,16 @@
       // Load user notifications
       loadUserNotifications();
 
+      syncRemoteUserToLocal().then((remoteUser) => {
+        if (!remoteUser) return;
+        currentUser = syncCurrentUserStore(remoteUser);
+        renderDashboardUserState(currentUser);
+      }).catch(() => {});
+
       if (!tradesRefreshTimer && currentUser?.id) {
         tradesRefreshTimer = setInterval(async () => {
           await syncRemoteUserToLocal();
-          updateKycBanner(currentUser.kycStatus || 'not_submitted');
-          const refreshedDisplayName = getDashboardDisplayName(currentUser);
-          document.getElementById('userName').textContent = refreshedDisplayName.split(' ')[0] || 'Trader';
-          document.getElementById('headerUserName').textContent = refreshedDisplayName || 'Trader';
-          document.getElementById('userAvatar').textContent = (refreshedDisplayName[0] || 'T').toUpperCase();
-          applyDashboardPlanBranding(currentUser.plan || 'Bronze');
-          document.getElementById('totalBalance').textContent = '$' + (currentUser.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
-          document.getElementById('availableCash').textContent = '$' + (currentUser.availableCash || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
-          document.getElementById('profitsBalance').textContent = '$' + (currentUser.profitsBalance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
+          renderDashboardUserState(currentUser);
 
           await syncRemoteTradesToLocal();
           loadOpenTrades();

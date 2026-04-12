@@ -605,42 +605,50 @@
       });
     }
 
-    async function initSettings() {
-      await syncRemoteUserToLocal();
-
-      // Update avatars
-      const avatarUrl = currentUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.fullName || currentUser.email}&backgroundColor=b6e3f4`;
+    function renderSettingsProfile() {
+      const avatarSeed = currentUser.fullName || currentUser.email || 'user';
+      const avatarUrl = currentUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${avatarSeed}&backgroundColor=b6e3f4`;
       document.getElementById('userAvatar').innerHTML = `<img src="${avatarUrl}" alt="Avatar" class="w-10 h-10 rounded-full">`;
       document.getElementById('profileAvatarImg').src = currentUser.profilePhoto || avatarUrl;
-      
+
       document.getElementById('profileName').value = currentUser.fullName || '';
       document.getElementById('profileEmail').value = currentUser.email || '';
       document.getElementById('profilePhone').value = currentUser.phone || '';
       document.getElementById('profileCountry').value = currentUser.country || 'US';
-      
-      // Load existing KYC data if available
-      if (currentUser.kycData) {
-        document.getElementById('kycFirstName').value = currentUser.kycData.firstName || '';
-        document.getElementById('kycLastName').value = currentUser.kycData.lastName || '';
-        document.getElementById('kycDob').value = currentUser.kycData.dob || '';
-        document.getElementById('kycIdType').value = currentUser.kycData.idType || '';
-        document.getElementById('kycIdNumber').value = currentUser.kycData.idNumber || '';
-        
-        // Load existing KYC images
-        if (currentUser.kycDocuments?.front) {
-          showKycPreview('front', currentUser.kycDocuments.front);
-        }
-        if (currentUser.kycDocuments?.back) {
-          showKycPreview('back', currentUser.kycDocuments.back);
-        }
-        if (currentUser.kycDocuments?.selfie) {
-          showKycPreview('selfie', currentUser.kycDocuments.selfie);
-        }
+
+      document.getElementById('kycFirstName').value = currentUser.kycData?.firstName || '';
+      document.getElementById('kycLastName').value = currentUser.kycData?.lastName || '';
+      document.getElementById('kycDob').value = currentUser.kycData?.dob || '';
+      document.getElementById('kycIdType').value = currentUser.kycData?.idType || '';
+      document.getElementById('kycIdNumber').value = currentUser.kycData?.idNumber || '';
+
+      if (currentUser.kycDocuments?.front) {
+        showKycPreview('front', currentUser.kycDocuments.front);
+      }
+      if (currentUser.kycDocuments?.back) {
+        showKycPreview('back', currentUser.kycDocuments.back);
+      }
+      if (currentUser.kycDocuments?.selfie) {
+        showKycPreview('selfie', currentUser.kycDocuments.selfie);
       }
 
-      await syncExistingKycToSupabase();
-      
       updateKycStatus();
+    }
+
+    async function initSettings() {
+      renderSettingsProfile();
+
+      syncRemoteUserToLocal().then((syncedUser) => {
+        if (!syncedUser) return;
+        currentUser = syncedUser;
+        renderSettingsProfile();
+      }).catch(() => {});
+
+      syncExistingKycToSupabase().then(() => {
+        renderSettingsProfile();
+      }).catch(() => {
+        updateKycStatus();
+      });
     }
 
     function handleProfilePhotoChange(event) {

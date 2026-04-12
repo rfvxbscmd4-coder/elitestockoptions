@@ -357,19 +357,30 @@
 
     let selectedSource = 'total';
 
+    function renderWithdrawalBalances() {
+      document.getElementById('totalBalance').textContent = '$' + (currentUser.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
+      document.getElementById('availableCash').textContent = '$' + (currentUser.availableCash || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
+      document.getElementById('profitsBalance').textContent = '$' + (currentUser.profitsBalance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
+    }
+
     async function initWithdrawal() {
-      const remoteUser = await syncRemoteUserToLocal();
-      const serverUser = resolveWithdrawalUserFromStore() || remoteUser;
+      const serverUser = resolveWithdrawalUserFromStore() || currentUser;
       if (serverUser) {
         syncCurrentUserStore(serverUser);
       }
 
-      document.getElementById('totalBalance').textContent = '$' + (currentUser.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
-      document.getElementById('availableCash').textContent = '$' + (currentUser.availableCash || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
-      document.getElementById('profitsBalance').textContent = '$' + (currentUser.profitsBalance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
-      
+      renderWithdrawalBalances();
       selectSource('total');
       loadWithdrawalHistory();
+
+      syncRemoteUserToLocal().then((remoteUser) => {
+        const resolvedUser = resolveWithdrawalUserFromStore() || remoteUser || currentUser;
+        if (!resolvedUser) return;
+        currentUser = syncCurrentUserStore(resolvedUser);
+        renderWithdrawalBalances();
+        selectSource(selectedSource || 'total');
+        loadWithdrawalHistory();
+      }).catch(() => {});
     }
 
     function selectSource(source) {

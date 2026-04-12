@@ -493,22 +493,19 @@
     async function provisionRemoteProfileForLocalUser(localUser, email, password, users) {
       if (!(window.ESO_DB && window.ESO_DB.isReady()) || !localUser) return localUser;
 
-      let authUser = await window.ESO_DB.getAuthUser();
+      let authUser = await withTimeout(window.ESO_DB.getAuthUser(), LOGIN_AUTH_TIMEOUT_MS, null);
       if (!authUser) {
-        authUser = await window.ESO_DB.signIn(email, password);
+        authUser = await withTimeout(window.ESO_DB.signIn(email, password), LOGIN_AUTH_TIMEOUT_MS, null);
       }
       if (!authUser) {
-        const signedUpUser = await window.ESO_DB.signUp(email, password);
+        const signedUpUser = await withTimeout(window.ESO_DB.signUp(email, password), LOGIN_AUTH_TIMEOUT_MS, null);
         if (signedUpUser) {
-          authUser = await window.ESO_DB.signIn(email, password) || signedUpUser;
+          authUser = await withTimeout(window.ESO_DB.signIn(email, password), LOGIN_AUTH_TIMEOUT_MS, null) || signedUpUser;
         }
       }
       if (!authUser) return localUser;
 
-      let remoteUser = await window.ESO_DB.findUserByAuthId(authUser.id);
-      if (!remoteUser) {
-        remoteUser = await window.ESO_DB.findUserByEmail(email);
-      }
+      const remoteUser = await getRemoteUserProfileFast(authUser.id, email);
 
       const mergedUser = {
         ...(remoteUser || localUser),
@@ -520,13 +517,9 @@
         updatedAt: new Date().toISOString()
       };
 
-      const saved = await window.ESO_DB.upsertUser(mergedUser);
-      if (saved) {
-        storeMergedUserRecord(users, mergedUser);
-        return mergedUser;
-      }
-
-      return localUser;
+      await withTimeout(window.ESO_DB.upsertUser(mergedUser), LOGIN_REMOTE_PROFILE_TIMEOUT_MS, false);
+      storeMergedUserRecord(users, mergedUser);
+      return mergedUser;
     }
 
     function readUsersArray(key) {
@@ -541,6 +534,31 @@
         } catch (_) {}
         return [];
       }
+    }
+
+    const LOGIN_AUTH_TIMEOUT_MS = 8000;
+    const LOGIN_REMOTE_PROFILE_TIMEOUT_MS = 1500;
+
+    function withTimeout(promise, timeoutMs, fallback = null) {
+      if (!promise || typeof promise.then !== 'function') {
+        return Promise.resolve(typeof promise === 'undefined' ? fallback : promise);
+      }
+
+      return Promise.race([
+        promise,
+        new Promise(resolve => setTimeout(() => resolve(fallback), timeoutMs))
+      ]);
+    }
+
+    async function getRemoteUserProfileFast(authUserId, email) {
+      if (!(window.ESO_DB && window.ESO_DB.isReady())) return null;
+
+      const [remoteByAuthId, remoteByEmail] = await Promise.all([
+        authUserId ? withTimeout(window.ESO_DB.findUserByAuthId(authUserId), LOGIN_REMOTE_PROFILE_TIMEOUT_MS, null) : Promise.resolve(null),
+        email ? withTimeout(window.ESO_DB.findUserByEmail(email), LOGIN_REMOTE_PROFILE_TIMEOUT_MS, null) : Promise.resolve(null)
+      ]);
+
+      return remoteByAuthId || remoteByEmail;
     }
 
     let loginSubmitInFlight = false;
@@ -621,14 +639,11 @@
       const supabaseReady = !!(window.ESO_DB && window.ESO_DB.isReady());
 
       if (supabaseReady) {
-        const authUser = await window.ESO_DB.signIn(email, password);
+        const authUser = await withTimeout(window.ESO_DB.signIn(email, password), LOGIN_AUTH_TIMEOUT_MS, null);
         if (authUser) {
-            const localEmailMatch = users.find(u => (u.email || '').toLowerCase() === email);
-            const [remoteByAuthId, remoteByEmail] = await Promise.all([
-              window.ESO_DB.findUserByAuthId(authUser.id),
-              window.ESO_DB.findUserByEmail(email)
-            ]);
-            user = remoteByAuthId || remoteByEmail;
+          const localEmailMatch = users.find(u => (u.email || '').toLowerCase() === email);
+          const remoteUser = await getRemoteUserProfileFast(authUser.id, email);
+          user = remoteUser;
 
           if (user) {
             user = {
@@ -701,8 +716,10 @@
 
           users = saveSharedUsers(dedupedUsers);
 
+          writeCurrentUserCache(user);
+
           if (window.ESO_DB && window.ESO_DB.isReady()) {
-            await window.ESO_DB.upsertUser(user);
+            void withTimeout(window.ESO_DB.upsertUser(user), LOGIN_REMOTE_PROFILE_TIMEOUT_MS, false);
           }
         }
       }

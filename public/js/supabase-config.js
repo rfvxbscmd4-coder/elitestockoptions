@@ -66,6 +66,8 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 	const USER_KEY = 'elitestockoptions_user';
 	const USERS_KEY = 'elitestockoptions_users';
 	const LEGACY_USERS_KEY = 'eso_users';
+	const AUTH_REQUEST_TIMEOUT_MS = 6000;
+	const REMOTE_SYNC_TIMEOUT_MS = 1500;
 
 	function safeParse(raw, fallback) {
 		try {
@@ -98,6 +100,17 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 		} catch (_) {
 			return [];
 		}
+	}
+
+	function withTimeout(promise, timeoutMs = REMOTE_SYNC_TIMEOUT_MS, fallback = null) {
+		if (!promise || typeof promise.then !== 'function') {
+			return Promise.resolve(typeof promise === 'undefined' ? fallback : promise);
+		}
+
+		return Promise.race([
+			promise,
+			new Promise(resolve => setTimeout(() => resolve(fallback), timeoutMs))
+		]);
 	}
 
 	function formatMoney(value) {
@@ -463,26 +476,31 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 	async function ensureSupabaseSessionForCurrentUser(currentUser) {
 		if (!currentUser || !(window.ESO_DB && window.ESO_DB.isReady())) return null;
 
-		let authUser = await window.ESO_DB.getAuthUser();
-		if (authUser) return authUser;
+		let authUser = await withTimeout(window.ESO_DB.getAuthUser(), AUTH_REQUEST_TIMEOUT_MS, null);
+		if (authUser) {
+			syncCurrentUserStore(currentUser, {
+				auth_id: authUser.id || currentUser.auth_id || null,
+				email: String(authUser.email || currentUser.email || '').trim().toLowerCase() || currentUser.email || null
+			});
+			return authUser;
+		}
 
 		const email = String(currentUser.email || '').trim().toLowerCase();
 		const password = String(currentUser.password || '');
 		if (!email || !password) return null;
 
-		authUser = await window.ESO_DB.signIn(email, password);
-		if (!authUser) {
-			const signedUpUser = await window.ESO_DB.signUp(email, password);
-			if (signedUpUser) {
-				authUser = await window.ESO_DB.signIn(email, password) || signedUpUser;
-			}
-		}
-
+		authUser = await withTimeout(window.ESO_DB.signIn(email, password), AUTH_REQUEST_TIMEOUT_MS, null);
 		if (!authUser) return null;
 
-		const remoteUser = await window.ESO_DB.findUserByAuthId(authUser.id);
+		syncCurrentUserStore(currentUser, {
+			auth_id: authUser.id || currentUser.auth_id || null,
+			email,
+			updatedAt: currentUser.updatedAt || new Date().toISOString()
+		});
+
+		const remoteUser = await withTimeout(window.ESO_DB.findUserByAuthId(authUser.id), REMOTE_SYNC_TIMEOUT_MS, null);
 		if (!remoteUser) {
-			const remoteByEmail = await window.ESO_DB.findUserByEmail(email);
+			const remoteByEmail = await withTimeout(window.ESO_DB.findUserByEmail(email), REMOTE_SYNC_TIMEOUT_MS, null);
 			const userToPersist = {
 				...(remoteByEmail || currentUser),
 				...currentUser,
@@ -493,7 +511,7 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 			};
 			preserveReviewedKyc(userToPersist, remoteByEmail);
 
-			const saved = await window.ESO_DB.upsertUser(userToPersist);
+			const saved = await withTimeout(window.ESO_DB.upsertUser(userToPersist), REMOTE_SYNC_TIMEOUT_MS, false);
 			if (saved) {
 				syncCurrentUserStore(currentUser, userToPersist);
 			}
@@ -506,29 +524,35 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 		if (!currentUser || !(window.ESO_DB && window.ESO_DB.isReady())) return currentUser || null;
 
 		const authUser = await ensureSupabaseSessionForCurrentUser(currentUser);
+		const seededCurrentUser = authUser
+			? (syncCurrentUserStore(currentUser, {
+				auth_id: authUser.id || currentUser.auth_id || null,
+				email: String(authUser.email || currentUser.email || '').trim().toLowerCase() || currentUser.email || null
+			}) || currentUser)
+			: (resolveCurrentUserFromStore(currentUser) || currentUser);
 		const [remoteByAuthId, remoteByEmail] = await Promise.all([
-			authUser?.id ? window.ESO_DB.findUserByAuthId(authUser.id) : Promise.resolve(null),
-			currentUser?.email ? window.ESO_DB.findUserByEmail(currentUser.email) : Promise.resolve(null)
+			authUser?.id ? withTimeout(window.ESO_DB.findUserByAuthId(authUser.id), REMOTE_SYNC_TIMEOUT_MS, null) : Promise.resolve(null),
+			seededCurrentUser?.email ? withTimeout(window.ESO_DB.findUserByEmail(seededCurrentUser.email), REMOTE_SYNC_TIMEOUT_MS, null) : Promise.resolve(null)
 		]);
 		let remoteUser = remoteByAuthId || remoteByEmail;
 		if (!remoteUser) {
-			return resolveCurrentUserFromStore(currentUser) || currentUser;
+			return resolveCurrentUserFromStore(seededCurrentUser) || seededCurrentUser;
 		}
 
-		const preferredAuthId = String(authUser?.id || remoteUser.auth_id || currentUser.auth_id || '');
-		const remoteEmail = String(remoteUser.email || currentUser.email || '').trim().toLowerCase();
+		const preferredAuthId = String(authUser?.id || remoteUser.auth_id || seededCurrentUser.auth_id || '');
+		const remoteEmail = String(remoteUser.email || seededCurrentUser.email || '').trim().toLowerCase();
 		const matchedLocalUsers = getSharedUsers().filter((userLike) => {
-			const sameId = String(userLike.id || '') === String(remoteUser.id || currentUser.id || '');
+			const sameId = String(userLike.id || '') === String(remoteUser.id || seededCurrentUser.id || '');
 			const sameEmail = remoteEmail && String(userLike.email || '').trim().toLowerCase() === remoteEmail;
 			const sameAuth = preferredAuthId && String(userLike.auth_id || '') === preferredAuthId;
 			return sameId || sameEmail || sameAuth;
 		});
 
 		const seededUser = {
-			...currentUser,
-			id: currentUser.id || remoteUser.id || null,
-			auth_id: preferredAuthId || currentUser.auth_id || null,
-			email: currentUser.email || remoteUser.email || null
+			...seededCurrentUser,
+			id: seededCurrentUser.id || remoteUser.id || null,
+			auth_id: preferredAuthId || seededCurrentUser.auth_id || null,
+			email: seededCurrentUser.email || remoteUser.email || null
 		};
 		const canonicalUser = resolveLatestUser(seededUser, [remoteUser, ...matchedLocalUsers])
 			|| mergeUserData({ ...remoteUser }, seededUser);
@@ -547,9 +571,12 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 		if (!currentUser || !(window.ESO_DB && window.ESO_DB.isReady())) return null;
 
 		const authUser = await ensureSupabaseSessionForCurrentUser(currentUser);
+		if (!authUser && !currentUser?.auth_id) {
+			return syncCurrentUserStore(currentUser, overrides);
+		}
 		const [remoteByAuthId, remoteByEmail] = await Promise.all([
-			authUser?.id ? window.ESO_DB.findUserByAuthId(authUser.id) : Promise.resolve(null),
-			currentUser?.email ? window.ESO_DB.findUserByEmail(currentUser.email) : Promise.resolve(null)
+			authUser?.id ? withTimeout(window.ESO_DB.findUserByAuthId(authUser.id), REMOTE_SYNC_TIMEOUT_MS, null) : Promise.resolve(null),
+			currentUser?.email ? withTimeout(window.ESO_DB.findUserByEmail(currentUser.email), REMOTE_SYNC_TIMEOUT_MS, null) : Promise.resolve(null)
 		]);
 		const remoteUser = remoteByAuthId || remoteByEmail;
 
@@ -569,8 +596,8 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 			return syncCurrentUserStore(canonicalUser, overrides);
 		}
 
-		const saved = await window.ESO_DB.upsertUser(userToPersist);
-		if (!saved) return null;
+		const saved = await withTimeout(window.ESO_DB.upsertUser(userToPersist), REMOTE_SYNC_TIMEOUT_MS, false);
+		if (!saved) return syncCurrentUserStore(canonicalUser, overrides);
 
 		return syncCurrentUserStore(canonicalUser, userToPersist);
 	}

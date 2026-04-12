@@ -286,9 +286,12 @@
       { id: 'xrp', name: 'XRP', symbol: 'XRP', icon: 'fas fa-water', color: 'text-blue-500' }
     ];
 
-    async function initDeposit() {
-      await syncRemoteUserToLocal();
+    function renderDepositBalance() {
       document.getElementById('currentBalance').textContent = '$' + (currentUser.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
+    }
+
+    async function initDeposit() {
+      renderDepositBalance();
 
       const primaryWallets = safeParseArray(localStorage.getItem('eso_adminWallets'));
       const secondaryWallets = safeParseArray(localStorage.getItem('elitestockoptions_adminWallets'));
@@ -298,28 +301,29 @@
         localStorage.setItem('elitestockoptions_adminWallets', JSON.stringify(primaryWallets));
       }
       
-      // Load admin wallets from Supabase (fallback to local)
-      if (window.ESO_DB && window.ESO_DB.isReady()) {
-        const remoteWallets = await window.ESO_DB.getWallets();
-        if (Array.isArray(remoteWallets) && remoteWallets.length) {
-          adminWallets = remoteWallets;
-          localStorage.setItem('eso_adminWallets', JSON.stringify(remoteWallets));
-          localStorage.setItem('elitestockoptions_adminWallets', JSON.stringify(remoteWallets));
-        } else {
-          adminWallets = safeParseArray(localStorage.getItem('eso_adminWallets'));
-          if (!adminWallets.length) {
-            adminWallets = safeParseArray(localStorage.getItem('elitestockoptions_adminWallets'));
-          }
-        }
-      } else {
-        adminWallets = safeParseArray(localStorage.getItem('eso_adminWallets'));
-        if (!adminWallets.length) {
-          adminWallets = safeParseArray(localStorage.getItem('elitestockoptions_adminWallets'));
-        }
+      adminWallets = safeParseArray(localStorage.getItem('eso_adminWallets'));
+      if (!adminWallets.length) {
+        adminWallets = safeParseArray(localStorage.getItem('elitestockoptions_adminWallets'));
       }
       
       renderCryptoGrid();
       loadPendingDeposits();
+
+      syncRemoteUserToLocal().then((syncedUser) => {
+        if (!syncedUser) return;
+        currentUser = syncedUser;
+        renderDepositBalance();
+      }).catch(() => {});
+
+      if (window.ESO_DB && window.ESO_DB.isReady()) {
+        window.ESO_DB.getWallets().then((remoteWallets) => {
+          if (!Array.isArray(remoteWallets) || !remoteWallets.length) return;
+          adminWallets = remoteWallets;
+          localStorage.setItem('eso_adminWallets', JSON.stringify(remoteWallets));
+          localStorage.setItem('elitestockoptions_adminWallets', JSON.stringify(remoteWallets));
+          renderCryptoGrid();
+        }).catch(() => {});
+      }
     }
 
     function renderCryptoGrid() {

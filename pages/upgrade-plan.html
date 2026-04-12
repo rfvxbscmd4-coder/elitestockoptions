@@ -623,17 +623,31 @@
       historyTable.innerHTML = activeRow + upgradeRows;
     }
 
-    async function initUpgradePlan() {
-      const remoteUser = await syncRemoteUserToLocal();
-      const serverUser = resolveUpgradeUserFromStore() || remoteUser;
-      if (serverUser) {
-        syncCurrentUserStore(serverUser);
-      }
-      await syncRemoteUpgradesToLocal();
-      await backfillPendingUpgradesToRemote();
+    function renderUpgradePlanState() {
       document.getElementById('currentPlanDisplay').innerHTML = renderPlanBadge(currentUser.plan || 'Bronze');
       updateButtonStates();
       loadUpgradeHistory();
+    }
+
+    async function initUpgradePlan() {
+      const serverUser = resolveUpgradeUserFromStore() || currentUser;
+      if (serverUser) {
+        syncCurrentUserStore(serverUser);
+      }
+      renderUpgradePlanState();
+
+      syncRemoteUserToLocal().then((remoteUser) => {
+        const resolvedUser = resolveUpgradeUserFromStore() || remoteUser || currentUser;
+        if (!resolvedUser) return;
+        currentUser = syncCurrentUserStore(resolvedUser);
+        renderUpgradePlanState();
+      }).catch(() => {});
+
+      syncRemoteUpgradesToLocal().then(() => {
+        renderUpgradePlanState();
+      }).catch(() => {});
+
+      backfillPendingUpgradesToRemote().catch(() => {});
     }
 
     function updateButtonStates() {

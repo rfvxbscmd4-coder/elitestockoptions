@@ -457,8 +457,6 @@
     }
 
     async function initTrades() {
-      await syncRemoteUserToLocal();
-      await syncRemoteTradesToLocal();
       document.getElementById('availableBalance').textContent = (currentUser.availableCash || 0).toFixed(2);
       
       // Initialize asset category dropdown
@@ -468,6 +466,20 @@
       loadClosedTrades();
       loadHistory();
       initTradeChart();
+
+      syncRemoteUserToLocal().then((syncedUser) => {
+        if (!syncedUser) return;
+        currentUser = syncedUser;
+        document.getElementById('availableBalance').textContent = (currentUser.availableCash || 0).toFixed(2);
+        loadOpenTrades();
+        loadClosedTrades();
+        loadHistory();
+      }).catch(() => {});
+
+      syncRemoteTradesToLocal().then(() => {
+        loadOpenTrades();
+        loadClosedTrades();
+      }).catch(() => {});
     }
 
     function initTradeChart() {
