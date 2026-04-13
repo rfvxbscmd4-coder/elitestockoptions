@@ -1396,6 +1396,76 @@
       return user ? (user.fullName || user.name || user.email) : 'Unknown';
     }
 
+    function normalizeAdminUserEmail(email) {
+      return String(email || '').trim().toLowerCase();
+    }
+
+    function parseAdminUserRef(userRef) {
+      if (userRef && typeof userRef === 'object') {
+        return {
+          id: String(userRef.id || '').trim(),
+          auth_id: String(userRef.auth_id || '').trim(),
+          email: normalizeAdminUserEmail(userRef.email)
+        };
+      }
+
+      const rawRef = String(userRef || '').trim();
+      if (!rawRef || rawRef === 'undefined' || rawRef === 'null') {
+        return { id: '', auth_id: '', email: '' };
+      }
+
+      try {
+        const decodedRef = decodeURIComponent(rawRef);
+        if (decodedRef.startsWith('{')) {
+          return parseAdminUserRef(JSON.parse(decodedRef));
+        }
+      } catch (_) {}
+
+      return {
+        id: rawRef.includes('@') ? '' : rawRef,
+        auth_id: '',
+        email: rawRef.includes('@') ? normalizeAdminUserEmail(rawRef) : ''
+      };
+    }
+
+    function buildAdminUserRef(user) {
+      return encodeURIComponent(JSON.stringify({
+        id: String(user?.id || '').trim() || null,
+        auth_id: String(user?.auth_id || '').trim() || null,
+        email: normalizeAdminUserEmail(user?.email) || null
+      }));
+    }
+
+    function findAdminUserByRef(users, userRef) {
+      const reference = parseAdminUserRef(userRef);
+      return (Array.isArray(users) ? users : []).find(user => {
+        if (!user) return false;
+        if (reference.id && String(user.id || '') === reference.id) return true;
+        if (reference.auth_id && String(user.auth_id || '') === reference.auth_id) return true;
+        return !!reference.email && normalizeAdminUserEmail(user.email) === reference.email;
+      }) || null;
+    }
+
+    function setInlineActionButtonPendingState(button, isPending) {
+      if (!button) return;
+
+      if (isPending) {
+        if (!button.dataset.originalHtml) {
+          button.dataset.originalHtml = button.innerHTML;
+        }
+        button.disabled = true;
+        button.classList.add('opacity-60', 'cursor-wait');
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        return;
+      }
+
+      button.disabled = false;
+      button.classList.remove('opacity-60', 'cursor-wait');
+      if (button.dataset.originalHtml) {
+        button.innerHTML = button.dataset.originalHtml;
+      }
+    }
+
     function hasKycSubmission(user) {
       if (!user) return false;
       if (user.kycData) return true;
@@ -2258,6 +2328,7 @@
         const canApprove = kycStatus !== 'verified';
         const canReject = kycStatus === 'pending';
         const hasDocs = hasKycSubmission(u);
+        const userRef = buildAdminUserRef(u);
         return `
         <tr class="hover:bg-gray-50">
           <td class="px-4 py-3 text-sm">${new Date(activityDate || Date.now()).toLocaleDateString()}</td>
@@ -2268,24 +2339,36 @@
           <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-medium ${statusColors[kycStatus] || statusColors.not_submitted}">${kycStatus.replace('_', ' ')}</span></td>
           <td class="px-4 py-3">
             ${hasDocs
-              ? `<button onclick="viewKycDocs('${u.id}')" class="text-blue-600 hover:text-blue-800 mr-2" title="View Documents"><i class="fas fa-images"></i></button>`
+              ? `<button type="button" onclick="viewKycDocs('${userRef}')" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-blue-100 bg-blue-50 text-blue-600 transition-colors hover:bg-blue-100 hover:text-blue-700" title="View Documents"><i class="fas fa-images"></i></button>`
               : '<span class="text-gray-300" title="No documents uploaded"><i class="fas fa-images"></i></span>'}
           </td>
           <td class="px-4 py-3">
-            ${canApprove ? `<button onclick="approveKyc('${u.id}')" class="text-green-600 hover:text-green-800 mr-2" title="${hasDocs ? 'Approve KYC' : 'Approve without submission'}"><i class="fas fa-check"></i></button>` : ''}
-            ${canReject ? `<button onclick="rejectKyc('${u.id}')" class="text-red-600 hover:text-red-800" title="Reject KYC"><i class="fas fa-times"></i></button>` : ''}
-            ${!canApprove && !canReject ? '<span class="text-xs text-gray-400">Approved</span>' : ''}
+            <div class="flex items-center gap-2">
+              ${canApprove ? `<button type="button" onclick="approveKyc('${userRef}', this)" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-green-100 bg-green-50 text-green-600 transition-colors hover:bg-green-100 hover:text-green-700" title="${hasDocs ? 'Approve KYC' : 'Approve without submission'}"><i class="fas fa-check"></i></button>` : ''}
+              ${canReject ? `<button type="button" onclick="rejectKyc('${userRef}', this)" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-100 bg-red-50 text-red-600 transition-colors hover:bg-red-100 hover:text-red-700" title="Reject KYC"><i class="fas fa-times"></i></button>` : ''}
+              ${!canApprove && !canReject ? '<span class="inline-flex rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700">Approved</span>' : ''}
+            </div>
           </td>
         </tr>
       `;
       }).join('');
     }
 
-    async function viewKycDocs(userId) {
-      let user = getUsers().find(u => u.id === userId);
+    async function viewKycDocs(userRef) {
+      const reference = parseAdminUserRef(userRef);
+      let user = findAdminUserByRef(getUsers(), reference);
 
       if (window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.findUserById) {
-        const remoteUser = await window.ESO_DB.findUserById(userId);
+        let remoteUser = null;
+        if (reference.id) {
+          remoteUser = await window.ESO_DB.findUserById(reference.id);
+        }
+        if (!remoteUser && reference.auth_id && window.ESO_DB.findUserByAuthId) {
+          remoteUser = await window.ESO_DB.findUserByAuthId(reference.auth_id);
+        }
+        if (!remoteUser && reference.email && window.ESO_DB.findUserByEmail) {
+          remoteUser = await window.ESO_DB.findUserByEmail(reference.email);
+        }
         if (remoteUser) {
           user = { ...(user || {}), ...remoteUser };
         }
@@ -2299,6 +2382,7 @@
       const docs = user.kycDocuments;
       const kycStatus = getEffectiveKycStatus(user);
       const content = document.getElementById('kycDocsContent');
+      const modalUserRef = buildAdminUserRef(user);
       
       content.innerHTML = `
         <div class="mb-4">
@@ -2327,12 +2411,12 @@
         </div>
         <div class="mt-6 flex justify-end space-x-3">
           ${kycStatus !== 'verified' ? `
-            <button onclick="approveKyc('${user.id}'); closeKycDocsModal();" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600">
+            <button type="button" onclick="approveKyc('${modalUserRef}'); closeKycDocsModal();" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600">
               <i class="fas fa-check mr-2"></i>Approve KYC
             </button>
           ` : ''}
           ${kycStatus === 'pending' ? `
-            <button onclick="rejectKyc('${user.id}'); closeKycDocsModal();" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600">
+            <button type="button" onclick="rejectKyc('${modalUserRef}'); closeKycDocsModal();" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600">
               <i class="fas fa-times mr-2"></i>Reject KYC
             </button>
           ` : ''}
@@ -2370,8 +2454,9 @@
       return nextUsers;
     }
 
-    async function resolveCanonicalAdminUser(userId, userHint = null) {
-      let resolvedUser = userHint || getUsers().find(u => String(u.id || '') === String(userId || '')) || null;
+    async function resolveCanonicalAdminUser(userRef, userHint = null) {
+      const reference = parseAdminUserRef(userRef);
+      let resolvedUser = userHint || findAdminUserByRef(getUsers(), reference) || null;
 
       if (!(window.ESO_DB && window.ESO_DB.isReady())) return resolvedUser;
 
@@ -2379,11 +2464,15 @@
       if (!authUser) return resolvedUser;
 
       let remoteUser = null;
-      if (userId && window.ESO_DB.findUserById) {
-        remoteUser = await window.ESO_DB.findUserById(userId);
+      if (reference.id && window.ESO_DB.findUserById) {
+        remoteUser = await window.ESO_DB.findUserById(reference.id);
       }
 
-      const fallbackEmail = String(resolvedUser?.email || '').trim().toLowerCase();
+      if (!remoteUser && reference.auth_id && window.ESO_DB.findUserByAuthId) {
+        remoteUser = await window.ESO_DB.findUserByAuthId(reference.auth_id);
+      }
+
+      const fallbackEmail = reference.email || normalizeAdminUserEmail(resolvedUser?.email);
       if (!remoteUser && fallbackEmail && window.ESO_DB.findUserByEmail) {
         remoteUser = await window.ESO_DB.findUserByEmail(fallbackEmail);
       }
@@ -2392,10 +2481,14 @@
       return { ...(resolvedUser || {}), ...remoteUser };
     }
 
-    async function approveKyc(userId) {
+    async function approveKyc(userRef, button = null) {
+      setInlineActionButtonPendingState(button, true);
+
+      try {
       let users = getUsers();
-      const localUser = users.find(u => String(u.id || '') === String(userId || '')) || null;
-      let user = await resolveCanonicalAdminUser(userId, localUser);
+      const reference = parseAdminUserRef(userRef);
+      const localUser = findAdminUserByRef(users, reference);
+      let user = await resolveCanonicalAdminUser(reference, localUser);
 
       if (window.ESO_DB && window.ESO_DB.isReady()) {
         const authUser = await ensureAdminSupabaseSession();
@@ -2405,51 +2498,65 @@
         }
       }
 
-      if (user) {
-        if (!hasKycSubmission(user) && !confirm('This user has no submitted KYC documents. Approve anyway?')) {
+      if (!user) {
+        showToast('Could not find that user record. Refresh the admin page and try again.', 'error');
+        return;
+      }
+
+      if (!hasKycSubmission(user) && !confirm('This user has no submitted KYC documents. Approve anyway?')) {
+        return;
+      }
+
+      const approvedAt = new Date().toISOString();
+      const approvalPatch = {
+        kycStatus: 'verified',
+        kycVerifiedAt: approvedAt,
+        updatedAt: approvedAt
+      };
+
+      if (window.ESO_DB && window.ESO_DB.isReady()) {
+        let saved = null;
+        if (user.id && window.ESO_DB.updateUserById) {
+          saved = await window.ESO_DB.updateUserById(user.id, approvalPatch);
+        }
+        if (!saved && user.email && window.ESO_DB.updateUserByEmail) {
+          saved = await window.ESO_DB.updateUserByEmail(user.email, approvalPatch);
+        }
+        if (!saved) {
+          const lastError = window.ESO_DB.getLastError ? window.ESO_DB.getLastError() : null;
+          console.error('approveKyc failed', { userRef: reference, user, approvalPatch, lastError });
+          showToast(`Could not approve KYC on server${lastError?.message ? `: ${lastError.message}` : ''}`, 'error');
           return;
         }
+      }
 
-        const approvedAt = new Date().toISOString();
-        const approvalPatch = {
-          kycStatus: 'verified',
-          kycVerifiedAt: approvedAt,
-          updatedAt: approvedAt
-        };
+      user = { ...user, ...approvalPatch };
 
-        if (window.ESO_DB && window.ESO_DB.isReady()) {
-          let saved = null;
-          if (user.id && window.ESO_DB.updateUserById) {
-            saved = await window.ESO_DB.updateUserById(user.id, approvalPatch);
-          }
-          if (!saved && user.email && window.ESO_DB.updateUserByEmail) {
-            saved = await window.ESO_DB.updateUserByEmail(user.email, approvalPatch);
-          }
-          if (!saved) {
-            const lastError = window.ESO_DB.getLastError ? window.ESO_DB.getLastError() : null;
-            console.error('approveKyc failed', { userId, user, approvalPatch, lastError });
-            showToast(`Could not approve KYC on server${lastError?.message ? `: ${lastError.message}` : ''}`, 'error');
-            return;
-          }
-        }
+      users = upsertAdminCachedUser(users, user);
+      saveUsers(users);
 
-        user = { ...user, ...approvalPatch };
-
-        users = upsertAdminCachedUser(users, user);
-        saveUsers(users);
-
-        await sendNotificationToUser(user.id || userId, 'KYC Approved!', 'Your KYC verification has been approved. You now have full access to all features.', 'success', user);
-        showToast(hasKycSubmission(user) ? 'KYC approved!' : 'KYC approved without submission.');
-        loadKyc();
+      await sendNotificationToUser(user.id || reference.id || reference.auth_id || reference.email, 'KYC Approved!', 'Your KYC verification has been approved. You now have full access to all features.', 'success', user);
+      showToast(hasKycSubmission(user) ? 'KYC approved!' : 'KYC approved without submission.');
+      loadKyc();
+      } finally {
+        setInlineActionButtonPendingState(button, false);
       }
     }
 
-    async function rejectKyc(userId) {
+    async function rejectKyc(userRef, button = null) {
       if (!confirm('Reject KYC?')) return;
+      setInlineActionButtonPendingState(button, true);
+
+      try {
       let users = getUsers();
-      const localUser = users.find(u => String(u.id || '') === String(userId || '')) || null;
-      const user = await resolveCanonicalAdminUser(userId, localUser);
-      if (user) {
+      const reference = parseAdminUserRef(userRef);
+      const localUser = findAdminUserByRef(users, reference);
+      const user = await resolveCanonicalAdminUser(reference, localUser);
+      if (!user) {
+        showToast('Could not find that user record. Refresh the admin page and try again.', 'error');
+        return;
+      }
+
         if (window.ESO_DB && window.ESO_DB.isReady()) {
           const authUser = await ensureAdminSupabaseSession();
           if (!authUser) {
@@ -2473,7 +2580,7 @@
           }
           if (!saved) {
             const lastError = window.ESO_DB.getLastError ? window.ESO_DB.getLastError() : null;
-            console.error('rejectKyc failed', { userId, user, rejectionPatch, lastError });
+            console.error('rejectKyc failed', { userRef: reference, user, rejectionPatch, lastError });
             showToast(`Could not reject KYC on server${lastError?.message ? `: ${lastError.message}` : ''}`, 'error');
             return;
           }
@@ -2484,9 +2591,11 @@
         users = upsertAdminCachedUser(users, user);
         saveUsers(users);
 
-        await sendNotificationToUser(user.id || userId, 'KYC Rejected', 'Your KYC verification was rejected. Please submit valid documents.', 'error', user);
+        await sendNotificationToUser(user.id || reference.id || reference.auth_id || reference.email, 'KYC Rejected', 'Your KYC verification was rejected. Please submit valid documents.', 'error', user);
         showToast('KYC rejected!');
         loadKyc();
+      } finally {
+        setInlineActionButtonPendingState(button, false);
       }
     }
 
