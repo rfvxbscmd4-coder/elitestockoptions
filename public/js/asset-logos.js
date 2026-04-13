@@ -103,8 +103,26 @@
     return candidates;
   }
 
-  function renderLogo(rawSymbol, altText, fallbackIconClass, fallbackBgClass) {
-    const candidates = logoCandidates(rawSymbol);
+  function mergeLogoCandidates(raw, preferredCandidates) {
+    const merged = [];
+    const seen = new Set();
+    const candidates = [
+      ...(Array.isArray(preferredCandidates) ? preferredCandidates : [preferredCandidates]),
+      ...logoCandidates(raw)
+    ];
+
+    candidates.forEach((candidate) => {
+      const normalized = String(candidate || '').trim();
+      if (!normalized || seen.has(normalized)) return;
+      seen.add(normalized);
+      merged.push(normalized);
+    });
+
+    return merged;
+  }
+
+  function renderLogo(rawSymbol, altText, fallbackIconClass, fallbackBgClass, preferredCandidates = []) {
+    const candidates = mergeLogoCandidates(rawSymbol, preferredCandidates);
     const symbol = extractBaseSymbol(rawSymbol) || '?';
     const fallbackIcon = fallbackIconClass || 'fas fa-chart-line';
     const fallbackBg = fallbackBgClass || 'bg-gray-100';
@@ -146,6 +164,7 @@
 
   window.ESO_ASSETS = {
     extractBaseSymbol,
+    mergeLogoCandidates,
     renderLogo,
     handleLogoError
   };

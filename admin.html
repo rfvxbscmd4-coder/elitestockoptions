@@ -1477,7 +1477,8 @@
 
     function getEffectiveKycStatus(user) {
       const rawStatus = String(user?.kycStatus || '').trim().toLowerCase();
-      if (rawStatus === 'verified' || rawStatus === 'rejected') return rawStatus;
+      if (rawStatus === 'approved' || rawStatus === 'verified') return 'verified';
+      if (rawStatus === 'rejected') return rawStatus;
       return hasKycSubmission(user) ? 'pending' : 'not_submitted';
     }
 

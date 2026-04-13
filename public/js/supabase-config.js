@@ -138,21 +138,33 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 		return !!(docs.front || docs.back || docs.selfie);
 	}
 
+	function normalizeKycStatus(status) {
+		const normalized = String(status || '').trim().toLowerCase();
+		return normalized === 'approved' ? 'verified' : normalized;
+	}
+
 	function isReviewedKycStatus(status) {
-		return status === 'verified' || status === 'rejected';
+		const normalized = normalizeKycStatus(status);
+		return normalized === 'verified' || normalized === 'rejected';
+	}
+
+	function getEffectiveKycStatus(userLike) {
+		const rawStatus = normalizeKycStatus(userLike?.kycStatus);
+		if (isReviewedKycStatus(rawStatus)) return rawStatus;
+		return hasKycSubmission(userLike) ? 'pending' : 'not_submitted';
 	}
 
 	function preserveReviewedKyc(targetUser, sourceUser, overrides = {}) {
 		if (!targetUser || !sourceUser) return targetUser;
 
 		const hasStatusOverride = Object.prototype.hasOwnProperty.call(overrides, 'kycStatus');
-		const sourceStatus = String(sourceUser.kycStatus || '').trim().toLowerCase();
+		const sourceStatus = normalizeKycStatus(sourceUser.kycStatus);
 		if (!hasStatusOverride && !isReviewedKycStatus(sourceStatus)) {
 			return targetUser;
 		}
 
 		if (!hasStatusOverride) {
-			targetUser.kycStatus = sourceUser.kycStatus;
+			targetUser.kycStatus = sourceStatus;
 		}
 		targetUser.kycSubmittedAt = sourceUser.kycSubmittedAt || targetUser.kycSubmittedAt || null;
 		targetUser.kycVerifiedAt = sourceUser.kycVerifiedAt || targetUser.kycVerifiedAt || null;
@@ -198,17 +210,17 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 			targetUser.plan = sourceUser.plan;
 		}
 
-		const targetKycStatus = String(targetUser.kycStatus || '').trim().toLowerCase();
-		const sourceKycStatus = String(sourceUser.kycStatus || '').trim().toLowerCase();
+		preserveReviewedKyc(targetUser, sourceUser);
+
+		const targetKycStatus = normalizeKycStatus(targetUser.kycStatus);
+		const sourceKycStatus = normalizeKycStatus(sourceUser.kycStatus);
 		const targetMissingKyc = !targetKycStatus
 			|| targetKycStatus === 'not_submitted'
 			|| (targetKycStatus === 'pending' && !hasKycSubmission(targetUser));
-		const sourceHasKyc = sourceKycStatus === 'verified'
-			|| sourceKycStatus === 'rejected'
-			|| hasKycSubmission(sourceUser);
+		const sourceHasKyc = isReviewedKycStatus(sourceKycStatus) || hasKycSubmission(sourceUser);
 
 		if (targetMissingKyc && sourceHasKyc) {
-			targetUser.kycStatus = sourceUser.kycStatus || 'pending';
+			targetUser.kycStatus = sourceKycStatus || 'pending';
 		}
 		if (!targetUser.kycSubmittedAt && sourceUser.kycSubmittedAt) {
 			targetUser.kycSubmittedAt = sourceUser.kycSubmittedAt;
@@ -249,7 +261,7 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 		if (Number(userLike.profitsBalance || 0) !== 0) score += 12;
 		if (String(userLike.plan || '').trim().toLowerCase() && String(userLike.plan || '').trim().toLowerCase() !== 'bronze') score += 8;
 		if (userLike.phone || userLike.phoneNumber) score += 6;
-		if (String(userLike.kycStatus || '').trim().toLowerCase() === 'verified') score += 8;
+		if (getEffectiveKycStatus(userLike) === 'verified') score += 8;
 		else if (hasKycSubmission(userLike)) score += 4;
 
 		const recency = new Date(userLike.updatedAt || userLike.createdAt || 0).getTime();
@@ -279,7 +291,7 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 			balance: Number(userLike.balance || 0),
 			availableCash: Number(userLike.availableCash || 0),
 			profitsBalance: Number(userLike.profitsBalance || 0),
-			kycStatus: userLike.kycStatus || null,
+			kycStatus: normalizeKycStatus(userLike.kycStatus) || null,
 			kycSubmittedAt: userLike.kycSubmittedAt || null,
 			kycVerifiedAt: userLike.kycVerifiedAt || null,
 			kycData: userLike.kycData || null,
@@ -630,7 +642,7 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 			|| Number(currentUser.availableCash || 0) !== Number(storeUser.availableCash || 0)
 			|| Number(currentUser.profitsBalance || 0) !== Number(storeUser.profitsBalance || 0)
 			|| String(currentUser.plan || '') !== String(storeUser.plan || '')
-			|| String(currentUser.kycStatus || '') !== String(storeUser.kycStatus || '')
+			|| normalizeKycStatus(currentUser.kycStatus) !== normalizeKycStatus(storeUser.kycStatus)
 			|| String(currentUser.fullName || currentUser.name || '') !== String(storeUser.fullName || storeUser.name || '')
 			|| String(currentUser.id || '') !== String(storeUser.id || '')
 			|| String(currentUser.auth_id || '') !== String(storeUser.auth_id || '');
@@ -708,6 +720,8 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 		formatMoney,
 		getDisplayName,
 		hasKycSubmission,
+		normalizeKycStatus,
+		getEffectiveKycStatus,
 		getUserSyncTimestamp,
 		mergeUserData,
 		getUserRank,

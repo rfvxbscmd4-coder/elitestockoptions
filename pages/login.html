@@ -328,6 +328,16 @@
         return !!(docs.front || docs.back || docs.selfie);
       };
 
+      const normalizeLoginKycStatus = (status) => {
+        const normalized = String(status || '').trim().toLowerCase();
+        return normalized === 'approved' ? 'verified' : normalized;
+      };
+
+      const isReviewedLoginKycStatus = (status) => {
+        const normalized = normalizeLoginKycStatus(status);
+        return normalized === 'verified' || normalized === 'rejected';
+      };
+
       const sourceDisplayName = String(sourceUser.fullName || sourceUser.name || '').trim();
       if (!targetUser.fullName && sourceDisplayName) {
         targetUser.fullName = sourceDisplayName;
@@ -372,14 +382,20 @@
         targetUser.updatedAt = sourceUser.updatedAt;
       }
 
-      const targetKycStatus = String(targetUser.kycStatus || '').trim().toLowerCase();
-      const sourceKycStatus = String(sourceUser.kycStatus || '').trim().toLowerCase();
+      const sourceKycStatus = normalizeLoginKycStatus(sourceUser.kycStatus);
+      if (isReviewedLoginKycStatus(sourceKycStatus)) {
+        targetUser.kycStatus = sourceKycStatus;
+        targetUser.kycSubmittedAt = sourceUser.kycSubmittedAt || targetUser.kycSubmittedAt || null;
+        targetUser.kycVerifiedAt = sourceUser.kycVerifiedAt || targetUser.kycVerifiedAt || null;
+        targetUser.kycData = sourceUser.kycData || targetUser.kycData || null;
+        targetUser.kycDocuments = sourceUser.kycDocuments || targetUser.kycDocuments || null;
+      }
+
+      const targetKycStatus = normalizeLoginKycStatus(targetUser.kycStatus);
       const targetMissingKyc = !targetKycStatus
         || targetKycStatus === 'not_submitted'
         || (targetKycStatus === 'pending' && !hasKycSubmission(targetUser));
-      const sourceHasKyc = sourceKycStatus === 'verified'
-        || sourceKycStatus === 'rejected'
-        || hasKycSubmission(sourceUser);
+      const sourceHasKyc = isReviewedLoginKycStatus(sourceKycStatus) || hasKycSubmission(sourceUser);
 
       if (targetMissingKyc && sourceHasKyc) {
         targetUser.kycStatus = sourceKycStatus || 'pending';
@@ -418,7 +434,7 @@
         balance: Number(userLike.balance || 0),
         availableCash: Number(userLike.availableCash || 0),
         profitsBalance: Number(userLike.profitsBalance || 0),
-        kycStatus: userLike.kycStatus || null,
+        kycStatus: ((String(userLike.kycStatus || '').trim().toLowerCase() === 'approved') ? 'verified' : userLike.kycStatus) || null,
         kycSubmittedAt: userLike.kycSubmittedAt || null,
         kycVerifiedAt: userLike.kycVerifiedAt || null,
         kycData: userLike.kycData || null,

@@ -410,8 +410,17 @@
       return !!(docs.front || docs.back || docs.selfie);
     }
 
+    function normalizeSettingsKycStatus(status) {
+      const normalized = String(status || '').trim().toLowerCase();
+      return normalized === 'approved' ? 'verified' : normalized;
+    }
+
     function getEffectiveKycStatus(userLike = currentUser) {
-      const rawStatus = String(userLike?.kycStatus || '').trim().toLowerCase();
+      if (session.getEffectiveKycStatus) {
+        return session.getEffectiveKycStatus(userLike);
+      }
+
+      const rawStatus = normalizeSettingsKycStatus(userLike?.kycStatus);
       if (rawStatus === 'verified' || rawStatus === 'rejected') return rawStatus;
       return hasStoredKycSubmission(userLike) ? 'pending' : 'not_submitted';
     }
@@ -421,7 +430,8 @@
         return session.isReviewedKycStatus(status);
       }
 
-      return status === 'verified' || status === 'rejected';
+      const normalized = normalizeSettingsKycStatus(status);
+      return normalized === 'verified' || normalized === 'rejected';
     }
 
     function preserveReviewedKyc(targetUser, sourceUser, overrides = {}) {
@@ -432,13 +442,13 @@
       if (!targetUser || !sourceUser) return targetUser;
 
       const hasStatusOverride = Object.prototype.hasOwnProperty.call(overrides, 'kycStatus');
-      const sourceStatus = String(sourceUser.kycStatus || '').trim().toLowerCase();
+      const sourceStatus = normalizeSettingsKycStatus(sourceUser.kycStatus);
       if (!hasStatusOverride && !isReviewedKycStatus(sourceStatus)) {
         return targetUser;
       }
 
       if (!hasStatusOverride) {
-        targetUser.kycStatus = sourceUser.kycStatus;
+        targetUser.kycStatus = sourceStatus;
       }
       targetUser.kycSubmittedAt = sourceUser.kycSubmittedAt || targetUser.kycSubmittedAt || null;
       targetUser.kycVerifiedAt = sourceUser.kycVerifiedAt || targetUser.kycVerifiedAt || null;

@@ -583,6 +583,20 @@
       return syncedUser;
     }
 
+    function getEffectiveDashboardKycStatus(userLike = currentUser) {
+      if (sharedSession && typeof sharedSession.getEffectiveKycStatus === 'function') {
+        return sharedSession.getEffectiveKycStatus(userLike);
+      }
+
+      const rawStatus = String(userLike?.kycStatus || '').trim().toLowerCase();
+      if (rawStatus === 'verified' || rawStatus === 'approved') return 'verified';
+      if (rawStatus === 'rejected') return 'rejected';
+
+      const docs = userLike?.kycDocuments || {};
+      const hasSubmission = !!(userLike?.kycData || userLike?.kycSubmittedAt || docs.front || docs.back || docs.selfie);
+      return hasSubmission ? 'pending' : 'not_submitted';
+    }
+
     function renderDashboardUserState(userLike = currentUser) {
       if (!userLike) return;
 
@@ -595,7 +609,7 @@
       document.getElementById('totalBalance').textContent = '$' + (userLike.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
       document.getElementById('availableCash').textContent = '$' + (userLike.availableCash || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
       document.getElementById('profitsBalance').textContent = '$' + (userLike.profitsBalance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
-      updateKycBanner(userLike.kycStatus || 'not_submitted');
+  updateKycBanner(getEffectiveDashboardKycStatus(userLike));
     }
 
     function applyDashboardPlanBranding(plan) {
@@ -688,7 +702,7 @@
     }
 
     function updateKycBanner(statusOverride = null) {
-      const kycStatus = statusOverride || currentUser?.kycStatus || 'not_submitted';
+      const kycStatus = statusOverride || getEffectiveDashboardKycStatus(currentUser);
       const kycBanner = document.getElementById('kycBanner');
       if (!kycBanner) return;
       if (kycStatus !== 'verified') {
@@ -1033,17 +1047,42 @@
 
     function loadMarketMovers() {
       const movers = [
-        { symbol: 'BTC', name: 'Bitcoin', price: 43250.50, change: 2.35, logo: 'https://cryptologos.cc/logos/bitcoin-btc-logo.png?v=026' },
-        { symbol: 'ETH', name: 'Ethereum', price: 2580.75, change: -1.20, logo: 'https://cryptologos.cc/logos/ethereum-eth-logo.png?v=026' },
-        { symbol: 'SOL', name: 'Solana', price: 98.45, change: 5.67, logo: 'https://cryptologos.cc/logos/solana-sol-logo.png?v=026' },
-        { symbol: 'AAPL', name: 'Apple Inc.', price: 185.92, change: 0.85, logo: 'https://logo.clearbit.com/apple.com' }
+        {
+          symbol: 'BTC',
+          name: 'Bitcoin',
+          price: 43250.50,
+          change: 2.35,
+          logo: 'https://cryptologos.cc/logos/bitcoin-btc-logo.png?v=026'
+        },
+        {
+          symbol: 'ETH',
+          name: 'Ethereum',
+          price: 2580.75,
+          change: -1.20,
+          logo: 'https://cryptologos.cc/logos/ethereum-eth-logo.png?v=026'
+        },
+        {
+          symbol: 'SOL',
+          name: 'Solana',
+          price: 98.45,
+          change: 5.67,
+          logo: 'https://cryptologos.cc/logos/solana-sol-logo.png?v=026'
+        },
+        {
+          symbol: 'AAPL',
+          name: 'Apple Inc.',
+          price: 185.92,
+          change: 0.85,
+          logo: 'https://financialmodelingprep.com/image-stock/AAPL.png',
+          fallbackLogos: ['https://logo.clearbit.com/apple.com']
+        }
       ];
 
       document.getElementById('marketMovers').innerHTML = movers.map(m => `
         <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
           <div class="flex items-center justify-between mb-2">
             <div class="flex items-center space-x-2">
-              ${window.ESO_ASSETS ? window.ESO_ASSETS.renderLogo(m.symbol, m.name, 'fas fa-chart-line', 'bg-gray-200') : `<div class="w-8 h-8 rounded-lg bg-gray-100 overflow-hidden flex items-center justify-center"><img src="${m.logo}" alt="${m.symbol} logo" class="w-6 h-6 object-contain" loading="lazy"></div>`}
+              ${window.ESO_ASSETS ? window.ESO_ASSETS.renderLogo(m.symbol, m.name, 'fas fa-chart-line', 'bg-gray-200', [m.logo, ...(Array.isArray(m.fallbackLogos) ? m.fallbackLogos : [])]) : `<div class="w-8 h-8 rounded-lg bg-gray-100 overflow-hidden flex items-center justify-center"><img src="${m.logo}" alt="${m.symbol} logo" class="w-6 h-6 object-contain" loading="lazy"></div>`}
               <div>
                 <p class="font-semibold text-gray-900">${m.symbol}</p>
                 <p class="text-xs text-gray-500">${m.name}</p>
