@@ -481,6 +481,9 @@
     let currentUser = getStoredCurrentUser();
     let tradesRefreshTimer = null;
     let notificationsPanelOpen = false;
+    const MARKET_MOVERS_CACHE_KEY = 'eso_market_movers_cache';
+    const MARKET_MOVERS_CACHE_TTL_MS = 2 * 60 * 1000;
+    const MARKET_MOVERS_REQUEST_TIMEOUT_MS = 8000;
     if (!currentUser) {
       console.log('Not logged in - user can still view but will need to login for full features');
     }
@@ -609,7 +612,7 @@
       document.getElementById('totalBalance').textContent = '$' + (userLike.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
       document.getElementById('availableCash').textContent = '$' + (userLike.availableCash || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
       document.getElementById('profitsBalance').textContent = '$' + (userLike.profitsBalance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
-  updateKycBanner(getEffectiveDashboardKycStatus(userLike));
+      updateKycBanner(getEffectiveDashboardKycStatus(userLike));
     }
 
     function applyDashboardPlanBranding(plan) {
@@ -1045,56 +1048,252 @@
       }).join('');
     }
 
-    function loadMarketMovers() {
-      const movers = [
+    function renderMarketMoverLogo(mover) {
+      const symbol = String(mover?.symbol || '').trim().toUpperCase();
+      const localLogos = {
+        BTC: `
+          <div class="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center bg-[#f7931a]">
+            <svg viewBox="0 0 32 32" class="w-8 h-8" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="16" cy="16" r="16" fill="#f7931a"/>
+              <text x="16" y="21" text-anchor="middle" font-size="15" font-weight="700" fill="#ffffff" font-family="Arial, Helvetica, sans-serif">B</text>
+              <rect x="11.2" y="8.5" width="1.4" height="15" fill="#ffffff" rx="0.7"/>
+              <rect x="18.8" y="8.5" width="1.4" height="15" fill="#ffffff" rx="0.7"/>
+            </svg>
+          </div>
+        `,
+        ETH: `
+          <div class="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center bg-[#eef1f7]">
+            <svg viewBox="0 0 32 32" class="w-8 h-8" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+              <polygon points="16,3 7.5,16 16,11.8 24.5,16" fill="#8a92b2"/>
+              <polygon points="16,3 24.5,16 16,20.2" fill="#62688f"/>
+              <polygon points="16,29 7.5,18 16,22.4 24.5,18" fill="#454a75"/>
+              <polygon points="16,29 24.5,18 16,22.4" fill="#2f3450"/>
+            </svg>
+          </div>
+        `,
+        SOL: `
+          <div class="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center bg-[#0b0f1a]">
+            <svg viewBox="0 0 32 32" class="w-8 h-8" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="sol-gradient-top" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#8a5cff"/>
+                  <stop offset="100%" stop-color="#14f195"/>
+                </linearGradient>
+                <linearGradient id="sol-gradient-mid" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#a66bff"/>
+                  <stop offset="100%" stop-color="#59d4ff"/>
+                </linearGradient>
+                <linearGradient id="sol-gradient-bottom" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#e23cff"/>
+                  <stop offset="100%" stop-color="#7ea6ff"/>
+                </linearGradient>
+              </defs>
+              <path d="M8 8h18l-3.5 4H4.5L8 8Z" fill="url(#sol-gradient-top)"/>
+              <path d="M4 14h18l5 6H9L4 14Z" fill="url(#sol-gradient-mid)"/>
+              <path d="M8 22h20l-4 4H4L8 22Z" fill="url(#sol-gradient-bottom)"/>
+            </svg>
+          </div>
+        `
+      };
+
+      if (localLogos[symbol]) {
+        return localLogos[symbol];
+      }
+
+      if (window.ESO_ASSETS) {
+        return window.ESO_ASSETS.renderLogo(
+          mover.symbol,
+          mover.name,
+          'fas fa-chart-line',
+          'bg-gray-200',
+          [mover.logo, ...(Array.isArray(mover.fallbackLogos) ? mover.fallbackLogos : [])]
+        );
+      }
+
+      return `<div class="w-8 h-8 rounded-lg bg-gray-100 overflow-hidden flex items-center justify-center"><img src="${mover.logo}" alt="${mover.symbol} logo" class="w-6 h-6 object-contain" loading="lazy"></div>`;
+    }
+
+    function getMarketMoverDefinitions() {
+      return [
         {
           symbol: 'BTC',
           name: 'Bitcoin',
-          price: 43250.50,
-          change: 2.35,
+          cryptoId: 'bitcoin',
           logo: 'https://cryptologos.cc/logos/bitcoin-btc-logo.png?v=026'
         },
         {
           symbol: 'ETH',
           name: 'Ethereum',
-          price: 2580.75,
-          change: -1.20,
+          cryptoId: 'ethereum',
           logo: 'https://cryptologos.cc/logos/ethereum-eth-logo.png?v=026'
         },
         {
           symbol: 'SOL',
           name: 'Solana',
-          price: 98.45,
-          change: 5.67,
+          cryptoId: 'solana',
           logo: 'https://cryptologos.cc/logos/solana-sol-logo.png?v=026'
         },
         {
           symbol: 'AAPL',
           name: 'Apple Inc.',
-          price: 185.92,
-          change: 0.85,
+          stockSymbol: 'AAPL',
           logo: 'https://financialmodelingprep.com/image-stock/AAPL.png',
           fallbackLogos: ['https://logo.clearbit.com/apple.com']
         }
       ];
+    }
 
-      document.getElementById('marketMovers').innerHTML = movers.map(m => `
-        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-          <div class="flex items-center justify-between mb-2">
-            <div class="flex items-center space-x-2">
-              ${window.ESO_ASSETS ? window.ESO_ASSETS.renderLogo(m.symbol, m.name, 'fas fa-chart-line', 'bg-gray-200', [m.logo, ...(Array.isArray(m.fallbackLogos) ? m.fallbackLogos : [])]) : `<div class="w-8 h-8 rounded-lg bg-gray-100 overflow-hidden flex items-center justify-center"><img src="${m.logo}" alt="${m.symbol} logo" class="w-6 h-6 object-contain" loading="lazy"></div>`}
-              <div>
-                <p class="font-semibold text-gray-900">${m.symbol}</p>
-                <p class="text-xs text-gray-500">${m.name}</p>
+    function readMarketMoversCache() {
+      try {
+        const cached = JSON.parse(localStorage.getItem(MARKET_MOVERS_CACHE_KEY) || 'null');
+        if (!cached || !Array.isArray(cached.movers)) return null;
+        return cached;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function saveMarketMoversCache(movers) {
+      try {
+        localStorage.setItem(MARKET_MOVERS_CACHE_KEY, JSON.stringify({
+          savedAt: Date.now(),
+          movers: Array.isArray(movers) ? movers : []
+        }));
+      } catch (_) {}
+    }
+
+    function formatMarketMoverPrice(value, loadingState = 'ready') {
+      const amount = Number(value);
+      if (Number.isFinite(amount) && amount > 0) {
+        return '$' + amount.toLocaleString('en-US', {
+          minimumFractionDigits: amount >= 1000 ? 0 : 2,
+          maximumFractionDigits: 2
+        });
+      }
+
+      if (loadingState === 'loading') return 'Updating...';
+      return 'Unavailable';
+    }
+
+    function formatMarketMoverChange(value, loadingState = 'ready') {
+      const amount = Number(value);
+      if (Number.isFinite(amount)) {
+        return {
+          text: `${amount >= 0 ? '+' : ''}${amount.toFixed(2)}%`,
+          className: amount >= 0 ? 'text-green-600' : 'text-red-600'
+        };
+      }
+
+      if (loadingState === 'loading') {
+        return { text: '--', className: 'text-gray-400' };
+      }
+
+      return { text: 'N/A', className: 'text-gray-400' };
+    }
+
+    function renderMarketMovers(movers, loadingState = 'ready') {
+      const list = Array.isArray(movers) && movers.length ? movers : getMarketMoverDefinitions();
+      const container = document.getElementById('marketMovers');
+      if (!container) return;
+
+      container.innerHTML = list.map(mover => {
+        const change = formatMarketMoverChange(mover.change, loadingState);
+        return `
+          <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center space-x-2">
+                ${renderMarketMoverLogo(mover)}
+                <div>
+                  <p class="font-semibold text-gray-900">${mover.symbol}</p>
+                  <p class="text-xs text-gray-500">${mover.name}</p>
+                </div>
               </div>
+              <span class="text-xs font-medium ${change.className}">
+                ${change.text}
+              </span>
             </div>
-            <span class="text-xs font-medium ${m.change >= 0 ? 'text-green-600' : 'text-red-600'}">
-              ${m.change >= 0 ? '+' : ''}${m.change}%
-            </span>
+            <p class="text-lg font-bold text-gray-900">${formatMarketMoverPrice(mover.price, loadingState)}</p>
           </div>
-          <p class="text-lg font-bold text-gray-900">$${m.price.toLocaleString()}</p>
-        </div>
-      `).join('');
+        `;
+      }).join('');
+    }
+
+    async function fetchJsonWithTimeout(url, timeoutMs = MARKET_MOVERS_REQUEST_TIMEOUT_MS) {
+      const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+
+      try {
+        const response = await fetch(url, controller ? { signal: controller.signal } : undefined);
+        if (!response.ok) {
+          throw new Error(`Request failed with status ${response.status}`);
+        }
+        return await response.json();
+      } catch (error) {
+        console.warn('Market mover request failed', url, error);
+        return null;
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId);
+      }
+    }
+
+    async function fetchLiveMarketMovers() {
+      const definitions = getMarketMoverDefinitions();
+      const [cryptoData, stockQuote] = await Promise.all([
+        fetchJsonWithTimeout('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd&include_24hr_change=true'),
+        fetchJsonWithTimeout('https://api.twelvedata.com/quote?symbol=AAPL&apikey=demo')
+      ]);
+
+      const movers = definitions.map(definition => {
+        const nextMover = { ...definition };
+
+        if (definition.cryptoId && cryptoData && cryptoData[definition.cryptoId]) {
+          const cryptoQuote = cryptoData[definition.cryptoId];
+          nextMover.price = Number(cryptoQuote.usd || 0);
+          nextMover.change = Number(cryptoQuote.usd_24h_change);
+        }
+
+        if (definition.stockSymbol === 'AAPL' && stockQuote && !stockQuote.code) {
+          nextMover.price = Number(stockQuote.close || stockQuote.price || stockQuote.previous_close || 0);
+          nextMover.change = Number(stockQuote.percent_change);
+        }
+
+        return nextMover;
+      });
+
+      return movers.some(mover => Number.isFinite(Number(mover.price)) && Number(mover.price) > 0)
+        ? movers
+        : null;
+    }
+
+    function loadMarketMovers() {
+      const cached = readMarketMoversCache();
+      const cacheAge = Number(cached?.savedAt || 0);
+
+      if (cached?.movers?.length) {
+        renderMarketMovers(cached.movers);
+      } else {
+        renderMarketMovers(getMarketMoverDefinitions(), 'loading');
+      }
+
+      if (cacheAge && (Date.now() - cacheAge) < MARKET_MOVERS_CACHE_TTL_MS) {
+        return;
+      }
+
+      fetchLiveMarketMovers().then((movers) => {
+        if (!movers) {
+          if (!cached?.movers?.length) {
+            renderMarketMovers(getMarketMoverDefinitions(), 'unavailable');
+          }
+          return;
+        }
+
+        saveMarketMoversCache(movers);
+        renderMarketMovers(movers);
+      }).catch(() => {
+        if (!cached?.movers?.length) {
+          renderMarketMovers(getMarketMoverDefinitions(), 'unavailable');
+        }
+      });
     }
 
     function toggleMobileMenu() {
