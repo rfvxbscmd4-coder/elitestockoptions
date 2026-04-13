@@ -9,6 +9,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="../public/js/supabase-config.js?v=20260403-03"></script>
   <script src="../public/js/supabase-client.js?v=20260403-03"></script>
+  <script src="../public/js/live-quotes.js?v=20260413-01"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script src="https://s3.tradingview.com/tv.js"></script>
   <script>
@@ -229,7 +230,7 @@
               <select id="tradeSymbol" class="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-primary" onchange="updateChartSymbol()">
                 <!-- Populated by JS based on category -->
               </select>
-              <span class="text-2xl font-bold text-gray-900" id="currentPrice">$43,250.50</span>
+              <span class="text-2xl font-bold text-gray-900" id="currentPrice">$--</span>
             </div>
             <div id="tradeChart" class="h-64"></div>
           </div>
@@ -247,7 +248,7 @@
           <!-- Limit Price (hidden for market) -->
           <div id="limitPriceField" class="hidden mb-4">
             <label class="block text-sm font-medium text-gray-700 mb-2">Limit Price</label>
-            <input type="number" id="limitPrice" step="0.01" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary">
+            <input type="number" id="limitPrice" step="any" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary">
           </div>
 
           <!-- Investment Amount -->
@@ -279,7 +280,7 @@
             </div>
             <div id="tpFields" class="grid grid-cols-2 gap-3">
               <div>
-                <input type="number" id="tpPrice" step="0.01" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="TP Price" oninput="calculateRR()">
+                <input type="number" id="tpPrice" step="any" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="TP Price" oninput="calculateRR()">
               </div>
               <div>
                 <input type="number" id="tpPercent" step="0.1" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="% Profit" oninput="calculateTPFromPercent()">
@@ -298,7 +299,7 @@
             </div>
             <div id="slFields" class="grid grid-cols-2 gap-3">
               <div>
-                <input type="number" id="slPrice" step="0.01" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="SL Price" oninput="calculateRR()">
+                <input type="number" id="slPrice" step="any" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="SL Price" oninput="calculateRR()">
               </div>
               <div>
                 <input type="number" id="slPercent" step="0.1" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="% Loss" oninput="calculateSLFromPercent()">
@@ -405,8 +406,192 @@
     }
 
     let orderType = 'market';
-    let currentPrice = 43250.50;
+    let currentPrice = 0;
+    let currentTradeQuote = null;
     let tradeSubmitInFlight = false;
+    let tradeQuotesRefreshTimer = null;
+    let tradeQuoteRefreshInFlight = false;
+    let queuedTradeQuoteRefresh = false;
+    const TRADE_QUOTES_REFRESH_MS = 15000;
+
+    function getTradePriceDecimals(value, quoteLike = currentTradeQuote) {
+      const numericValue = Number(value);
+      if (!Number.isFinite(numericValue)) return 2;
+
+      const explicitDecimals = Number(quoteLike?.decimals);
+      if (Number.isFinite(explicitDecimals)) {
+        return Math.min(Math.max(explicitDecimals, 2), 6);
+      }
+
+      if (window.ESO_QUOTES && typeof window.ESO_QUOTES.inferDecimals === 'function') {
+        return Math.min(Math.max(window.ESO_QUOTES.inferDecimals(quoteLike?.pricescale, numericValue), 2), 6);
+      }
+
+      const valueText = String(value);
+      if (valueText.includes('.') && !valueText.includes('e')) {
+        const fractionText = valueText.split('.').pop().replace(/0+$/, '');
+        if (fractionText) {
+          return Math.min(Math.max(fractionText.length, numericValue >= 1 ? 2 : 4), 6);
+        }
+      }
+
+      if (Math.abs(numericValue) >= 1) return 2;
+      if (Math.abs(numericValue) >= 0.01) return 4;
+      return 6;
+    }
+
+    function formatTradePriceValue(value, quoteLike = currentTradeQuote) {
+      const numericValue = Number(value);
+      if (!Number.isFinite(numericValue)) return '--';
+
+      if (window.ESO_QUOTES && typeof window.ESO_QUOTES.formatPrice === 'function') {
+        return window.ESO_QUOTES.formatPrice(numericValue, {
+          decimals: getTradePriceDecimals(numericValue, quoteLike),
+          pricescale: quoteLike?.pricescale
+        });
+      }
+
+      const decimals = getTradePriceDecimals(numericValue, quoteLike);
+      return numericValue.toLocaleString('en-US', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals
+      });
+    }
+
+    function formatTradeInputValue(value, quoteLike = currentTradeQuote) {
+      const numericValue = Number(value);
+      if (!Number.isFinite(numericValue)) return '';
+      return numericValue.toFixed(getTradePriceDecimals(numericValue, quoteLike));
+    }
+
+    function setTradeCurrentPriceDisplay(value, quoteLike = currentTradeQuote) {
+      const priceLabel = document.getElementById('currentPrice');
+      if (!priceLabel) return;
+
+      const numericValue = Number(value);
+      priceLabel.textContent = Number.isFinite(numericValue)
+        ? '$' + formatTradePriceValue(numericValue, quoteLike)
+        : '$--';
+    }
+
+    function getSelectedTradeSymbol() {
+      const select = document.getElementById('tradeSymbol');
+      return String(select?.value || '').trim();
+    }
+
+    function getSelectedTradeFallbackPrice() {
+      const select = document.getElementById('tradeSymbol');
+      const selectedOption = select?.options?.[select.selectedIndex];
+      const fallbackPrice = Number.parseFloat(selectedOption?.dataset?.fallbackPrice || '');
+      return Number.isFinite(fallbackPrice) ? fallbackPrice : 0;
+    }
+
+    function getTradeAssetAliases(asset) {
+      const aliases = new Set();
+      const tvSymbol = String(asset?.value || '').trim().toUpperCase();
+      const label = String(asset?.label || '').trim().toUpperCase();
+
+      if (tvSymbol) {
+        aliases.add(tvSymbol);
+        const rawCode = tvSymbol.includes(':') ? tvSymbol.split(':').pop() : tvSymbol;
+        aliases.add(rawCode);
+        aliases.add(rawCode.replace(/1!$/, ''));
+        aliases.add(rawCode.replace(/USDT$/, ''));
+        aliases.add(rawCode.replace(/USD$/, ''));
+      }
+
+      if (label) {
+        aliases.add(label);
+        if (label.includes(' - ')) {
+          aliases.add(label.split(' - ')[0].trim());
+        }
+        if (label.includes('/')) {
+          aliases.add(label.split('/')[0].trim());
+        }
+      }
+
+      return aliases;
+    }
+
+    function getRequestedTradeSelection() {
+      const requestedAsset = new URLSearchParams(window.location.search).get('asset');
+      if (!requestedAsset) return null;
+
+      const normalizedRequestedAsset = String(requestedAsset).trim().toUpperCase();
+      for (const [category, assets] of Object.entries(assetSymbols)) {
+        const matchedAsset = assets.find((asset) => getTradeAssetAliases(asset).has(normalizedRequestedAsset));
+        if (matchedAsset) {
+          return {
+            category,
+            symbol: matchedAsset.value
+          };
+        }
+      }
+
+      return null;
+    }
+
+    function syncRiskFieldsWithCurrentPrice() {
+      const tpEnabled = document.getElementById('tpEnabled');
+      const slEnabled = document.getElementById('slEnabled');
+      const tpPercentInput = document.getElementById('tpPercent');
+      const slPercentInput = document.getElementById('slPercent');
+      const tpPriceInput = document.getElementById('tpPrice');
+      const slPriceInput = document.getElementById('slPrice');
+
+      if (tpEnabled?.checked && tpPercentInput && tpPriceInput && tpPercentInput.value !== '') {
+        const tpPercent = Number.parseFloat(tpPercentInput.value);
+        if (Number.isFinite(tpPercent)) {
+          tpPriceInput.value = formatTradeInputValue(currentPrice * (1 + tpPercent / 100));
+        }
+      }
+
+      if (slEnabled?.checked && slPercentInput && slPriceInput && slPercentInput.value !== '') {
+        const slPercent = Number.parseFloat(slPercentInput.value);
+        if (Number.isFinite(slPercent)) {
+          slPriceInput.value = formatTradeInputValue(currentPrice * (1 - slPercent / 100));
+        }
+      }
+
+      calculateRR();
+    }
+
+    function saveTradeStore(trades) {
+      localStorage.setItem('eso_trades', JSON.stringify(trades));
+      localStorage.setItem('elitestockoptions_trades', JSON.stringify(trades));
+    }
+
+    function calculateTradePnlSnapshot(trade, marketPrice) {
+      const entryPrice = Number(trade?.entryPrice || 0);
+      const amount = Number(trade?.amount || 0);
+      const leverage = Number(trade?.leverage || 1);
+      const currentMarketPrice = Number(marketPrice || 0);
+
+      if (!(entryPrice > 0) || !(amount > 0) || !(currentMarketPrice > 0)) {
+        return { pnl: 0, pnlPercent: 0 };
+      }
+
+      const isLongTrade = String(trade?.type || '').toUpperCase() === 'LONG';
+      const priceDifference = isLongTrade
+        ? currentMarketPrice - entryPrice
+        : entryPrice - currentMarketPrice;
+      const pnl = amount * leverage * priceDifference / entryPrice;
+      const pnlPercent = amount > 0
+        ? Number(((pnl / amount) * 100).toFixed(2))
+        : 0;
+
+      return { pnl, pnlPercent };
+    }
+
+    function startTradeQuoteRefreshLoop() {
+      if (tradeQuotesRefreshTimer) {
+        window.clearInterval(tradeQuotesRefreshTimer);
+      }
+
+      tradeQuotesRefreshTimer = window.setInterval(() => {
+        refreshTradePageQuotes().catch(() => {});
+      }, TRADE_QUOTES_REFRESH_MS);
+    }
 
     function isTrackProfitAdjustmentTrade(trade) {
       return !!trade
@@ -451,21 +636,113 @@
           dedupedTrades.push(trade);
         });
 
-        localStorage.setItem('eso_trades', JSON.stringify(dedupedTrades));
-        localStorage.setItem('elitestockoptions_trades', JSON.stringify(dedupedTrades));
+        saveTradeStore(dedupedTrades);
+      }
+    }
+
+    async function refreshTradePageQuotes(options = {}) {
+      if (!(window.ESO_QUOTES && typeof window.ESO_QUOTES.fetchQuotes === 'function')) return;
+
+      if (tradeQuoteRefreshInFlight) {
+        queuedTradeQuoteRefresh = true;
+        return;
+      }
+
+      const selectedSymbol = getSelectedTradeSymbol();
+      const trades = safeParseArray(localStorage.getItem('eso_trades'));
+      const openTrades = filterCurrentUserRecords(trades, {
+        userIdField: 'userId',
+        authFields: ['userAuthId', 'auth_id'],
+        emailFields: ['userEmail', 'email']
+      }).filter((trade) => trade.status === 'open' && !isTrackProfitAdjustmentTrade(trade));
+      const symbolsToFetch = Array.from(new Set([selectedSymbol, ...openTrades.map((trade) => trade.symbol)].filter(Boolean)));
+      if (!symbolsToFetch.length) return;
+
+      tradeQuoteRefreshInFlight = true;
+      queuedTradeQuoteRefresh = false;
+
+      try {
+        const requestedSelectedSymbol = selectedSymbol;
+        const quotes = await window.ESO_QUOTES.fetchQuotes(symbolsToFetch, {
+          force: !!options.force,
+          maxAgeMs: options.force ? 0 : 12000,
+          timeoutMs: 8000
+        });
+
+        if (requestedSelectedSymbol && requestedSelectedSymbol === getSelectedTradeSymbol()) {
+          const selectedQuote = quotes[window.ESO_QUOTES.normalizeSymbol(requestedSelectedSymbol)]
+            || window.ESO_QUOTES.getCachedQuote(requestedSelectedSymbol);
+
+          if (selectedQuote && Number.isFinite(Number(selectedQuote.price))) {
+            currentTradeQuote = selectedQuote;
+            currentPrice = Number(selectedQuote.price);
+          } else {
+            currentTradeQuote = null;
+            currentPrice = getSelectedTradeFallbackPrice();
+          }
+
+          setTradeCurrentPriceDisplay(currentPrice, currentTradeQuote);
+          syncRiskFieldsWithCurrentPrice();
+        }
+
+        const openTradeIds = new Set(openTrades.map((trade) => String(trade.id || '')));
+        let hasTradeUpdates = false;
+        const nextTrades = trades.map((trade) => {
+          if (!trade || !openTradeIds.has(String(trade.id || ''))) return trade;
+
+          const liveQuote = quotes[window.ESO_QUOTES.normalizeSymbol(trade.symbol)];
+          if (!(liveQuote && Number.isFinite(Number(liveQuote.price)))) return trade;
+
+          const nextPrice = Number(liveQuote.price);
+          const nextSnapshot = calculateTradePnlSnapshot(trade, nextPrice);
+          const previousPrice = Number(trade.currentPrice || 0);
+          const previousPnl = Number(trade.pnl || 0);
+          const previousPnlPercent = Number(trade.pnlPercent || 0);
+
+          if (
+            Math.abs(previousPrice - nextPrice) <= 0.000001 &&
+            Math.abs(previousPnl - nextSnapshot.pnl) <= 0.01 &&
+            Math.abs(previousPnlPercent - nextSnapshot.pnlPercent) <= 0.01
+          ) {
+            return trade;
+          }
+
+          hasTradeUpdates = true;
+          return {
+            ...trade,
+            currentPrice: nextPrice,
+            pnl: nextSnapshot.pnl,
+            pnlPercent: nextSnapshot.pnlPercent
+          };
+        });
+
+        if (hasTradeUpdates) {
+          saveTradeStore(nextTrades);
+          loadOpenTrades({ skipLiveRefresh: true });
+        }
+      } catch (_) {
+      } finally {
+        tradeQuoteRefreshInFlight = false;
+        if (queuedTradeQuoteRefresh) {
+          queuedTradeQuoteRefresh = false;
+          refreshTradePageQuotes({ force: true }).catch(() => {});
+        }
       }
     }
 
     async function initTrades() {
       document.getElementById('availableBalance').textContent = (currentUser.availableCash || 0).toFixed(2);
-      
-      // Initialize asset category dropdown
-      populateSymbolDropdown();
+
+      const requestedTradeSelection = getRequestedTradeSelection();
+      switchAssetCategory(requestedTradeSelection?.category || currentAssetCategory, {
+        selectedSymbol: requestedTradeSelection?.symbol || '',
+        forceQuoteRefresh: true
+      });
       
       loadOpenTrades();
       loadClosedTrades();
       loadHistory();
-      initTradeChart();
+      startTradeQuoteRefreshLoop();
 
       syncRemoteUserToLocal().then((syncedUser) => {
         if (!syncedUser) return;
@@ -479,6 +756,7 @@
       syncRemoteTradesToLocal().then(() => {
         loadOpenTrades();
         loadClosedTrades();
+        refreshTradePageQuotes({ force: true }).catch(() => {});
       }).catch(() => {});
     }
 
@@ -607,41 +885,52 @@
     let currentAssetCategory = 'crypto';
     let tradeChartWidget = null;
 
-    function switchAssetCategory(category) {
-      currentAssetCategory = category;
-      
-      // Update button styles
+    function applyTradeCategoryStyles(category) {
       document.querySelectorAll('.asset-cat-btn').forEach(btn => {
         btn.classList.remove('active');
         btn.classList.add('text-gray-600', 'bg-gray-100');
       });
+
       document.getElementById('cat-' + category).classList.add('active');
       document.getElementById('cat-' + category).classList.remove('text-gray-600', 'bg-gray-100');
-      
-      // Populate symbol dropdown
-      populateSymbolDropdown();
-      
-      // Update chart
-      updateChartSymbol();
     }
 
-    function populateSymbolDropdown() {
+    function switchAssetCategory(category, options = {}) {
+      currentAssetCategory = category;
+
+      applyTradeCategoryStyles(category);
+      populateSymbolDropdown(options.selectedSymbol || '');
+      updateChartSymbol({ forceQuoteRefresh: options.forceQuoteRefresh !== false });
+    }
+
+    function populateSymbolDropdown(selectedSymbol = '') {
       const select = document.getElementById('tradeSymbol');
       const symbols = assetSymbols[currentAssetCategory];
       
       select.innerHTML = symbols.map(s => 
-        `<option value="${s.value}" data-price="${s.price}">${s.label}</option>`
+        `<option value="${s.value}" data-fallback-price="${s.price}">${s.label}</option>`
       ).join('');
+
+      if (selectedSymbol && symbols.some((asset) => asset.value === selectedSymbol)) {
+        select.value = selectedSymbol;
+      }
     }
 
-    function updateChartSymbol() {
+    function updateChartSymbol(options = {}) {
       const select = document.getElementById('tradeSymbol');
       const symbol = select.value;
       const selectedOption = select.options[select.selectedIndex];
-      const price = parseFloat(selectedOption.dataset.price) || 43250;
-      
-      currentPrice = price;
-      document.getElementById('currentPrice').textContent = '$' + price.toLocaleString();
+      const fallbackPrice = Number.parseFloat(selectedOption?.dataset?.fallbackPrice || '');
+      const cachedQuote = window.ESO_QUOTES && typeof window.ESO_QUOTES.getCachedQuote === 'function'
+        ? window.ESO_QUOTES.getCachedQuote(symbol)
+        : null;
+
+      currentTradeQuote = cachedQuote || null;
+      currentPrice = Number.isFinite(Number(cachedQuote?.price))
+        ? Number(cachedQuote.price)
+        : (Number.isFinite(fallbackPrice) ? fallbackPrice : 0);
+      setTradeCurrentPriceDisplay(currentPrice, currentTradeQuote);
+      syncRiskFieldsWithCurrentPrice();
       
       // Update TradingView chart
       if (tradeChartWidget) {
@@ -663,6 +952,10 @@
         save_image: false,
         container_id: "tradeChart"
       });
+
+      if (options.forceQuoteRefresh !== false) {
+        refreshTradePageQuotes({ force: true }).catch(() => {});
+      }
     }
 
     function switchTradeTab(tab) {
@@ -680,6 +973,7 @@
     function openNewTradeModal() {
       document.getElementById('newTradeModal').classList.remove('hidden');
       document.getElementById('newTradeModal').classList.add('flex');
+      refreshTradePageQuotes({ force: true }).catch(() => {});
     }
 
     function closeNewTradeModal() {
@@ -709,14 +1003,14 @@
     function calculateTPFromPercent() {
       const percent = parseFloat(document.getElementById('tpPercent').value) || 0;
       const tpPrice = currentPrice * (1 + percent / 100);
-      document.getElementById('tpPrice').value = tpPrice.toFixed(2);
+      document.getElementById('tpPrice').value = formatTradeInputValue(tpPrice);
       calculateRR();
     }
 
     function calculateSLFromPercent() {
       const percent = parseFloat(document.getElementById('slPercent').value) || 0;
       const slPrice = currentPrice * (1 - percent / 100);
-      document.getElementById('slPrice').value = slPrice.toFixed(2);
+      document.getElementById('slPrice').value = formatTradeInputValue(slPrice);
       calculateRR();
     }
 
@@ -726,7 +1020,7 @@
       const slPrice = parseFloat(document.getElementById('slPrice').value) || 0;
       const leverage = parseInt(document.getElementById('leverage').value) || 1;
 
-      if (tpPrice && slPrice && investment) {
+      if (tpPrice && slPrice && investment && currentPrice > 0) {
         const tpDistance = Math.abs(tpPrice - currentPrice);
         const slDistance = Math.abs(slPrice - currentPrice);
         const rr = (tpDistance / slDistance).toFixed(2);
@@ -766,6 +1060,23 @@
           return;
         }
 
+        const liveQuote = window.ESO_QUOTES && typeof window.ESO_QUOTES.fetchQuote === 'function'
+          ? await window.ESO_QUOTES.fetchQuote(symbol, { force: true, maxAgeMs: 0, timeoutMs: 8000 })
+          : null;
+        const liveEntryPrice = Number.isFinite(Number(liveQuote?.price))
+          ? Number(liveQuote.price)
+          : Number(currentPrice || getSelectedTradeFallbackPrice());
+
+        if (!(liveEntryPrice > 0)) {
+          alert('Current market price is unavailable right now. Please retry in a moment.');
+          return;
+        }
+
+        currentTradeQuote = liveQuote || currentTradeQuote;
+        currentPrice = liveEntryPrice;
+        setTradeCurrentPriceDisplay(currentPrice, currentTradeQuote);
+        syncRiskFieldsWithCurrentPrice();
+
         const trade = {
           id: window.crypto && typeof window.crypto.randomUUID === 'function'
             ? window.crypto.randomUUID()
@@ -778,8 +1089,8 @@
           orderType: orderType.toUpperCase(),
           amount: amount,
           leverage: leverage,
-          entryPrice: currentPrice,
-          currentPrice: currentPrice,
+          entryPrice: liveEntryPrice,
+          currentPrice: liveEntryPrice,
           tpPrice: document.getElementById('tpEnabled').checked ? parseFloat(document.getElementById('tpPrice').value) : null,
           slPrice: document.getElementById('slEnabled').checked ? parseFloat(document.getElementById('slPrice').value) : null,
           status: 'open',
@@ -797,8 +1108,7 @@
 
         let trades = safeParseArray(localStorage.getItem('eso_trades'));
         trades.push(trade);
-        localStorage.setItem('eso_trades', JSON.stringify(trades));
-        localStorage.setItem('elitestockoptions_trades', JSON.stringify(trades));
+        saveTradeStore(trades);
 
         currentUser = syncCurrentUserStore({
           balance: Number(currentUser.balance || 0) - amount,
@@ -832,20 +1142,22 @@
       localStorage.setItem('eso_transactions', JSON.stringify(transactions));
     }
 
-    function loadOpenTrades() {
+    function loadOpenTrades(options = {}) {
       const trades = safeParseArray(localStorage.getItem('eso_trades'));
       const openTrades = filterCurrentUserRecords(trades, {
         userIdField: 'userId',
         authFields: ['userAuthId', 'auth_id'],
         emailFields: ['userEmail', 'email']
       }).filter(t => t.status === 'open' && !isTrackProfitAdjustmentTrade(t));
+      const openTradesTable = document.getElementById('openTradesTable');
       
       document.getElementById('noOpenTrades').classList.toggle('hidden', openTrades.length > 0);
+      openTradesTable.innerHTML = '';
       
       if (openTrades.length === 0) return;
 
-      document.getElementById('openTradesTable').innerHTML = openTrades.map(trade => {
-        const pnl = trade.pnl || 0;
+      openTradesTable.innerHTML = openTrades.map(trade => {
+        const pnl = Number(trade.pnl || 0);
         const pnlClass = pnl >= 0 ? 'text-green-600' : 'text-red-600';
         const typeClass = trade.type === 'LONG' ? 'text-green-600' : 'text-red-600';
         
@@ -858,11 +1170,11 @@
               </div>
             </td>
             <td class="px-6 py-4 ${typeClass} font-medium">${trade.type}</td>
-            <td class="px-6 py-4">$${trade.amount.toFixed(2)} (${trade.leverage}x)</td>
-            <td class="px-6 py-4">$${trade.entryPrice.toFixed(2)}</td>
-            <td class="px-6 py-4">$${trade.currentPrice.toFixed(2)}</td>
-            <td class="px-6 py-4 text-green-600">${trade.tpPrice ? '$' + trade.tpPrice.toFixed(2) : '--'}</td>
-            <td class="px-6 py-4 text-red-600">${trade.slPrice ? '$' + trade.slPrice.toFixed(2) : '--'}</td>
+            <td class="px-6 py-4">$${Number(trade.amount || 0).toFixed(2)} (${trade.leverage}x)</td>
+            <td class="px-6 py-4">$${formatTradePriceValue(trade.entryPrice)}</td>
+            <td class="px-6 py-4">$${formatTradePriceValue(trade.currentPrice)}</td>
+            <td class="px-6 py-4 text-green-600">${trade.tpPrice ? '$' + formatTradePriceValue(trade.tpPrice) : '--'}</td>
+            <td class="px-6 py-4 text-red-600">${trade.slPrice ? '$' + formatTradePriceValue(trade.slPrice) : '--'}</td>
             <td class="px-6 py-4 ${pnlClass} font-medium">${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}</td>
             <td class="px-6 py-4">
               <button onclick="closeTrade('${trade.id}')" class="text-red-600 hover:text-red-800 font-medium">Close</button>
@@ -870,6 +1182,10 @@
           </tr>
         `;
       }).join('');
+
+      if (!options.skipLiveRefresh) {
+        refreshTradePageQuotes().catch(() => {});
+      }
     }
 
     async function closeTrade(tradeId) {
@@ -878,16 +1194,21 @@
       if (tradeIndex === -1) return;
 
       const trade = trades[tradeIndex];
+      const liveQuote = window.ESO_QUOTES && typeof window.ESO_QUOTES.fetchQuote === 'function'
+        ? await window.ESO_QUOTES.fetchQuote(trade.symbol, { force: true, maxAgeMs: 0, timeoutMs: 8000 })
+        : null;
+
+      if (liveQuote && Number.isFinite(Number(liveQuote.price))) {
+        trade.currentPrice = Number(liveQuote.price);
+      }
+
       trade.status = 'closed';
       trade.closedAt = new Date().toISOString();
-      trade.exitPrice = trade.currentPrice;
-      
-      // Calculate final P&L
-      const priceDiff = trade.type === 'LONG' 
-        ? trade.exitPrice - trade.entryPrice 
-        : trade.entryPrice - trade.exitPrice;
-      trade.pnl = trade.amount * trade.leverage * priceDiff / trade.entryPrice;
-      trade.pnlPercent = (trade.pnl / trade.amount * 100).toFixed(2);
+      trade.exitPrice = Number(trade.currentPrice || trade.entryPrice || 0);
+
+      const settlementSnapshot = calculateTradePnlSnapshot(trade, trade.exitPrice);
+      trade.pnl = settlementSnapshot.pnl;
+      trade.pnlPercent = settlementSnapshot.pnlPercent;
 
       // Update user balance when trade closes
       // Return original trade amount + profits to both balance and available cash
@@ -907,8 +1228,7 @@
       await persistCurrentUserToRemote();
 
       trades[tradeIndex] = trade;
-      localStorage.setItem('eso_trades', JSON.stringify(trades));
-      localStorage.setItem('elitestockoptions_trades', JSON.stringify(trades));
+      saveTradeStore(trades);
 
       if (window.ESO_DB && window.ESO_DB.isReady()) {
         await window.ESO_DB.updateTrade(trade.id, {
@@ -937,7 +1257,8 @@
       }).filter(t => t.status === 'closed' && !isTrackProfitAdjustmentTrade(t));
       
       document.getElementById('closedTradesTable').innerHTML = closedTrades.map(trade => {
-        const pnlClass = trade.pnl >= 0 ? 'text-green-600' : 'text-red-600';
+        const pnl = Number(trade.pnl || 0);
+        const pnlClass = pnl >= 0 ? 'text-green-600' : 'text-red-600';
         return `
           <tr class="hover:bg-gray-50">
             <td class="px-6 py-4 font-medium text-gray-900">
@@ -947,11 +1268,11 @@
               </div>
             </td>
             <td class="px-6 py-4">${trade.type}</td>
-            <td class="px-6 py-4">$${trade.amount.toFixed(2)}</td>
-            <td class="px-6 py-4">$${trade.entryPrice.toFixed(2)}</td>
-            <td class="px-6 py-4">$${trade.exitPrice.toFixed(2)}</td>
+            <td class="px-6 py-4">$${Number(trade.amount || 0).toFixed(2)}</td>
+            <td class="px-6 py-4">$${formatTradePriceValue(trade.entryPrice)}</td>
+            <td class="px-6 py-4">$${formatTradePriceValue(trade.exitPrice)}</td>
             <td class="px-6 py-4">${new Date(trade.closedAt).toLocaleDateString()}</td>
-            <td class="px-6 py-4 ${pnlClass} font-medium">${trade.pnl >= 0 ? '+' : ''}$${trade.pnl.toFixed(2)} (${trade.pnlPercent}%)</td>
+            <td class="px-6 py-4 ${pnlClass} font-medium">${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} (${Number(trade.pnlPercent || 0).toFixed(2)}%)</td>
           </tr>
         `;
       }).join('') || '<tr><td colspan="7" class="px-6 py-8 text-center text-gray-500">No closed trades</td></tr>';

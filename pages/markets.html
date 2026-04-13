@@ -206,7 +206,7 @@
             </div>
             <div class="ml-6 flex items-center gap-4">
               <div>
-                <p id="chart-current-price" class="text-2xl font-bold text-gray-900">$67,432.50</p>
+                <p id="chart-current-price" class="text-2xl font-bold text-gray-900">$--</p>
                 <p id="chart-price-change" class="text-sm price-up"><i class="fas fa-arrow-up mr-1"></i>+2.34%</p>
               </div>
             </div>
@@ -251,6 +251,7 @@
 
   <!-- TradingView Script -->
   <script src="https://s3.tradingview.com/tv.js"></script>
+  <script src="../public/js/live-quotes.js?v=20260413-01"></script>
   <script src="../public/js/asset-logos.js"></script>
   <script src="../public/js/plan-theme.js"></script>
 
@@ -275,6 +276,10 @@
     let currentAsset = null;
     let currentCategory = 'crypto';
     let tvWidget = null;
+    let marketQuotesRefreshTimer = null;
+    let marketQuoteRefreshInFlight = false;
+    let queuedMarketQuoteRefresh = false;
+    const MARKET_QUOTES_REFRESH_MS = 20000;
 
     // Asset data with TradingView symbols
     const assets = {
@@ -464,6 +469,151 @@
       ]
     };
 
+    function formatMarketPrice(value, asset = null) {
+      const numericValue = Number(value);
+      if (!Number.isFinite(numericValue)) return '--';
+
+      if (window.ESO_QUOTES && typeof window.ESO_QUOTES.formatPrice === 'function') {
+        return window.ESO_QUOTES.formatPrice(numericValue, {
+          decimals: Number.isFinite(Number(asset?.decimals)) ? Number(asset.decimals) : undefined,
+          pricescale: asset?.pricescale
+        });
+      }
+
+      if (Math.abs(numericValue) >= 1) {
+        return numericValue.toLocaleString('en-US', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        });
+      }
+
+      return numericValue.toLocaleString('en-US', {
+        minimumFractionDigits: 4,
+        maximumFractionDigits: 6
+      });
+    }
+
+    function formatMarketChange(value) {
+      const numericValue = Number(value);
+      if (!Number.isFinite(numericValue)) return '--';
+      return `${numericValue >= 0 ? '+' : ''}${numericValue.toFixed(Math.abs(numericValue) >= 10 ? 1 : 2)}%`;
+    }
+
+    function setAssetLiveQuote(asset, quote) {
+      if (!asset || !quote || !Number.isFinite(Number(quote.price))) return false;
+
+      const nextPrice = Number(quote.price);
+      const nextChange = Number.isFinite(Number(quote.change)) ? Number(quote.change) : Number(asset.change || 0);
+      const priceChanged = Math.abs(Number(asset.price || 0) - nextPrice) > Math.max(0.000001, Math.abs(nextPrice) * 0.000001);
+      const changeChanged = Math.abs(Number(asset.change || 0) - nextChange) > 0.0001;
+
+      asset.price = nextPrice;
+      asset.change = nextChange;
+      if (Number.isFinite(Number(quote.pricescale))) {
+        asset.pricescale = Number(quote.pricescale);
+      }
+      if (Number.isFinite(Number(quote.decimals))) {
+        asset.decimals = Number(quote.decimals);
+      }
+
+      return priceChanged || changeChanged;
+    }
+
+    function applyMarketSearchFilter() {
+      const searchValue = String(document.getElementById('search-input')?.value || '').toLowerCase();
+      document.querySelectorAll('.asset-row').forEach((row) => {
+        const rowText = row.textContent.toLowerCase();
+        row.style.display = rowText.includes(searchValue) ? '' : 'none';
+      });
+    }
+
+    function updateChartHeaderQuote(asset) {
+      document.getElementById('chart-current-price').textContent = '$' + formatMarketPrice(asset.price, asset);
+
+      const changeEl = document.getElementById('chart-price-change');
+      const isPositive = Number(asset.change || 0) >= 0;
+      changeEl.className = `text-sm ${isPositive ? 'price-up' : 'price-down'}`;
+      changeEl.innerHTML = `<i class="fas fa-arrow-${isPositive ? 'up' : 'down'} mr-1"></i>${formatMarketChange(asset.change)}`;
+    }
+
+    function getVisibleMarketSymbols() {
+      const symbols = [];
+
+      (assets[currentCategory] || []).forEach((asset) => {
+        if (asset?.tvSymbol) {
+          symbols.push(asset.tvSymbol);
+        }
+      });
+
+      if (currentAsset?.tvSymbol) {
+        symbols.push(currentAsset.tvSymbol);
+      }
+
+      return Array.from(new Set(symbols));
+    }
+
+    function startMarketQuoteRefreshLoop() {
+      if (marketQuotesRefreshTimer) {
+        window.clearInterval(marketQuotesRefreshTimer);
+      }
+
+      marketQuotesRefreshTimer = window.setInterval(() => {
+        refreshMarketQuotes().catch(() => {});
+      }, MARKET_QUOTES_REFRESH_MS);
+    }
+
+    async function refreshMarketQuotes(options = {}) {
+      if (!(window.ESO_QUOTES && typeof window.ESO_QUOTES.fetchQuotes === 'function')) return;
+
+      if (marketQuoteRefreshInFlight) {
+        queuedMarketQuoteRefresh = true;
+        return;
+      }
+
+      const symbols = getVisibleMarketSymbols();
+      if (!symbols.length) return;
+
+      marketQuoteRefreshInFlight = true;
+      queuedMarketQuoteRefresh = false;
+
+      try {
+        const quotes = await window.ESO_QUOTES.fetchQuotes(symbols, {
+          force: !!options.force,
+          maxAgeMs: options.force ? 0 : 15000,
+          timeoutMs: 8000
+        });
+        let changed = false;
+
+        (assets[currentCategory] || []).forEach((asset) => {
+          const liveQuote = quotes[window.ESO_QUOTES.normalizeSymbol(asset.tvSymbol)];
+          if (setAssetLiveQuote(asset, liveQuote)) {
+            changed = true;
+          }
+        });
+
+        if (currentAsset?.tvSymbol) {
+          const modalQuote = quotes[window.ESO_QUOTES.normalizeSymbol(currentAsset.tvSymbol)];
+          if (setAssetLiveQuote(currentAsset, modalQuote)) {
+            changed = true;
+          }
+        }
+
+        if (changed || options.forceRender) {
+          renderTable(currentCategory);
+          if (currentAsset) {
+            updateChartHeaderQuote(currentAsset);
+          }
+        }
+      } catch (_) {
+      } finally {
+        marketQuoteRefreshInFlight = false;
+        if (queuedMarketQuoteRefresh) {
+          queuedMarketQuoteRefresh = false;
+          refreshMarketQuotes({ force: true }).catch(() => {});
+        }
+      }
+    }
+
     function renderTable(category) {
       const tbody = document.getElementById('market-table-body');
       const tableWrapper = document.getElementById('market-table-wrapper');
@@ -471,9 +621,12 @@
       // All categories now use the table/list UI
       tableWrapper.style.display = '';
       tbody.innerHTML = data.map(asset => {
-        const changeClass = asset.change >= 0 ? 'price-up' : 'price-down';
-        const arrow = asset.change >= 0 ? 'fa-arrow-up' : 'fa-arrow-down';
-        const priceStr = asset.price < 1 ? asset.price.toFixed(6) : asset.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const isPositive = Number(asset.change || 0) >= 0;
+        const changeClass = isPositive ? 'price-up' : 'price-down';
+        const arrow = isPositive ? 'fa-arrow-up' : 'fa-arrow-down';
+        const priceStr = formatMarketPrice(asset.price, asset);
+        const highStr = Number.isFinite(Number(asset.high)) ? formatMarketPrice(asset.high) : '--';
+        const lowStr = Number.isFinite(Number(asset.low)) ? formatMarketPrice(asset.low) : '--';
         
         return `
           <tr class="asset-row border-b border-gray-100" onclick="openChart('${category}', '${asset.symbol}')">
@@ -487,9 +640,9 @@
               </div>
             </td>
             <td class="px-6 py-4 text-right font-medium">$${priceStr}</td>
-            <td class="px-6 py-4 text-right ${changeClass}"><i class="fas ${arrow} mr-1"></i>${asset.change >= 0 ? '+' : ''}${asset.change}%</td>
-            <td class="px-6 py-4 text-right text-gray-600">$${asset.high.toLocaleString()}</td>
-            <td class="px-6 py-4 text-right text-gray-600">$${asset.low.toLocaleString()}</td>
+            <td class="px-6 py-4 text-right ${changeClass}"><i class="fas ${arrow} mr-1"></i>${formatMarketChange(asset.change)}</td>
+            <td class="px-6 py-4 text-right text-gray-600">${highStr === '--' ? '--' : '$' + highStr}</td>
+            <td class="px-6 py-4 text-right text-gray-600">${lowStr === '--' ? '--' : '$' + lowStr}</td>
             <td class="px-6 py-4 text-right text-gray-600">${asset.volume}</td>
             <td class="px-6 py-4 text-center">
               <button class="px-3 py-1.5 bg-indigo-100 text-indigo-700 rounded-lg text-sm hover:bg-indigo-200 transition-colors">
@@ -497,11 +650,13 @@
               </button>
             </td>
             <td class="px-6 py-4 text-center">
-              <button onclick="event.stopPropagation(); window.location.href='my-trades.html?asset=${asset.symbol}'" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 transition-colors">Trade</button>
+              <button onclick="event.stopPropagation(); window.location.href='my-trades.html?asset=${encodeURIComponent(asset.tvSymbol || asset.symbol)}'" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 transition-colors">Trade</button>
             </td>
           </tr>
         `;
       }).join('');
+
+      applyMarketSearchFilter();
     }
 
     function switchTab(tab) {
@@ -509,6 +664,7 @@
       document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
       document.getElementById('tab-' + tab).classList.add('active');
       renderTable(tab);
+      refreshMarketQuotes({ force: true }).catch(() => {});
     }
 
     function openChart(category, symbol) {
@@ -530,11 +686,7 @@
         document.getElementById('chart-asset-icon').innerHTML = `<i class="${asset.icon} text-white text-xl"></i>`;
         document.getElementById('chart-asset-icon').className = `w-12 h-12 rounded-xl bg-gradient-to-br ${asset.color} flex items-center justify-center`;
       }
-      document.getElementById('chart-current-price').textContent = '$' + asset.price.toLocaleString();
-      
-      const changeEl = document.getElementById('chart-price-change');
-      changeEl.className = `text-sm ${asset.change >= 0 ? 'price-up' : 'price-down'}`;
-      changeEl.innerHTML = `<i class="fas fa-arrow-${asset.change >= 0 ? 'up' : 'down'} mr-1"></i>${asset.change >= 0 ? '+' : ''}${asset.change}%`;
+      updateChartHeaderQuote(asset);
       
       // Update stats
       if (category === 'crypto') {
@@ -565,6 +717,7 @@
       }
       
       document.getElementById('chart-modal').classList.remove('hidden');
+      refreshMarketQuotes({ force: true }).catch(() => {});
       
       // Load TradingView widget
       setTimeout(() => loadTradingViewWidget(asset.tvSymbol), 100);
@@ -604,7 +757,7 @@
 
     function openTradeFromChart() {
       if (currentAsset) {
-        window.location.href = `my-trades.html?asset=${currentAsset.symbol}`;
+        window.location.href = `my-trades.html?asset=${encodeURIComponent(currentAsset.tvSymbol || currentAsset.symbol)}`;
       }
     }
 
@@ -614,42 +767,12 @@
     }
 
     // Search functionality
-    document.getElementById('search-input').addEventListener('input', function(e) {
-      const search = e.target.value.toLowerCase();
-      const rows = document.querySelectorAll('.asset-row');
-      
-      rows.forEach(row => {
-        const text = row.textContent.toLowerCase();
-        row.style.display = text.includes(search) ? '' : 'none';
-      });
-    });
+    document.getElementById('search-input').addEventListener('input', applyMarketSearchFilter);
 
     // Initialize
     renderTable('crypto');
-
-    // Simulate real-time price updates
-    setInterval(() => {
-      Object.keys(assets).forEach(category => {
-        assets[category].forEach(asset => {
-          const change = (Math.random() - 0.5) * 0.001;
-          asset.price = asset.price * (1 + change);
-        });
-      });
-      
-      // Update visible prices
-      document.querySelectorAll('.asset-row').forEach(row => {
-        if (row.style.display !== 'none') {
-          const priceCell = row.querySelector('td:nth-child(2)');
-          if (priceCell) {
-            const currentPrice = parseFloat(priceCell.textContent.replace(/[$,]/g, ''));
-            const newPrice = currentPrice * (1 + (Math.random() - 0.5) * 0.001);
-            priceCell.textContent = '$' + newPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            priceCell.parentElement.classList.add(Math.random() > 0.5 ? 'flash-up' : 'flash-down');
-            setTimeout(() => priceCell.parentElement.classList.remove('flash-up', 'flash-down'), 500);
-          }
-        }
-      });
-    }, 3000);
+    startMarketQuoteRefreshLoop();
+    refreshMarketQuotes({ force: true }).catch(() => {});
   </script>
 
   <script>
