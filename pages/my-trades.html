@@ -410,8 +410,11 @@
     let currentTradeQuote = null;
     let tradeSubmitInFlight = false;
     let tradeQuotesRefreshTimer = null;
+    let tradeAdminSyncRetryTimer = null;
+    let tradeAdminSyncRetryInFlight = false;
     let tradeQuoteRefreshInFlight = false;
     let queuedTradeQuoteRefresh = false;
+    const TRADE_ADMIN_SYNC_RETRY_MS = 5000;
     const TRADE_QUOTES_REFRESH_MS = 15000;
 
     function getTradePriceDecimals(value, quoteLike = currentTradeQuote) {
@@ -601,6 +604,39 @@
       }
 
       return allSynced;
+    }
+
+    async function syncTradeAdminState(options = {}) {
+      if (tradeAdminSyncRetryInFlight) {
+        return false;
+      }
+
+      tradeAdminSyncRetryInFlight = true;
+      try {
+        const [remoteTradeSaved, remoteUserSaved] = await Promise.all([
+          syncLocalTradesToRemote(options.tradesToSync || null).catch(() => false),
+          persistCurrentUserToRemote(options.userOverrides || {}).catch(() => null)
+        ]);
+
+        return !!(remoteTradeSaved && remoteUserSaved);
+      } finally {
+        tradeAdminSyncRetryInFlight = false;
+      }
+    }
+
+    function queueTradeAdminSyncRetry(delayMs = TRADE_ADMIN_SYNC_RETRY_MS) {
+      if (tradeAdminSyncRetryTimer) {
+        return;
+      }
+
+      tradeAdminSyncRetryTimer = window.setTimeout(async () => {
+        tradeAdminSyncRetryTimer = null;
+
+        const synced = await syncTradeAdminState().catch(() => false);
+        if (!synced) {
+          queueTradeAdminSyncRetry();
+        }
+      }, delayMs);
     }
 
     function calculateTradePnlSnapshot(trade, marketPrice) {
@@ -799,7 +835,13 @@
         loadOpenTrades();
         loadClosedTrades();
         loadHistory();
-        syncLocalTradesToRemote().catch(() => {});
+        syncTradeAdminState().then((synced) => {
+          if (!synced) {
+            queueTradeAdminSyncRetry();
+          }
+        }).catch(() => {
+          queueTradeAdminSyncRetry();
+        });
         refreshTradePageQuotes({ force: true }).catch(() => {});
       }).catch(() => {});
     }
@@ -1161,10 +1203,10 @@
           status: 'completed'
         });
 
-        const [remoteTradeSaved, remoteUserSaved] = await Promise.all([
-          syncLocalTradesToRemote([trade]).catch(() => false),
-          persistCurrentUserToRemote().catch(() => null)
-        ]);
+        const remoteSyncComplete = await syncTradeAdminState({ tradesToSync: [trade] }).catch(() => false);
+        if (!remoteSyncComplete) {
+          queueTradeAdminSyncRetry();
+        }
 
         refreshAvailableTradeBalance();
         closeNewTradeModal();
@@ -1172,11 +1214,7 @@
         loadClosedTrades();
         loadHistory();
 
-        if (!remoteTradeSaved || !remoteUserSaved) {
-          alert('Trade placed successfully. Live admin sync is still retrying in the background.');
-        } else {
-          alert('Trade placed successfully!');
-        }
+        alert('Trade placed successfully!');
       } catch (error) {
         console.error('Trade placement error:', error);
         const lastError = window.ESO_DB && window.ESO_DB.getLastError ? window.ESO_DB.getLastError() : null;
