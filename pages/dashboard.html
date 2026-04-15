@@ -1543,12 +1543,6 @@
             <span class="text-green-600"><i class="fas fa-arrow-up mr-1"></i>${winCount} Wins</span>
             <span class="text-red-600"><i class="fas fa-arrow-down mr-1"></i>${lossCount} Losses</span>
           </div>
-          ${trackedAdjustmentTotal !== 0 ? `
-            <div class="mt-4 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm flex items-center justify-between">
-              <span class="text-amber-800">Admin tracked P/L adjustment</span>
-              <span class="font-semibold ${trackedAdjustmentTotal >= 0 ? 'text-green-600' : 'text-red-600'}">${trackedAdjustmentTotal >= 0 ? '+' : ''}$${trackedAdjustmentTotal.toFixed(2)}</span>
-            </div>
-          ` : ''}
         </div>
       `;
       document.body.appendChild(profitModal);
