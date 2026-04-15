@@ -2425,7 +2425,7 @@
       `).join('') : '<p class="text-gray-500 text-center py-4">No bonuses granted yet</p>';
     }
 
-    document.getElementById('bonusForm').addEventListener('submit', function(e) {
+    document.getElementById('bonusForm').addEventListener('submit', async function(e) {
       e.preventDefault();
       
       const userId = document.getElementById('bonusUser').value;
@@ -2442,24 +2442,51 @@
       let bonuses = JSON.parse(localStorage.getItem('eso_bonuses') || '[]');
       let users = getUsers();
       const selectedUser = users.find(u => String(u.id || '') === String(userId || '')) || null;
+      if (!selectedUser) {
+        showToast('Selected user could not be found', 'error');
+        return;
+      }
 
-      bonuses.unshift({
-        id: Date.now().toString(),
+      const bonusId = `bonus_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      const createdAt = new Date().toISOString();
+      const bonusRecord = {
+        id: bonusId,
         userId: userId,
-        userAuthId: selectedUser?.auth_id || '',
-        userEmail: selectedUser?.email || '',
+        userAuthId: selectedUser.auth_id || '',
+        userEmail: selectedUser.email || '',
         amount: amount,
         type: type,
         pending: true,
         claimed: false,
         message: message,
-        date: new Date().toISOString()
+        date: createdAt
+      };
+
+      const lockText = type === 'custom' ? ' Requirement not met yet.' : ' You can claim it from your dashboard.';
+      const deliveredBonus = await sendNotificationToUser(
+        userId,
+        'Bonus Available',
+        `A $${amount} ${type} bonus has been added for your account.${lockText}${message ? ` ${message}` : ''}`.trim(),
+        'info',
+        selectedUser,
+        'bonus',
+        {
+          source: 'admin_bonus',
+          bonusId,
+          bonus: bonusRecord
+        }
+      );
+
+      if (!deliveredBonus) {
+        showToast('Could not grant bonus right now.', 'error');
+        return;
+      }
+
+      bonuses.unshift({
+        ...bonusRecord,
+        notificationId: deliveredBonus.id || ''
       });
       localStorage.setItem('eso_bonuses', JSON.stringify(bonuses));
-
-      // Send notification
-      const lockText = type === 'custom' ? ' Requirement not met yet.' : ' You can claim it from your dashboard.';
-      sendNotificationToUser(userId, 'Bonus Available', `A $${amount} ${type} bonus has been added for your account.${lockText}${message ? ` ${message}` : ''}`.trim(), 'info', selectedUser);
 
       showToast(`Bonus of $${amount} granted successfully!`);
       document.getElementById('bonusForm').reset();

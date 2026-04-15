@@ -742,23 +742,163 @@
       }
     }
 
-    function getUserBonuses() {
+    function getRawBonusesStore() {
       const bonuses = JSON.parse(localStorage.getItem('eso_bonuses') || '[]');
-      if (!Array.isArray(bonuses) || !currentUser) return [];
+      return Array.isArray(bonuses) ? bonuses : [];
+    }
+
+    function normalizeBonusRecord(record) {
+      if (!record) return null;
+
+      const normalizedAmount = Number(record.amount || 0);
+      const normalized = {
+        id: String(record.id || ''),
+        userId: String(record.userId || ''),
+        userAuthId: String(record.userAuthId || record.auth_id || ''),
+        userEmail: String(record.userEmail || record.email || '').toLowerCase(),
+        amount: Number.isFinite(normalizedAmount) ? normalizedAmount : 0,
+        type: String(record.type || 'bonus'),
+        pending: record.pending !== false,
+        claimed: record.claimed === true,
+        message: String(record.message || ''),
+        date: record.date || record.createdAt || new Date().toISOString(),
+        claimedAt: record.claimedAt || null,
+        notificationId: String(record.notificationId || ''),
+        notificationMeta: record.notificationMeta && typeof record.notificationMeta === 'object'
+          ? { ...record.notificationMeta }
+          : null
+      };
+
+      if (!normalized.id) return null;
+      if (normalized.claimed) {
+        normalized.pending = false;
+      }
+
+      return normalized;
+    }
+
+    function isAdminBonusNotification(notification) {
+      if (!notification) return false;
+
+      const meta = notification.meta && typeof notification.meta === 'object' ? notification.meta : {};
+      if (meta.bonus || meta.bonusId || meta.source === 'admin_bonus') {
+        return true;
+      }
+
+      if (String(notification.category || '').toLowerCase() === 'bonus') {
+        return true;
+      }
+
+      const title = String(notification.title || '').toLowerCase();
+      const message = String(notification.message || '').toLowerCase();
+      return title === 'bonus available' && message.includes('bonus has been added for your account');
+    }
+
+    function parseLegacyBonusNotification(notification) {
+      const title = String(notification?.title || '').toLowerCase();
+      const message = String(notification?.message || '');
+      const lowerMessage = message.toLowerCase();
+      const match = message.match(/A \$([0-9]+(?:\.[0-9]+)?)\s+(.+?)\s+bonus has been added/i);
+
+      let parsedType = match?.[2] ? String(match[2]).trim().toLowerCase() : 'bonus';
+      if (lowerMessage.includes('requirement not met')) {
+        parsedType = 'custom';
+      }
+
+      return {
+        amount: match ? Number(match[1]) : 0,
+        type: parsedType,
+        claimed: title === 'bonus claimed' || lowerMessage.includes('successfully claimed'),
+        pending: !(title === 'bonus claimed' || lowerMessage.includes('successfully claimed')),
+        message: ''
+      };
+    }
+
+    function getNotificationBonusRecords() {
+      return getUserNotifications().map(notification => {
+        if (!isAdminBonusNotification(notification)) return null;
+
+        const notificationId = String(notification.id || '');
+        const meta = notification.meta && typeof notification.meta === 'object' ? notification.meta : {};
+        const metaBonus = meta.bonus && typeof meta.bonus === 'object' ? meta.bonus : null;
+        const legacyBonus = metaBonus ? null : parseLegacyBonusNotification(notification);
+
+        if (!metaBonus && (notificationId.startsWith('bonus_notif_') || Number(legacyBonus?.amount || 0) <= 0)) {
+          return null;
+        }
+
+        return normalizeBonusRecord({
+          id: meta.bonusId || metaBonus?.id || notificationId,
+          userId: metaBonus?.userId || notification.userId || '',
+          userAuthId: metaBonus?.userAuthId || meta.userAuthId || '',
+          userEmail: metaBonus?.userEmail || notification.targetEmail || '',
+          amount: metaBonus?.amount ?? legacyBonus?.amount ?? 0,
+          type: metaBonus?.type || legacyBonus?.type || 'bonus',
+          pending: metaBonus ? metaBonus.pending !== false : legacyBonus?.pending !== false,
+          claimed: metaBonus ? metaBonus.claimed === true : legacyBonus?.claimed === true,
+          message: metaBonus?.message || legacyBonus?.message || '',
+          date: metaBonus?.date || notification.createdAt || notification.date || new Date().toISOString(),
+          claimedAt: metaBonus?.claimedAt || null,
+          notificationId: notificationId,
+          notificationMeta: meta
+        });
+      }).filter(Boolean);
+    }
+
+    function matchesCurrentUserBonusRecord(bonus) {
+      if (!bonus || !currentUser) return false;
 
       const ids = resolveCurrentUserIds();
       const currentEmail = String(currentUser.email || '').toLowerCase();
       const currentAuthId = String(currentUser.auth_id || '');
-      return bonuses
-        .filter(b => {
-          const bonusUserId = String(b.userId || '');
-          const bonusEmail = String(b.userEmail || '').toLowerCase();
-          const bonusAuthId = String(b.userAuthId || '');
-          return ids.has(bonusUserId)
-            || (!!currentEmail && bonusEmail === currentEmail)
-            || (!!currentAuthId && bonusAuthId === currentAuthId);
-        })
-        .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+      const bonusUserId = String(bonus.userId || '');
+      const bonusEmail = String(bonus.userEmail || '').toLowerCase();
+      const bonusAuthId = String(bonus.userAuthId || '');
+
+      return ids.has(bonusUserId)
+        || (!!currentEmail && bonusEmail === currentEmail)
+        || (!!currentAuthId && bonusAuthId === currentAuthId);
+    }
+
+    function mergeBonusRecords(...collections) {
+      const merged = new Map();
+
+      collections.forEach(collection => {
+        (Array.isArray(collection) ? collection : []).forEach(item => {
+          const normalized = normalizeBonusRecord(item);
+          if (!normalized) return;
+
+          const key = normalized.id || normalized.notificationId;
+          const existing = merged.get(key);
+          if (!existing) {
+            merged.set(key, normalized);
+            return;
+          }
+
+          merged.set(key, {
+            ...existing,
+            ...normalized,
+            userId: normalized.userId || existing.userId,
+            userAuthId: normalized.userAuthId || existing.userAuthId,
+            userEmail: normalized.userEmail || existing.userEmail,
+            notificationId: normalized.notificationId || existing.notificationId,
+            notificationMeta: normalized.notificationMeta || existing.notificationMeta,
+            message: normalized.message || existing.message,
+            claimedAt: normalized.claimedAt || existing.claimedAt,
+            pending: normalized.pending,
+            claimed: normalized.claimed
+          });
+        });
+      });
+
+      return Array.from(merged.values()).sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+    }
+
+    function getUserBonuses() {
+      if (!currentUser) return [];
+
+      return mergeBonusRecords(getRawBonusesStore(), getNotificationBonusRecords())
+        .filter(matchesCurrentUserBonusRecord);
     }
 
     function getPendingClaimableBonuses() {
@@ -794,8 +934,12 @@
       const notifications = getUserNotifications();
       const existingBonusRefs = new Set(
         notifications
-          .filter(n => n.meta && n.meta.source === 'admin_bonus' && n.meta.bonusId)
-          .map(n => String(n.meta.bonusId))
+          .filter(isAdminBonusNotification)
+          .map(n => {
+            const meta = n.meta && typeof n.meta === 'object' ? n.meta : {};
+            return String(meta.bonusId || meta.bonus?.id || n.id || '');
+          })
+          .filter(Boolean)
       );
 
       let changed = false;
@@ -1415,11 +1559,13 @@
       document.getElementById('mobileMenu').classList.toggle('hidden');
     }
 
-    function claimBonus() {
+    async function claimBonus() {
       const titleEl = document.getElementById('bonusModalTitle');
       const messageEl = document.getElementById('bonusModalMessage');
       const listEl = document.getElementById('bonusModalList');
       const actionEl = document.getElementById('bonusModalAction');
+
+      await syncRemoteNotificationsToLocal().catch(() => {});
 
       const userBonuses = getUserBonuses();
       const pendingBonuses = userBonuses.filter(b => b.claimed !== true && b.pending !== false);
@@ -1427,35 +1573,112 @@
       const claimable = pendingBonuses.filter(b => String(b.type || '').toLowerCase() !== 'custom');
 
       if (claimable.length > 0) {
+        const claimTimestamp = new Date().toISOString();
         const claimableIds = new Set(claimable.map(b => String(b.id || '')));
         const totalAmount = claimable.reduce((sum, b) => sum + Number(b.amount || 0), 0);
 
-        const allBonuses = JSON.parse(localStorage.getItem('eso_bonuses') || '[]');
-        const updatedBonuses = (Array.isArray(allBonuses) ? allBonuses : []).map(b => {
-          if (claimableIds.has(String(b.id || ''))) {
-            return {
-              ...b,
-              claimed: true,
+        const remoteClaimPatches = claimable
+          .filter(b => b.notificationId)
+          .map(bonus => {
+            const normalizedBonus = normalizeBonusRecord({
+              ...bonus,
               pending: false,
-              claimedAt: new Date().toISOString()
+              claimed: true,
+              claimedAt: claimTimestamp
+            });
+            const notificationMeta = bonus.notificationMeta && typeof bonus.notificationMeta === 'object'
+              ? { ...bonus.notificationMeta }
+              : {};
+
+            return {
+              id: String(bonus.notificationId || ''),
+              patch: {
+                title: 'Bonus Claimed',
+                message: `You claimed $${Number(bonus.amount || 0).toFixed(2)} successfully.`,
+                read: true,
+                meta: {
+                  ...notificationMeta,
+                  source: 'admin_bonus',
+                  bonusId: String(normalizedBonus?.id || bonus.notificationId || ''),
+                  bonus: normalizedBonus ? {
+                    id: normalizedBonus.id,
+                    userId: normalizedBonus.userId,
+                    userAuthId: normalizedBonus.userAuthId,
+                    userEmail: normalizedBonus.userEmail,
+                    amount: normalizedBonus.amount,
+                    type: normalizedBonus.type,
+                    pending: false,
+                    claimed: true,
+                    message: normalizedBonus.message,
+                    date: normalizedBonus.date,
+                    claimedAt: normalizedBonus.claimedAt
+                  } : null
+                }
+              }
             };
+          })
+          .filter(entry => entry.id);
+
+        if (remoteClaimPatches.length && window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.updateNotifications) {
+          const claimResults = await Promise.all(
+            remoteClaimPatches.map(entry => window.ESO_DB.updateNotifications(entry.id, entry.patch))
+          );
+
+          if (claimResults.some(result => result !== true)) {
+            showToast('Could not claim bonus right now. Please try again.', 'error');
+            titleEl.textContent = 'Bonus Unavailable';
+            messageEl.textContent = 'The bonus could not be claimed right now. Please try again.';
+            listEl.innerHTML = '';
+            actionEl.textContent = 'Got it';
+            document.getElementById('bonusModal').classList.remove('hidden');
+            document.getElementById('bonusModal').classList.add('flex');
+            return;
           }
-          return b;
-        });
+        }
+
+        const allBonuses = getRawBonusesStore();
+        const updatedBonuses = mergeBonusRecords(
+          allBonuses.map(b => {
+            if (claimableIds.has(String(b.id || ''))) {
+              return {
+                ...b,
+                claimed: true,
+                pending: false,
+                claimedAt: claimTimestamp
+              };
+            }
+            return b;
+          }),
+          claimable.map(bonus => ({
+            ...bonus,
+            claimed: true,
+            pending: false,
+            claimedAt: claimTimestamp
+          }))
+        );
         saveBonusesStore(updatedBonuses);
 
         const credited = Number(totalAmount || 0);
-        currentUser = syncCurrentUserStore({
+        const balancePatch = {
           balance: Number(currentUser.balance || 0) + credited,
           availableCash: Number(currentUser.availableCash || 0) + credited,
           profitsBalance: Number(currentUser.profitsBalance || 0) + credited
-        });
+        };
+
+        currentUser = syncCurrentUserStore(balancePatch);
+        if (sharedSession && typeof sharedSession.persistCurrentUserToRemote === 'function') {
+          currentUser = await sharedSession.persistCurrentUserToRemote(currentUser, balancePatch) || currentUser;
+        }
 
         document.getElementById('totalBalance').textContent = '$' + (currentUser.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
         document.getElementById('availableCash').textContent = '$' + (currentUser.availableCash || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
         document.getElementById('profitsBalance').textContent = '$' + (currentUser.profitsBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
 
-        const notifications = getUserNotifications();
+        const remotePatchMap = new Map(remoteClaimPatches.map(entry => [String(entry.id), entry.patch]));
+        const notifications = getUserNotifications().map(notification => {
+          const patch = remotePatchMap.get(String(notification.id || ''));
+          return patch ? { ...notification, ...patch } : notification;
+        });
         notifications.unshift({
           id: `bonus_claim_${Date.now()}`,
           title: 'Bonus Claimed',
