@@ -12,6 +12,69 @@
     return `eso-supabase-auth-${getAuthScope()}`;
   }
 
+  function getSessionStorage() {
+    try {
+      return window.sessionStorage;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function getLocalStorage() {
+    try {
+      return window.localStorage;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function createAuthStorage(storageKey) {
+    const sessionStore = getSessionStorage();
+    const localStore = getLocalStorage();
+
+    return {
+      getItem(key = storageKey) {
+        const sessionValue = sessionStore?.getItem(key);
+        if (typeof sessionValue === 'string') {
+          return sessionValue;
+        }
+
+        const localValue = localStore?.getItem(key);
+        if (typeof localValue === 'string') {
+          try {
+            sessionStore?.setItem(key, localValue);
+            localStore?.removeItem(key);
+          } catch (_) {}
+          return localValue;
+        }
+
+        return null;
+      },
+
+      setItem(key = storageKey, value) {
+        if (sessionStore) {
+          sessionStore.setItem(key, value);
+          try {
+            localStore?.removeItem(key);
+          } catch (_) {}
+          return;
+        }
+
+        localStore?.setItem(key, value);
+      },
+
+      removeItem(key = storageKey) {
+        try {
+          sessionStore?.removeItem(key);
+        } catch (_) {}
+
+        try {
+          localStore?.removeItem(key);
+        } catch (_) {}
+      }
+    };
+  }
+
   function isConfigured() {
     return (
       typeof window.supabase !== 'undefined' &&
@@ -25,9 +88,11 @@
   function getClient() {
     if (!isConfigured()) return null;
     if (!window.__esoSupabaseClient) {
+      const authStorageKey = getAuthStorageKey();
       window.__esoSupabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         auth: {
-          storageKey: getAuthStorageKey(),
+          storageKey: authStorageKey,
+          storage: createAuthStorage(authStorageKey),
           persistSession: true,
           autoRefreshToken: true,
           detectSessionInUrl: true

@@ -414,6 +414,7 @@
     let tradeAdminSyncRetryInFlight = false;
     let tradeQuoteRefreshInFlight = false;
     let queuedTradeQuoteRefresh = false;
+    let liveUserSyncController = null;
     const TRADE_ADMIN_SYNC_RETRY_MS = 5000;
     const TRADE_QUOTES_REFRESH_MS = 15000;
 
@@ -822,14 +823,24 @@
       loadHistory();
       startTradeQuoteRefreshLoop();
 
-      syncRemoteUserToLocal().then((syncedUser) => {
-        if (!syncedUser) return;
-        currentUser = syncedUser;
-        refreshAvailableTradeBalance();
-        loadOpenTrades();
-        loadClosedTrades();
-        loadHistory();
-      }).catch(() => {});
+      if (!liveUserSyncController && session.startCurrentUserAutoSync) {
+        liveUserSyncController = session.startCurrentUserAutoSync(currentUser, {
+          onUpdate(nextUser) {
+            currentUser = nextUser;
+            refreshAvailableTradeBalance();
+            return currentUser;
+          }
+        });
+      } else if (!liveUserSyncController) {
+        syncRemoteUserToLocal().then((syncedUser) => {
+          if (!syncedUser) return;
+          currentUser = syncedUser;
+          refreshAvailableTradeBalance();
+          loadOpenTrades();
+          loadClosedTrades();
+          loadHistory();
+        }).catch(() => {});
+      }
 
       syncRemoteTradesToLocal().then(() => {
         loadOpenTrades();
@@ -1413,13 +1424,30 @@
     }
 
     function logout() {
-      localStorage.removeItem('elitestockoptions_user');
+      const currentSession = window.ESO_SESSION || null;
+      if (currentSession && typeof currentSession.clearCurrentUserCache === 'function') {
+        currentSession.clearCurrentUserCache();
+      } else {
+        localStorage.removeItem('elitestockoptions_user');
+        localStorage.removeItem('eso_currentUser');
+        sessionStorage.removeItem('elitestockoptions_user');
+        sessionStorage.removeItem('eso_currentUser');
+      }
       window.location.href = '../index.html';
     }
 
     if (currentUser) {
       initTrades();
     }
+
+    window.addEventListener('beforeunload', () => {
+      if (tradeQuotesRefreshTimer) {
+        window.clearInterval(tradeQuotesRefreshTimer);
+      }
+      if (liveUserSyncController && typeof liveUserSyncController.stop === 'function') {
+        liveUserSyncController.stop();
+      }
+    });
   </script>
 
 <script>

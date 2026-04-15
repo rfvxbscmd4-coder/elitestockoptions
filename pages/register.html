@@ -392,7 +392,16 @@
       users.push(userData);
       localStorage.setItem('elitestockoptions_users', JSON.stringify(users));
       localStorage.setItem('eso_users', JSON.stringify(users));
-      localStorage.setItem('elitestockoptions_user', JSON.stringify(userData));
+
+      if (window.ESO_SESSION && typeof window.ESO_SESSION.writeUserCache === 'function') {
+        window.ESO_SESSION.writeUserCache(userData);
+      } else {
+        const serializedUser = JSON.stringify(userData);
+        sessionStorage.setItem('elitestockoptions_user', serializedUser);
+        sessionStorage.setItem('eso_currentUser', serializedUser);
+        localStorage.setItem('elitestockoptions_user', serializedUser);
+        localStorage.setItem('eso_currentUser', serializedUser);
+      }
       
       // Show success modal
       const modal = document.getElementById('successModal');

@@ -355,7 +355,8 @@
       return true;
     }
 
-    let selectedSource = 'total';
+  let selectedSource = 'total';
+  let liveUserSyncController = null;
 
     function renderWithdrawalBalances() {
       document.getElementById('totalBalance').textContent = '$' + (currentUser.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
@@ -373,14 +374,25 @@
       selectSource('total');
       loadWithdrawalHistory();
 
-      syncRemoteUserToLocal().then((remoteUser) => {
-        const resolvedUser = resolveWithdrawalUserFromStore() || remoteUser || currentUser;
-        if (!resolvedUser) return;
-        currentUser = syncCurrentUserStore(resolvedUser);
-        renderWithdrawalBalances();
-        selectSource(selectedSource || 'total');
-        loadWithdrawalHistory();
-      }).catch(() => {});
+      if (!liveUserSyncController && sharedSession && typeof sharedSession.startCurrentUserAutoSync === 'function') {
+        liveUserSyncController = sharedSession.startCurrentUserAutoSync(currentUser, {
+          onUpdate(nextUser) {
+            currentUser = nextUser;
+            renderWithdrawalBalances();
+            selectSource(selectedSource || 'total');
+            return currentUser;
+          }
+        });
+      } else if (!liveUserSyncController) {
+        syncRemoteUserToLocal().then((remoteUser) => {
+          const resolvedUser = resolveWithdrawalUserFromStore() || remoteUser || currentUser;
+          if (!resolvedUser) return;
+          currentUser = syncCurrentUserStore(resolvedUser);
+          renderWithdrawalBalances();
+          selectSource(selectedSource || 'total');
+          loadWithdrawalHistory();
+        }).catch(() => {});
+      }
     }
 
     function selectSource(source) {
@@ -615,7 +627,15 @@
     }
 
     function logout() {
-      localStorage.removeItem('elitestockoptions_user');
+      const currentSession = window.ESO_SESSION || null;
+      if (currentSession && typeof currentSession.clearCurrentUserCache === 'function') {
+        currentSession.clearCurrentUserCache();
+      } else {
+        localStorage.removeItem('elitestockoptions_user');
+        localStorage.removeItem('eso_currentUser');
+        sessionStorage.removeItem('elitestockoptions_user');
+        sessionStorage.removeItem('eso_currentUser');
+      }
       window.location.href = '../index.html';
     }
 
@@ -623,6 +643,12 @@
       await syncRemoteWithdrawalsToLocal();
       await initWithdrawal();
     })();
+
+    window.addEventListener('beforeunload', () => {
+      if (liveUserSyncController && typeof liveUserSyncController.stop === 'function') {
+        liveUserSyncController.stop();
+      }
+    });
   </script>
 
 <script>

@@ -462,11 +462,18 @@
     }
 
     function writeCurrentUserCache(userLike) {
+      if (window.ESO_SESSION && typeof window.ESO_SESSION.writeUserCache === 'function') {
+        window.ESO_SESSION.writeUserCache(userLike);
+        return userLike ? { ...userLike } : null;
+      }
+
       const fullUser = userLike ? { ...userLike } : null;
       if (!fullUser) return null;
 
       try {
         const serialized = JSON.stringify(fullUser);
+        sessionStorage.setItem('elitestockoptions_user', serialized);
+        sessionStorage.setItem('eso_currentUser', serialized);
         localStorage.setItem('elitestockoptions_user', serialized);
         localStorage.setItem('eso_currentUser', serialized);
         return fullUser;
@@ -483,6 +490,8 @@
 
       try {
         const serializedFallback = JSON.stringify(fallbackUser);
+        sessionStorage.setItem('elitestockoptions_user', serializedFallback);
+        sessionStorage.setItem('eso_currentUser', serializedFallback);
         localStorage.setItem('elitestockoptions_user', serializedFallback);
         localStorage.setItem('eso_currentUser', serializedFallback);
         return fallbackUser;
@@ -510,6 +519,12 @@
       if (!(window.ESO_DB && window.ESO_DB.isReady()) || !localUser) return localUser;
 
       let authUser = await withTimeout(window.ESO_DB.getAuthUser(), LOGIN_AUTH_TIMEOUT_MS, null);
+      const activeAuthEmail = String(authUser?.email || '').trim().toLowerCase();
+      if (authUser && activeAuthEmail && activeAuthEmail !== email && window.ESO_DB.signOut) {
+        await withTimeout(window.ESO_DB.signOut(), LOGIN_AUTH_TIMEOUT_MS, null);
+        authUser = null;
+      }
+
       if (!authUser) {
         authUser = await withTimeout(window.ESO_DB.signIn(email, password), LOGIN_AUTH_TIMEOUT_MS, null);
       }

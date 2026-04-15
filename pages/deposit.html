@@ -239,6 +239,7 @@
     }
 
     currentUser = (session.resolveCurrentUserFromStore && session.resolveCurrentUserFromStore(currentUser)) || currentUser;
+    let liveUserSyncController = null;
 
     function syncCurrentUserStore(patch = {}) {
       if (session.syncCurrentUserStore) {
@@ -309,11 +310,21 @@
       renderCryptoGrid();
       loadPendingDeposits();
 
-      syncRemoteUserToLocal().then((syncedUser) => {
-        if (!syncedUser) return;
-        currentUser = syncedUser;
-        renderDepositBalance();
-      }).catch(() => {});
+      if (!liveUserSyncController && session.startCurrentUserAutoSync) {
+        liveUserSyncController = session.startCurrentUserAutoSync(currentUser, {
+          onUpdate(nextUser) {
+            currentUser = nextUser;
+            renderDepositBalance();
+            return currentUser;
+          }
+        });
+      } else if (!liveUserSyncController) {
+        syncRemoteUserToLocal().then((syncedUser) => {
+          if (!syncedUser) return;
+          currentUser = syncedUser;
+          renderDepositBalance();
+        }).catch(() => {});
+      }
 
       if (window.ESO_DB && window.ESO_DB.isReady()) {
         window.ESO_DB.getWallets().then((remoteWallets) => {
@@ -520,13 +531,27 @@
     }
 
     function logout() {
-      localStorage.removeItem('elitestockoptions_user');
+      const currentSession = window.ESO_SESSION || null;
+      if (currentSession && typeof currentSession.clearCurrentUserCache === 'function') {
+        currentSession.clearCurrentUserCache();
+      } else {
+        localStorage.removeItem('elitestockoptions_user');
+        localStorage.removeItem('eso_currentUser');
+        sessionStorage.removeItem('elitestockoptions_user');
+        sessionStorage.removeItem('eso_currentUser');
+      }
       window.location.href = '../index.html';
     }
 
     if (currentUser) {
       initDeposit();
     }
+
+    window.addEventListener('beforeunload', () => {
+      if (liveUserSyncController && typeof liveUserSyncController.stop === 'function') {
+        liveUserSyncController.stop();
+      }
+    });
   </script>
 <script src="../public/js/back-button.js"></script>
 <script src="../public/js/theme.js"></script>

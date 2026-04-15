@@ -50,24 +50,136 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 
 (function sanitizeUserSession() {
 	try {
-		const current = JSON.parse(localStorage.getItem('elitestockoptions_user') || 'null');
-		if (current && current.isAdmin) {
-			localStorage.removeItem('elitestockoptions_user');
-		}
+		const scopedStores = [window.sessionStorage, window.localStorage].filter(Boolean);
+		scopedStores.forEach((store) => {
+			const current = JSON.parse(store.getItem('elitestockoptions_user') || 'null');
+			if (current && current.isAdmin) {
+				store.removeItem('elitestockoptions_user');
+			}
 
-		const legacy = JSON.parse(localStorage.getItem('eso_currentUser') || 'null');
-		if (legacy && legacy.isAdmin) {
-			localStorage.removeItem('eso_currentUser');
-		}
+			const legacy = JSON.parse(store.getItem('eso_currentUser') || 'null');
+			if (legacy && legacy.isAdmin) {
+				store.removeItem('eso_currentUser');
+			}
+		});
 	} catch (_) {}
 })();
 
 (function enableLiveUserSessionSync() {
 	const USER_KEY = 'elitestockoptions_user';
+	const LEGACY_USER_KEY = 'eso_currentUser';
 	const USERS_KEY = 'elitestockoptions_users';
 	const LEGACY_USERS_KEY = 'eso_users';
+	const USER_AUTH_STORAGE_KEY = 'eso-supabase-auth-user';
+	const ADMIN_AUTH_STORAGE_KEY = 'eso-supabase-auth-admin';
+	const LOCAL_FINANCIAL_MUTATION_KEY = 'eso-local-financial-mutation-at';
+	const LOCAL_FINANCIAL_MUTATION_GRACE_MS = 2 * 60 * 1000;
 	const AUTH_REQUEST_TIMEOUT_MS = 6000;
 	const REMOTE_SYNC_TIMEOUT_MS = 1500;
+
+	function getCurrentAuthStorageKey() {
+		const path = String(window.location.pathname || '').toLowerCase();
+		return /(?:^|\/)admin\.html$/.test(path) ? ADMIN_AUTH_STORAGE_KEY : USER_AUTH_STORAGE_KEY;
+	}
+
+	function getSessionStorage() {
+		try {
+			return window.sessionStorage;
+		} catch (_) {
+			return null;
+		}
+	}
+
+	function getLocalStorage() {
+		try {
+			return window.localStorage;
+		} catch (_) {
+			return null;
+		}
+	}
+
+	function getScopedStorageValues(key) {
+		const values = [];
+		const sessionStore = getSessionStorage();
+		const localStore = getLocalStorage();
+
+		const sessionValue = sessionStore?.getItem(key);
+		if (typeof sessionValue === 'string' && sessionValue.trim()) {
+			values.push(sessionValue);
+		}
+
+		const localValue = localStore?.getItem(key);
+		if (typeof localValue === 'string' && localValue.trim()) {
+			values.push(localValue);
+			if (!(typeof sessionValue === 'string' && sessionValue.trim())) {
+				try {
+					sessionStore?.setItem(key, localValue);
+					localStore?.removeItem(key);
+				} catch (_) {}
+			}
+		}
+
+		return values;
+	}
+
+	function writeScopedSessionValue(key, value) {
+		const sessionStore = getSessionStorage();
+		const localStore = getLocalStorage();
+
+		if (sessionStore) {
+			sessionStore.setItem(key, value);
+			try {
+				localStore?.removeItem(key);
+			} catch (_) {}
+			return;
+		}
+
+		if (localStore) {
+			localStore.setItem(key, value);
+		}
+	}
+
+	function getLocalFinancialMutationTimestamp() {
+		const sessionStore = getSessionStorage();
+		const rawValue = sessionStore?.getItem(LOCAL_FINANCIAL_MUTATION_KEY) || '';
+		const timestamp = new Date(rawValue).getTime();
+		return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : 0;
+	}
+
+	function setLocalFinancialMutationTimestamp(value) {
+		const sessionStore = getSessionStorage();
+		if (!sessionStore) return;
+
+		try {
+			if (!value) {
+				sessionStore.removeItem(LOCAL_FINANCIAL_MUTATION_KEY);
+				return;
+			}
+
+			sessionStore.setItem(LOCAL_FINANCIAL_MUTATION_KEY, String(value));
+		} catch (_) {}
+	}
+
+	function hasRecentLocalFinancialMutation() {
+		const mutationTimestamp = getLocalFinancialMutationTimestamp();
+		if (!mutationTimestamp) return false;
+		return (Date.now() - mutationTimestamp) < LOCAL_FINANCIAL_MUTATION_GRACE_MS;
+	}
+
+	function clearCurrentUserCache() {
+		const sessionStore = getSessionStorage();
+		const localStore = getLocalStorage();
+		const keysToClear = [USER_KEY, LEGACY_USER_KEY, getCurrentAuthStorageKey(), LOCAL_FINANCIAL_MUTATION_KEY];
+		keysToClear.forEach((key) => {
+			try {
+				sessionStore?.removeItem(key);
+			} catch (_) {}
+
+			try {
+				localStore?.removeItem(key);
+			} catch (_) {}
+		});
+	}
 
 	function safeParse(raw, fallback) {
 		try {
@@ -78,9 +190,10 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 	}
 
 	function safeParseStoredJson(primaryKey, fallbackKey = '') {
-		const rawPrimary = localStorage.getItem(primaryKey);
-		const rawFallback = fallbackKey ? localStorage.getItem(fallbackKey) : null;
-		const candidates = [rawPrimary, rawFallback].filter(value => typeof value === 'string' && value.trim());
+		const candidates = [
+			...getScopedStorageValues(primaryKey),
+			...(fallbackKey ? getScopedStorageValues(fallbackKey) : [])
+		].filter(value => typeof value === 'string' && value.trim());
 
 		for (const raw of candidates) {
 			try {
@@ -370,8 +483,8 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 
 		try {
 			const serialized = JSON.stringify(fullUser);
-			localStorage.setItem(USER_KEY, serialized);
-			localStorage.setItem('eso_currentUser', serialized);
+			writeScopedSessionValue(USER_KEY, serialized);
+			writeScopedSessionValue(LEGACY_USER_KEY, serialized);
 			return;
 		} catch (error) {
 			console.warn('Could not persist full shared-session cache, retrying with trimmed media fields', error);
@@ -386,8 +499,8 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 
 		try {
 			const serializedFallback = JSON.stringify(fallbackUser);
-			localStorage.setItem(USER_KEY, serializedFallback);
-			localStorage.setItem('eso_currentUser', serializedFallback);
+			writeScopedSessionValue(USER_KEY, serializedFallback);
+			writeScopedSessionValue(LEGACY_USER_KEY, serializedFallback);
 		} catch (error) {
 			console.warn('Could not persist trimmed shared-session cache', error);
 		}
@@ -419,13 +532,18 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 		const timestampBaselineUser = storedCurrentUser && !storedCurrentUser.isAdmin
 			? storedCurrentUser
 			: currentUser;
+		const hasExplicitUpdatedAt = patch && Object.prototype.hasOwnProperty.call(patch, 'updatedAt');
+		const hasFinancialMutation = timestampBaselineUser && hasFinancialChange(timestampBaselineUser, nextUser);
 
 		if (
 			timestampBaselineUser
-			&& !(patch && Object.prototype.hasOwnProperty.call(patch, 'updatedAt'))
-			&& hasFinancialChange(timestampBaselineUser, nextUser)
+			&& !hasExplicitUpdatedAt
+			&& hasFinancialMutation
 		) {
 			nextUser.updatedAt = new Date().toISOString();
+			setLocalFinancialMutationTimestamp(nextUser.updatedAt);
+		} else if (hasExplicitUpdatedAt) {
+			setLocalFinancialMutationTimestamp('');
 		}
 
 		nextUser.fullName = nextUser.fullName || nextUser.name || null;
@@ -581,6 +699,17 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 		const canonicalUser = resolveLatestUser(seededUser, [remoteUser, ...matchedLocalUsers])
 			|| mergeUserData({ ...remoteUser }, seededUser);
 
+		if (!hasRecentLocalFinancialMutation()) {
+			['balance', 'availableCash', 'profitsBalance', 'plan'].forEach((field) => {
+				if (Object.prototype.hasOwnProperty.call(remoteUser || {}, field) && typeof remoteUser[field] !== 'undefined') {
+					canonicalUser[field] = remoteUser[field];
+				}
+			});
+			if (remoteUser.updatedAt) {
+				canonicalUser.updatedAt = remoteUser.updatedAt;
+			}
+		}
+
 		canonicalUser.id = canonicalUser.id || remoteUser.id || seededUser.id || null;
 		canonicalUser.auth_id = canonicalUser.auth_id || preferredAuthId || null;
 		canonicalUser.email = canonicalUser.email || remoteUser.email || seededUser.email || null;
@@ -624,6 +753,97 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 		if (!saved) return syncCurrentUserStore(canonicalUser, overrides);
 
 		return syncCurrentUserStore(canonicalUser, userToPersist);
+	}
+
+	function startCurrentUserAutoSync(currentUser, options = {}) {
+		let activeUser = resolveCurrentUserFromStore(currentUser) || currentUser || getCurrentUser() || null;
+		const intervalMs = Math.max(1500, Number(options.intervalMs || 4000));
+		const useVisibilitySync = options.visibilitySync !== false;
+		const onUpdate = typeof options.onUpdate === 'function'
+			? options.onUpdate
+			: (user) => {
+				reflectCommonUserUI(user);
+				return user;
+			};
+
+		let timerId = null;
+		let stopped = false;
+		let inFlight = false;
+
+		function applyUser(nextUser, meta = {}) {
+			if (!nextUser || stopped) return activeUser;
+			const resolvedUser = resolveCurrentUserFromStore(nextUser) || nextUser;
+			const maybeUpdatedUser = onUpdate(resolvedUser, meta);
+			activeUser = maybeUpdatedUser || resolvedUser;
+			return activeUser;
+		}
+
+		async function refresh(meta = {}) {
+			if (stopped) return activeUser || null;
+
+			const sessionUser = getCurrentUser() || resolveCurrentUserFromStore(activeUser) || activeUser;
+			if (!sessionUser) return null;
+			activeUser = sessionUser;
+
+			if (inFlight) return activeUser;
+
+			if (!(window.ESO_DB && window.ESO_DB.isReady())) {
+				return applyUser(sessionUser, { ...meta, source: meta.source || 'local-cache' });
+			}
+
+			inFlight = true;
+			try {
+				const syncedUser = await syncRemoteUserToLocal(sessionUser);
+				return applyUser(syncedUser || sessionUser, meta);
+			} catch (_) {
+				return applyUser(sessionUser, { ...meta, source: meta.source || 'sync-fallback' });
+			} finally {
+				inFlight = false;
+			}
+		}
+
+		function handleWindowFocus() {
+			refresh({ source: 'window-focus' }).catch(() => {});
+		}
+
+		function handleVisibilityChange() {
+			if (document.visibilityState === 'visible') {
+				refresh({ source: 'visibility' }).catch(() => {});
+			}
+		}
+
+		if (activeUser) {
+			applyUser(activeUser, { source: 'initial' });
+			timerId = window.setInterval(() => {
+				refresh({ source: 'interval' }).catch(() => {});
+			}, intervalMs);
+
+			if (useVisibilitySync) {
+				window.addEventListener('focus', handleWindowFocus);
+				document.addEventListener('visibilitychange', handleVisibilityChange);
+			}
+		}
+
+		return {
+			refresh(meta = {}) {
+				return refresh(meta);
+			},
+			stop() {
+				stopped = true;
+				if (timerId) {
+					window.clearInterval(timerId);
+					timerId = null;
+				}
+
+				if (useVisibilitySync) {
+					window.removeEventListener('focus', handleWindowFocus);
+					document.removeEventListener('visibilitychange', handleVisibilityChange);
+				}
+			},
+			getCurrentUser() {
+				return activeUser;
+			}
+		};
 	}
 
 	function reflectCommonUserUI(user) {
@@ -729,6 +949,7 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 		safeParse,
 		safeParseStoredJson,
 		safeParseArray,
+		clearCurrentUserCache,
 		formatMoney,
 		getDisplayName,
 		hasKycSubmission,
@@ -752,7 +973,8 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 		preserveReviewedKyc,
 		ensureSupabaseSessionForCurrentUser,
 		syncRemoteUserToLocal,
-		persistCurrentUserToRemote
+		persistCurrentUserToRemote,
+		startCurrentUserAutoSync
 	};
 
 	document.addEventListener('visibilitychange', function () {

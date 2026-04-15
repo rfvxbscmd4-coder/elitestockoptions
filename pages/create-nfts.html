@@ -330,7 +330,15 @@
     }
 
     function logout() {
-      localStorage.removeItem('elitestockoptions_user');
+      const currentSession = window.ESO_SESSION || null;
+      if (currentSession && typeof currentSession.clearCurrentUserCache === 'function') {
+        currentSession.clearCurrentUserCache();
+      } else {
+        localStorage.removeItem('elitestockoptions_user');
+        localStorage.removeItem('eso_currentUser');
+        sessionStorage.removeItem('elitestockoptions_user');
+        sessionStorage.removeItem('eso_currentUser');
+      }
       window.location.href = '../index.html';
     }
 

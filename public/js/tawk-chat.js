@@ -15,7 +15,8 @@
 
   function getCurrentUser() {
     try {
-      return JSON.parse(localStorage.getItem('elitestockoptions_user') || localStorage.getItem('eso_currentUser') || 'null');
+      const sessionCurrentUser = sessionStorage.getItem('elitestockoptions_user') || sessionStorage.getItem('eso_currentUser');
+      return JSON.parse(sessionCurrentUser || localStorage.getItem('elitestockoptions_user') || localStorage.getItem('eso_currentUser') || 'null');
     } catch (_) {
       return null;
     }

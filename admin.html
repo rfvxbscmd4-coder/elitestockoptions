@@ -1645,6 +1645,15 @@
       localStorage.setItem('eso_users', JSON.stringify(normalizedUsers));
     }
 
+    function touchAdminUserRecord(user, timestamp = new Date().toISOString()) {
+      if (!user || typeof user !== 'object') return user;
+
+      user.fullName = user.fullName || user.name || null;
+      user.name = user.name || user.fullName || null;
+      user.updatedAt = timestamp;
+      return user;
+    }
+
     function getUserEmail(userId) {
       const user = getUsers().find(u => String(u.id || '') === String(userId || ''));
       return user ? user.email : 'Unknown';
@@ -1966,6 +1975,8 @@
           if (trade.pnl > 0) {
             user.profitsBalance = (user.profitsBalance || 0) + trade.pnl;
           }
+
+          touchAdminUserRecord(user, trade.closedAt || new Date().toISOString());
           
           saveUsers(users);
           if (window.ESO_DB && window.ESO_DB.isReady()) {
@@ -2101,6 +2112,7 @@
         // Update user in elitestockoptions_users
         user.balance = (user.balance || 0) + deposit.amount;
         user.availableCash = (user.availableCash || 0) + deposit.amount;
+        touchAdminUserRecord(user, deposit.approvedAt || new Date().toISOString());
         saveUsers(users);
 
         if (window.ESO_DB && window.ESO_DB.isReady()) {
@@ -2288,6 +2300,7 @@
 
         if (user) {
           user.balance = Math.max(0, Number(user.balance || 0) - Number(withdrawal.amount || 0));
+          touchAdminUserRecord(user, approvedAt);
           saveUsers(users);
 
           if (window.ESO_DB && window.ESO_DB.isReady()) {
@@ -2364,6 +2377,7 @@
         } else {
           user.balance = (user.balance || 0) + withdrawal.amount;
         }
+        touchAdminUserRecord(user, rejectedAt);
         saveUsers(users);
 
         if (window.ESO_DB && window.ESO_DB.isReady()) {
@@ -2685,6 +2699,7 @@
       }
 
       if (shouldPersistUser) {
+        touchAdminUserRecord(user);
         saveUsers(users);
         if (window.ESO_DB && window.ESO_DB.isReady()) {
           await window.ESO_DB.upsertUser(user);
@@ -3160,6 +3175,7 @@
       if (user) {
         user.balance = (user.balance || 0) + loan.amount;
         user.availableCash = (user.availableCash || 0) + loan.amount;
+        touchAdminUserRecord(user, loan.approvedAt || new Date().toISOString());
         saveUsers(users);
         if (window.ESO_DB && window.ESO_DB.isReady()) {
           await window.ESO_DB.upsertUser(user);
@@ -3285,6 +3301,7 @@
         }
 
         user.plan = upgrade.toPlan;
+  touchAdminUserRecord(user, storedUpgrade.approvedAt || new Date().toISOString());
         saveUsers(users);
 
         // Record transaction for the plan upgrade deduction

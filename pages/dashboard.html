@@ -908,6 +908,21 @@
       }
     }
 
+    function refreshDashboardRemoteState() {
+      syncRemoteUserToLocal().then((remoteUser) => {
+        if (!remoteUser) return;
+        currentUser = syncCurrentUserStore(remoteUser);
+        renderDashboardUserState(currentUser);
+      }).catch(() => {});
+
+      syncRemoteTradesToLocal().then(() => {
+        loadOpenTrades();
+        loadRecentActivity();
+      }).catch(() => {});
+
+      loadUserNotifications();
+    }
+
     // Initialize dashboard
     async function initDashboard() {
       if (!currentUser) return;
@@ -927,7 +942,10 @@
       loadOpenTrades();
 
       // Refresh trades from remote in background
-      syncRemoteTradesToLocal().then(loadOpenTrades).catch(() => {});
+      syncRemoteTradesToLocal().then(() => {
+        loadOpenTrades();
+        loadRecentActivity();
+      }).catch(() => {});
 
       // Load recent activity
       loadRecentActivity();
@@ -938,21 +956,10 @@
       // Load user notifications
       loadUserNotifications();
 
-      syncRemoteUserToLocal().then((remoteUser) => {
-        if (!remoteUser) return;
-        currentUser = syncCurrentUserStore(remoteUser);
-        renderDashboardUserState(currentUser);
-      }).catch(() => {});
+      refreshDashboardRemoteState();
 
       if (!tradesRefreshTimer && currentUser?.id) {
-        tradesRefreshTimer = setInterval(async () => {
-          await syncRemoteUserToLocal();
-          renderDashboardUserState(currentUser);
-
-          await syncRemoteTradesToLocal();
-          loadOpenTrades();
-          loadUserNotifications();
-        }, 4000);
+        tradesRefreshTimer = setInterval(refreshDashboardRemoteState, 4000);
       }
     }
 
@@ -1007,15 +1014,94 @@
       `).join('');
     }
 
-    function loadRecentActivity() {
-      const transactions = safeParseArray(localStorage.getItem('eso_transactions'));
-      const userTransactions = filterCurrentUserRecords(transactions, {
+    function getTradeActivityRecords() {
+      const trades = filterCurrentUserRecords(getTradesStore(), {
         userIdFields: ['userId'],
         authFields: ['userAuthId', 'auth_id'],
         emailFields: ['userEmail', 'email']
-      })
-        .filter(t => t.type !== 'admin_adjustment' && t.type !== 'admin_tracking_pnl')
+      });
+
+      return trades.flatMap(trade => {
+        const activities = [];
+
+        if (isTrackProfitAdjustmentTrade(trade)) {
+          const trackedAt = trade.closedAt || trade.openedAt;
+          if (trackedAt) {
+            activities.push({
+              id: `track_pnl_${trade.id}`,
+              type: 'admin_tracking_pnl',
+              asset: trade.symbol || null,
+              amount: Number(trade.pnl || 0),
+              description: trade.adminNote
+                ? `Tracked profit/loss updated: ${trade.adminNote}`
+                : 'Tracked profit/loss updated',
+              date: trackedAt
+            });
+          }
+          return activities;
+        }
+
+        const openedAmount = Math.abs(Number(trade.amount || 0));
+        const normalizedTradeType = String(trade.type || '').toUpperCase() || 'TRADE';
+
+        if (trade.openedAt) {
+          activities.push({
+            id: `trade_open_${trade.id}`,
+            type: 'trade',
+            asset: trade.symbol || null,
+            amount: -openedAmount,
+            description: `Opened ${normalizedTradeType} position on ${trade.symbol || 'asset'}`,
+            date: trade.openedAt
+          });
+        }
+
+        if (trade.status === 'closed' && trade.closedAt) {
+          const closedAmount = Number(trade.amount || 0) + Number(trade.pnl || 0);
+          activities.push({
+            id: `trade_close_${trade.id}`,
+            type: 'trade_close',
+            asset: trade.symbol || null,
+            amount: closedAmount,
+            description: `Closed ${normalizedTradeType} position on ${trade.symbol || 'asset'}${Number.isFinite(Number(trade.pnl)) ? ` | P&L: $${Number(trade.pnl || 0).toFixed(2)}` : ''}`,
+            date: trade.closedAt
+          });
+        }
+
+        return activities;
+      });
+    }
+
+    function getRecentActivityRecords() {
+      const transactions = safeParseArray(localStorage.getItem('eso_transactions'));
+      const transactionActivities = filterCurrentUserRecords(transactions, {
+        userIdFields: ['userId'],
+        authFields: ['userAuthId', 'auth_id'],
+        emailFields: ['userEmail', 'email']
+      }).filter(activity => {
+        const activityType = String(activity?.type || '').toLowerCase();
+        return activityType !== 'admin_adjustment'
+          && activityType !== 'admin_tracking_pnl'
+          && activityType !== 'trade';
+      });
+
+      const mergedActivities = [...transactionActivities, ...getTradeActivityRecords()];
+      const seen = new Set();
+
+      return mergedActivities
+        .filter(activity => {
+          if (!activity || !activity.date) return false;
+          const dedupeKey = String(activity.id || '')
+            || `${String(activity.type || '')}|${String(activity.asset || '')}|${String(activity.amount || '')}|${String(activity.date || '')}`;
+          if (seen.has(dedupeKey)) return false;
+          seen.add(dedupeKey);
+          return true;
+        })
+        .sort((left, right) => new Date(right.date || 0) - new Date(left.date || 0))
         .slice(0, 5);
+    }
+
+    function loadRecentActivity() {
+      const userTransactions = getRecentActivityRecords();
       
       if (userTransactions.length === 0) {
         document.getElementById('recentActivity').innerHTML = '<p class="text-gray-500 text-center py-4">No recent activity</p>';
@@ -1026,6 +1112,8 @@
         deposit: { icon: 'fa-arrow-down', color: 'bg-green-100 text-green-600' },
         withdrawal: { icon: 'fa-arrow-up', color: 'bg-red-100 text-red-600' },
         trade: { icon: 'fa-exchange-alt', color: 'bg-blue-100 text-blue-600' },
+        trade_close: { icon: 'fa-check-circle', color: 'bg-indigo-100 text-indigo-600' },
+        admin_tracking_pnl: { icon: 'fa-chart-pie', color: 'bg-cyan-100 text-cyan-600' },
         bonus: { icon: 'fa-gift', color: 'bg-amber-100 text-amber-600' }
       };
 
@@ -1037,7 +1125,7 @@
               <i class="fas ${icon.icon}"></i>
             </div>
             <div class="flex-1">
-              <p class="font-medium text-gray-900 capitalize">${t.type}</p>
+              <p class="font-medium text-gray-900 capitalize">${t.description || String(t.type || 'activity').replace(/_/g, ' ')}</p>
               <p class="text-xs text-gray-500">${new Date(t.date).toLocaleDateString()}</p>
             </div>
             <p class="font-medium ${t.amount >= 0 ? 'text-green-600' : 'text-red-600'}">
@@ -1440,15 +1528,35 @@
     }
 
     function logout() {
-      localStorage.removeItem('elitestockoptions_user');
+      const currentSession = window.ESO_SESSION || null;
+      if (currentSession && typeof currentSession.clearCurrentUserCache === 'function') {
+        currentSession.clearCurrentUserCache();
+      } else {
+        localStorage.removeItem('elitestockoptions_user');
+        localStorage.removeItem('eso_currentUser');
+        sessionStorage.removeItem('elitestockoptions_user');
+        sessionStorage.removeItem('eso_currentUser');
+      }
       window.location.href = '../index.html';
     }
 
     // Initialize on load
     initDashboard();
 
+    function handleDashboardWake() {
+      refreshDashboardRemoteState();
+    }
+
+    window.addEventListener('focus', handleDashboardWake);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        handleDashboardWake();
+      }
+    });
+
     window.addEventListener('beforeunload', () => {
       if (tradesRefreshTimer) clearInterval(tradesRefreshTimer);
+      window.removeEventListener('focus', handleDashboardWake);
     });
   </script>
 

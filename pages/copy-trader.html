@@ -7,6 +7,7 @@
   <link rel="icon" type="image/png" href="../public/logo.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="../public/js/supabase-config.js?v=20260403-03"></script>
+  <script src="../public/js/supabase-client.js?v=20260403-03"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script>
     tailwind.config = {
@@ -183,6 +184,7 @@
     }
 
     currentUser = (session.resolveCurrentUserFromStore && session.resolveCurrentUserFromStore(currentUser)) || currentUser;
+    let liveUserSyncController = null;
 
     function syncCurrentUserStore(patch = {}) {
       if (session.syncCurrentUserStore) {
@@ -215,10 +217,24 @@
 
     let selectedTrader = null;
 
-    function initCopyTrader() {
+    function renderCopyTraderBalance() {
       document.getElementById('availableForCopy').textContent = (currentUser.availableCash || 0).toFixed(2);
+    }
+
+    function initCopyTrader() {
+      renderCopyTraderBalance();
       renderTraders();
       loadMyCopyTrading();
+
+      if (!liveUserSyncController && session.startCurrentUserAutoSync) {
+        liveUserSyncController = session.startCurrentUserAutoSync(currentUser, {
+          onUpdate(nextUser) {
+            currentUser = nextUser;
+            renderCopyTraderBalance();
+            return currentUser;
+          }
+        });
+      }
     }
 
     function renderTraders() {
@@ -310,7 +326,7 @@
     });
 
     function loadMyCopyTrading() {
-      document.getElementById('availableForCopy').textContent = (currentUser.availableCash || 0).toFixed(2);
+      renderCopyTraderBalance();
       const copyTrades = filterCurrentUserRecords(safeParseArray(localStorage.getItem('eso_copyTrades')), {
         userIdField: 'userId',
         authFields: ['userAuthId', 'auth_id'],
@@ -372,13 +388,27 @@
     }
 
     function logout() {
-      localStorage.removeItem('elitestockoptions_user');
+      const currentSession = window.ESO_SESSION || null;
+      if (currentSession && typeof currentSession.clearCurrentUserCache === 'function') {
+        currentSession.clearCurrentUserCache();
+      } else {
+        localStorage.removeItem('elitestockoptions_user');
+        localStorage.removeItem('eso_currentUser');
+        sessionStorage.removeItem('elitestockoptions_user');
+        sessionStorage.removeItem('eso_currentUser');
+      }
       window.location.href = '../index.html';
     }
 
     if (currentUser) {
       initCopyTrader();
     }
+
+    window.addEventListener('beforeunload', () => {
+      if (liveUserSyncController && typeof liveUserSyncController.stop === 'function') {
+        liveUserSyncController.stop();
+      }
+    });
   </script>
 <script src="../public/js/back-button.js"></script>
 <script src="../public/js/theme.js"></script>

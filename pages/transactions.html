@@ -7,6 +7,7 @@
   <link rel="icon" type="image/png" href="../public/logo.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="../public/js/supabase-config.js?v=20260403-03"></script>
+  <script src="../public/js/supabase-client.js?v=20260403-03"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script>
     tailwind.config = {
@@ -257,20 +258,124 @@
       return Number((trackedPnl + closedPnl).toFixed(2));
     }
 
-    function initTransactions() {
-      loadTransactions();
-      calculateSummary();
+    async function syncRemoteTradesToLocal() {
+      if (!(window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.getTrades)) return;
+
+      const remoteTrades = await window.ESO_DB.getTrades();
+      if (!Array.isArray(remoteTrades)) return;
+
+      const merged = [...remoteTrades, ...getTradesStore()];
+      const deduped = [];
+      const seen = new Set();
+
+      merged.forEach((trade) => {
+        if (!trade || !trade.id || seen.has(trade.id)) return;
+        seen.add(trade.id);
+        deduped.push(trade);
+      });
+
+      localStorage.setItem('eso_trades', JSON.stringify(deduped));
+      localStorage.setItem('elitestockoptions_trades', JSON.stringify(deduped));
     }
 
-    function loadTransactions() {
-      const transactions = safeParseArray(localStorage.getItem('eso_transactions'));
-      const userTransactions = filterCurrentUserRecords(transactions, {
+    function getTradeActivityRecords() {
+      const userTrades = filterCurrentUserRecords(getTradesStore(), {
         userIdField: 'userId',
         authFields: ['userAuthId', 'auth_id'],
         emailFields: ['userEmail', 'email']
-      })
-        .filter(t => t.type !== 'admin_adjustment')
-        .sort((a, b) => new Date(b.date) - new Date(a.date));
+      }).filter(trade => !isUpgradeTradeRecord(trade));
+
+      return userTrades.flatMap((trade) => {
+        const activities = [];
+
+        if (isTrackProfitAdjustmentTrade(trade)) {
+          const trackedAt = trade.closedAt || trade.openedAt;
+          if (trackedAt) {
+            activities.push({
+              id: `track_pnl_${trade.id}`,
+              type: 'admin_tracking_pnl',
+              description: trade.adminNote
+                ? `Tracked profit/loss updated: ${trade.adminNote}`
+                : 'Tracked profit/loss updated',
+              amount: Number(trade.pnl || 0),
+              status: 'completed',
+              date: trackedAt
+            });
+          }
+          return activities;
+        }
+
+        const openedAmount = Math.abs(Number(trade.amount || 0));
+        const normalizedTradeType = String(trade.type || '').toUpperCase() || 'TRADE';
+
+        if (trade.openedAt) {
+          activities.push({
+            id: `trade_open_${trade.id}`,
+            type: 'trade',
+            description: `Opened ${normalizedTradeType} position on ${trade.symbol || 'asset'}`,
+            amount: -openedAmount,
+            status: 'completed',
+            date: trade.openedAt
+          });
+        }
+
+        if (String(trade.status || '').toLowerCase() === 'closed' && trade.closedAt) {
+          activities.push({
+            id: `trade_close_${trade.id}`,
+            type: 'trade_close',
+            description: `Closed ${normalizedTradeType} position on ${trade.symbol || 'asset'}${Number.isFinite(Number(trade.pnl)) ? ` | P&L: $${Number(trade.pnl || 0).toFixed(2)}` : ''}`,
+            amount: Number(trade.amount || 0) + Number(trade.pnl || 0),
+            status: 'completed',
+            date: trade.closedAt
+          });
+        }
+
+        return activities;
+      });
+    }
+
+    function getTransactionActivityRecords() {
+      const transactions = safeParseArray(localStorage.getItem('eso_transactions'));
+      const transactionActivities = filterCurrentUserRecords(transactions, {
+        userIdField: 'userId',
+        authFields: ['userAuthId', 'auth_id'],
+        emailFields: ['userEmail', 'email']
+      }).filter(activity => {
+        const activityType = String(activity?.type || '').toLowerCase();
+        return activityType !== 'admin_adjustment'
+          && activityType !== 'trade'
+          && activityType !== 'admin_tracking_pnl';
+      });
+
+      const merged = [...transactionActivities, ...getTradeActivityRecords()];
+      const deduped = [];
+      const seen = new Set();
+
+      merged
+        .sort((left, right) => new Date(right.date || 0) - new Date(left.date || 0))
+        .forEach((activity) => {
+          if (!activity || !activity.date) return;
+          const dedupeKey = String(activity.id || '') || `${String(activity.type || '')}|${String(activity.description || '')}|${String(activity.amount || '')}|${String(activity.date || '')}`;
+          if (seen.has(dedupeKey)) return;
+          seen.add(dedupeKey);
+          deduped.push(activity);
+        });
+
+      return deduped;
+    }
+
+    function initTransactions() {
+      loadTransactions();
+      calculateSummary();
+
+      syncRemoteTradesToLocal().then(() => {
+        loadTransactions();
+        calculateSummary();
+      }).catch(() => {});
+    }
+
+    function loadTransactions() {
+      const userTransactions = getTransactionActivityRecords();
       
       const tbody = document.getElementById('transactionsTable');
       
@@ -286,6 +391,7 @@
         deposit: { icon: 'fa-arrow-down', color: 'bg-green-100 text-green-600' },
         withdrawal: { icon: 'fa-arrow-up', color: 'bg-red-100 text-red-600' },
         trade: { icon: 'fa-exchange-alt', color: 'bg-blue-100 text-blue-600' },
+        trade_close: { icon: 'fa-check-circle', color: 'bg-indigo-100 text-indigo-600', label: 'Trade Close' },
         bonus: { icon: 'fa-gift', color: 'bg-amber-100 text-amber-600' },
         admin_tracking_pnl: { icon: 'fa-chart-pie', color: 'bg-cyan-100 text-cyan-600', label: 'Tracked P/L' }
       };
@@ -335,12 +441,7 @@
     }
 
     function calculateSummary() {
-      const transactions = safeParseArray(localStorage.getItem('eso_transactions'));
-      const userTransactions = filterCurrentUserRecords(transactions, {
-        userIdField: 'userId',
-        authFields: ['userAuthId', 'auth_id'],
-        emailFields: ['userEmail', 'email']
-      }).filter(t => t.type !== 'admin_adjustment');
+      const userTransactions = getTransactionActivityRecords();
 
       let totalDeposits = 0;
       let totalWithdrawals = 0;
@@ -350,7 +451,7 @@
         if (t.status !== 'completed') return;
         if (t.type === 'deposit' && t.amount > 0) totalDeposits += t.amount;
         if (t.type === 'withdrawal' || (t.type === 'deposit' && t.amount < 0)) totalWithdrawals += Math.abs(t.amount);
-        if (t.type === 'trade') {
+        if (t.type === 'trade' || t.type === 'trade_close') {
           tradingVolume += Math.abs(t.amount);
         }
       });
@@ -367,7 +468,15 @@
     }
 
     function logout() {
-      localStorage.removeItem('elitestockoptions_user');
+      const currentSession = window.ESO_SESSION || null;
+      if (currentSession && typeof currentSession.clearCurrentUserCache === 'function') {
+        currentSession.clearCurrentUserCache();
+      } else {
+        localStorage.removeItem('elitestockoptions_user');
+        localStorage.removeItem('eso_currentUser');
+        sessionStorage.removeItem('elitestockoptions_user');
+        sessionStorage.removeItem('eso_currentUser');
+      }
       window.location.href = '../index.html';
     }
 
