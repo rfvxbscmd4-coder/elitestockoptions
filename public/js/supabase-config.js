@@ -415,6 +415,18 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 	function syncCurrentUserStore(currentUser, patch = {}) {
 		let nextUser = { ...(currentUser || {}), ...(patch || {}) };
 		if (!nextUser || nextUser.isAdmin) return nextUser || null;
+		const storedCurrentUser = safeParseStoredJson(USER_KEY, 'eso_currentUser');
+		const timestampBaselineUser = storedCurrentUser && !storedCurrentUser.isAdmin
+			? storedCurrentUser
+			: currentUser;
+
+		if (
+			timestampBaselineUser
+			&& !(patch && Object.prototype.hasOwnProperty.call(patch, 'updatedAt'))
+			&& hasFinancialChange(timestampBaselineUser, nextUser)
+		) {
+			nextUser.updatedAt = new Date().toISOString();
+		}
 
 		nextUser.fullName = nextUser.fullName || nextUser.name || null;
 		nextUser.name = nextUser.name || nextUser.fullName || null;
@@ -574,7 +586,7 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 		canonicalUser.email = canonicalUser.email || remoteUser.email || seededUser.email || null;
 		canonicalUser.fullName = canonicalUser.fullName || canonicalUser.name || null;
 		canonicalUser.name = canonicalUser.name || canonicalUser.fullName || null;
-		canonicalUser.updatedAt = remoteUser.updatedAt || canonicalUser.updatedAt || new Date().toISOString();
+		canonicalUser.updatedAt = canonicalUser.updatedAt || remoteUser.updatedAt || new Date().toISOString();
 
 		return syncCurrentUserStore(seededUser, canonicalUser);
 	}
