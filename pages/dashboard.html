@@ -747,6 +747,21 @@
       return Array.isArray(bonuses) ? bonuses : [];
     }
 
+    function getBonusAvailabilityTitle(bonus) {
+      return String(bonus?.type || '').toLowerCase() === 'custom'
+        ? 'Custom Bonus Pending'
+        : 'Bonus Available';
+    }
+
+    function getBonusAvailabilityMessage(bonus) {
+      const amount = Number(bonus?.amount || 0).toFixed(2);
+      const type = String(bonus?.type || '').trim().toLowerCase();
+      const typeLabel = type && type !== 'bonus' ? `${type} bonus` : 'bonus';
+      const isCustom = type === 'custom';
+      const suffix = bonus?.message ? ` ${String(bonus.message).trim()}` : '';
+      return `A $${amount} ${typeLabel} has been added for your account.${isCustom ? ' Requirement not met yet.' : ' You can claim it from your dashboard.'}${suffix}`.trim();
+    }
+
     function normalizeBonusRecord(record) {
       if (!record) return null;
 
@@ -782,10 +797,6 @@
 
       const meta = notification.meta && typeof notification.meta === 'object' ? notification.meta : {};
       if (meta.bonus || meta.bonusId || meta.source === 'admin_bonus') {
-        return true;
-      }
-
-      if (String(notification.category || '').toLowerCase() === 'bonus') {
         return true;
       }
 
@@ -897,8 +908,7 @@
     function getUserBonuses() {
       if (!currentUser) return [];
 
-      return mergeBonusRecords(getRawBonusesStore(), getNotificationBonusRecords())
-        .filter(matchesCurrentUserBonusRecord);
+      return getNotificationBonusRecords().filter(matchesCurrentUserBonusRecord);
     }
 
     function getPendingClaimableBonuses() {
@@ -928,49 +938,20 @@
     }
 
     function syncBonusNotifications() {
-      const bonuses = getUserBonuses();
-      if (!bonuses.length) return;
-
       const notifications = getUserNotifications();
-      const existingBonusRefs = new Set(
-        notifications
-          .filter(isAdminBonusNotification)
-          .map(n => {
-            const meta = n.meta && typeof n.meta === 'object' ? n.meta : {};
-            return String(meta.bonusId || meta.bonus?.id || n.id || '');
-          })
-          .filter(Boolean)
-      );
+      const cleanedNotifications = notifications.filter(notification => !String(notification?.id || '').startsWith('bonus_notif_'));
+      if (cleanedNotifications.length !== notifications.length) {
+        saveUserNotifications(cleanedNotifications);
+      }
 
-      let changed = false;
-      bonuses.forEach(bonus => {
-        const isPending = bonus.claimed !== true && bonus.pending !== false;
-        if (!isPending) return;
-
-        const bonusId = String(bonus.id || '');
-        if (!bonusId || existingBonusRefs.has(bonusId)) return;
-
-        const isCustom = String(bonus.type || '').toLowerCase() === 'custom';
-
-        notifications.unshift({
-          id: `bonus_notif_${bonusId}`,
-          title: isCustom ? 'Custom Bonus Pending' : 'Bonus Available',
-          message: isCustom
-            ? `A $${Number(bonus.amount || 0).toFixed(2)} custom bonus is pending. Can't be claimed yet, requirement not met.${bonus.message ? ` — ${bonus.message}` : ''}`
-            : `A $${Number(bonus.amount || 0).toFixed(2)} ${bonus.type || 'bonus'} is available to claim.${bonus.message ? ` — ${bonus.message}` : ''}`,
-          type: isCustom ? 'warning' : 'success',
-          read: false,
-          createdAt: bonus.date || new Date().toISOString(),
-          meta: {
-            source: 'admin_bonus',
-            bonusId: bonusId
-          }
-        });
-        changed = true;
+      const rawBonuses = getRawBonusesStore();
+      const cleanedBonuses = rawBonuses.filter(bonus => {
+        const normalized = normalizeBonusRecord(bonus);
+        if (!normalized) return false;
+        return normalized.claimed === true || !!normalized.notificationId;
       });
-
-      if (changed) {
-        saveUserNotifications(notifications);
+      if (cleanedBonuses.length !== rawBonuses.length) {
+        saveBonusesStore(cleanedBonuses);
       }
     }
 
@@ -1580,6 +1561,12 @@
         const remoteClaimPatches = claimable
           .filter(b => b.notificationId)
           .map(bonus => {
+            const pendingBonus = normalizeBonusRecord({
+              ...bonus,
+              pending: true,
+              claimed: false,
+              claimedAt: null
+            });
             const normalizedBonus = normalizeBonusRecord({
               ...bonus,
               pending: false,
@@ -1614,6 +1601,29 @@
                     claimedAt: normalizedBonus.claimedAt
                   } : null
                 }
+              },
+              rollbackPatch: {
+                title: getBonusAvailabilityTitle(pendingBonus),
+                message: getBonusAvailabilityMessage(pendingBonus),
+                read: false,
+                meta: {
+                  ...notificationMeta,
+                  source: 'admin_bonus',
+                  bonusId: String(pendingBonus?.id || bonus.notificationId || ''),
+                  bonus: pendingBonus ? {
+                    id: pendingBonus.id,
+                    userId: pendingBonus.userId,
+                    userAuthId: pendingBonus.userAuthId,
+                    userEmail: pendingBonus.userEmail,
+                    amount: pendingBonus.amount,
+                    type: pendingBonus.type,
+                    pending: true,
+                    claimed: false,
+                    message: pendingBonus.message,
+                    date: pendingBonus.date,
+                    claimedAt: null
+                  } : null
+                }
               }
             };
           })
@@ -1636,6 +1646,20 @@
           }
         }
 
+        if (!(sharedSession && typeof sharedSession.persistCurrentUserToRemote === 'function')) {
+          if (remoteClaimPatches.length && window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.updateNotifications) {
+            await Promise.all(remoteClaimPatches.map(entry => window.ESO_DB.updateNotifications(entry.id, entry.rollbackPatch).catch(() => false)));
+          }
+          showToast('Bonus claim requires live sync. Please refresh and sign in again.', 'error');
+          titleEl.textContent = 'Bonus Unavailable';
+          messageEl.textContent = 'The bonus could not be claimed right now. Please try again.';
+          listEl.innerHTML = '';
+          actionEl.textContent = 'Got it';
+          document.getElementById('bonusModal').classList.remove('hidden');
+          document.getElementById('bonusModal').classList.add('flex');
+          return;
+        }
+
         const allBonuses = getRawBonusesStore();
         const updatedBonuses = mergeBonusRecords(
           allBonuses.map(b => {
@@ -1656,7 +1680,6 @@
             claimedAt: claimTimestamp
           }))
         );
-        saveBonusesStore(updatedBonuses);
 
         const credited = Number(totalAmount || 0);
         const balancePatch = {
@@ -1665,10 +1688,28 @@
           profitsBalance: Number(currentUser.profitsBalance || 0) + credited
         };
 
-        currentUser = syncCurrentUserStore(balancePatch);
-        if (sharedSession && typeof sharedSession.persistCurrentUserToRemote === 'function') {
-          currentUser = await sharedSession.persistCurrentUserToRemote(currentUser, balancePatch) || currentUser;
+        const persistedUser = await sharedSession.persistCurrentUserToRemote(currentUser, balancePatch, {
+          returnNullOnFailure: true
+        });
+        if (!persistedUser) {
+          if (remoteClaimPatches.length && window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.updateNotifications) {
+            await Promise.all(remoteClaimPatches.map(entry => window.ESO_DB.updateNotifications(entry.id, entry.rollbackPatch).catch(() => false)));
+          }
+          showToast('Could not claim bonus right now. Please try again.', 'error');
+          titleEl.textContent = 'Bonus Unavailable';
+          messageEl.textContent = 'The bonus could not be claimed right now. Please try again.';
+          listEl.innerHTML = '';
+          actionEl.textContent = 'Got it';
+          document.getElementById('bonusModal').classList.remove('hidden');
+          document.getElementById('bonusModal').classList.add('flex');
+          return;
         }
+        currentUser = persistedUser;
+
+        saveBonusesStore(updatedBonuses.filter(bonus => {
+          const normalized = normalizeBonusRecord(bonus);
+          return normalized && (normalized.claimed === true || !!normalized.notificationId);
+        }));
 
         document.getElementById('totalBalance').textContent = '$' + (currentUser.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
         document.getElementById('availableCash').textContent = '$' + (currentUser.availableCash || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });

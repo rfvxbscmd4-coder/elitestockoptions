@@ -465,6 +465,7 @@
                   <option value="set">Set Balance</option>
                   <option value="add_available">Add to Available Only</option>
                   <option value="add_profits">Add to Profits Only</option>
+                  <option value="subtract_profits">Subtract from Profits Only</option>
                   <option value="set_track_pnl">Set Dashboard Track Profit/Loss</option>
                 </select>
               </div>
@@ -2718,6 +2719,10 @@
           user.profitsBalance = (user.profitsBalance || 0) + amount;
           changeAmount = amount;
           break;
+        case 'subtract_profits':
+          user.profitsBalance = Math.max(0, (user.profitsBalance || 0) - amount);
+          changeAmount = -amount;
+          break;
         case 'set_track_pnl':
           shouldPersistUser = false;
           await applyTrackProfitChange(user, { mode: 'set', amount, reason });
@@ -2734,7 +2739,19 @@
       }
 
       if (!isTrackPnlAction) {
-        addTransaction(userId, 'admin_adjustment', changeAmount, `Balance ${action} by admin: ${reason || 'No reason'}`);
+        const adjustmentLabel = action === 'add_available'
+          ? 'Available balance'
+          : ((action === 'add_profits' || action === 'subtract_profits') ? 'Profits balance' : 'Balance');
+        const actionLabelMap = {
+          add: 'add',
+          subtract: 'subtract',
+          set: 'set',
+          add_available: 'add',
+          add_profits: 'add',
+          subtract_profits: 'subtract'
+        };
+        const actionLabel = actionLabelMap[action] || action;
+        addTransaction(userId, 'admin_adjustment', changeAmount, `${adjustmentLabel} ${actionLabel} by admin: ${reason || 'No reason'}`);
       }
       
       showToast(toastMessage);

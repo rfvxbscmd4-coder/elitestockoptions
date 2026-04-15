@@ -720,12 +720,13 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 		return syncCurrentUserStore(seededUser, canonicalUser);
 	}
 
-	async function persistCurrentUserToRemote(currentUser, overrides = {}) {
+	async function persistCurrentUserToRemote(currentUser, overrides = {}, options = {}) {
 		if (!currentUser || !(window.ESO_DB && window.ESO_DB.isReady())) return null;
+		const shouldReturnNullOnFailure = !!options.returnNullOnFailure;
 
 		const authUser = await ensureSupabaseSessionForCurrentUser(currentUser);
 		if (!authUser && !currentUser?.auth_id) {
-			return syncCurrentUserStore(currentUser, overrides);
+			return shouldReturnNullOnFailure ? null : syncCurrentUserStore(currentUser, overrides);
 		}
 		const [remoteByAuthId, remoteByEmail] = await Promise.all([
 			authUser?.id ? withTimeout(window.ESO_DB.findUserByAuthId(authUser.id), REMOTE_SYNC_TIMEOUT_MS, null) : Promise.resolve(null),
@@ -746,11 +747,11 @@ window.ESO_CANONICAL_HOST = 'www.elitestockoptions.net';
 		preserveReviewedKyc(userToPersist, remoteUser, overrides);
 
 		if (!userToPersist.id || !userToPersist.email) {
-			return syncCurrentUserStore(canonicalUser, overrides);
+			return shouldReturnNullOnFailure ? null : syncCurrentUserStore(canonicalUser, overrides);
 		}
 
 		const saved = await withTimeout(window.ESO_DB.upsertUser(userToPersist), REMOTE_SYNC_TIMEOUT_MS, false);
-		if (!saved) return syncCurrentUserStore(canonicalUser, overrides);
+		if (!saved) return shouldReturnNullOnFailure ? null : syncCurrentUserStore(canonicalUser, overrides);
 
 		return syncCurrentUserStore(canonicalUser, userToPersist);
 	}
