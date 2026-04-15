@@ -561,6 +561,48 @@
       localStorage.setItem('elitestockoptions_trades', JSON.stringify(trades));
     }
 
+    function getTradeAvailableBalance() {
+      return Math.max(0, Math.max(
+        Number(currentUser?.availableCash || 0),
+        Number(currentUser?.balance || 0)
+      ));
+    }
+
+    function refreshAvailableTradeBalance() {
+      const availableBalanceEl = document.getElementById('availableBalance');
+      if (!availableBalanceEl) return;
+      availableBalanceEl.textContent = getTradeAvailableBalance().toFixed(2);
+    }
+
+    async function syncLocalTradesToRemote(tradesToSync = null) {
+      if (!(window.ESO_DB && window.ESO_DB.isReady() && window.ESO_DB.upsertTrade)) {
+        return false;
+      }
+
+      const normalizedTrades = (Array.isArray(tradesToSync) && tradesToSync.length
+        ? tradesToSync
+        : filterCurrentUserRecords(safeParseArray(localStorage.getItem('eso_trades')), {
+            userIdField: 'userId',
+            authFields: ['userAuthId', 'auth_id'],
+            emailFields: ['userEmail', 'email']
+          })
+      ).filter(trade => trade && trade.id && !isTrackProfitAdjustmentTrade(trade));
+
+      if (!normalizedTrades.length) {
+        return true;
+      }
+
+      let allSynced = true;
+      for (const trade of normalizedTrades) {
+        const saved = await window.ESO_DB.upsertTrade(trade);
+        if (!saved) {
+          allSynced = false;
+        }
+      }
+
+      return allSynced;
+    }
+
     function calculateTradePnlSnapshot(trade, marketPrice) {
       const entryPrice = Number(trade?.entryPrice || 0);
       const amount = Number(trade?.amount || 0);
@@ -731,7 +773,7 @@
     }
 
     async function initTrades() {
-      document.getElementById('availableBalance').textContent = (currentUser.availableCash || 0).toFixed(2);
+      refreshAvailableTradeBalance();
 
       const requestedTradeSelection = getRequestedTradeSelection();
       switchAssetCategory(requestedTradeSelection?.category || currentAssetCategory, {
@@ -747,7 +789,7 @@
       syncRemoteUserToLocal().then((syncedUser) => {
         if (!syncedUser) return;
         currentUser = syncedUser;
-        document.getElementById('availableBalance').textContent = (currentUser.availableCash || 0).toFixed(2);
+        refreshAvailableTradeBalance();
         loadOpenTrades();
         loadClosedTrades();
         loadHistory();
@@ -756,6 +798,8 @@
       syncRemoteTradesToLocal().then(() => {
         loadOpenTrades();
         loadClosedTrades();
+        loadHistory();
+        syncLocalTradesToRemote().catch(() => {});
         refreshTradePageQuotes({ force: true }).catch(() => {});
       }).catch(() => {});
     }
@@ -1045,24 +1089,28 @@
         return;
       }
 
-      if (!(window.ESO_DB && window.ESO_DB.isReady())) {
-        alert('Trade submission requires live sync. Please refresh and sign in again.');
-        return;
-      }
-
       setTradeSubmitState(true, direction);
 
       try {
-        await syncRemoteUserToLocal();
+        try {
+          await syncRemoteUserToLocal();
+        } catch (error) {
+          console.warn('Trade user sync failed, continuing with local session state', error);
+        }
 
-        if (amount > Number(currentUser.availableCash || 0)) {
+        if (amount > getTradeAvailableBalance()) {
           alert('Insufficient balance');
           return;
         }
 
-        const liveQuote = window.ESO_QUOTES && typeof window.ESO_QUOTES.fetchQuote === 'function'
-          ? await window.ESO_QUOTES.fetchQuote(symbol, { force: true, maxAgeMs: 0, timeoutMs: 8000 })
-          : null;
+        let liveQuote = null;
+        if (window.ESO_QUOTES && typeof window.ESO_QUOTES.fetchQuote === 'function') {
+          try {
+            liveQuote = await window.ESO_QUOTES.fetchQuote(symbol, { force: true, maxAgeMs: 0, timeoutMs: 8000 });
+          } catch (error) {
+            console.warn('Trade quote refresh failed, falling back to cached price', error);
+          }
+        }
         const liveEntryPrice = Number.isFinite(Number(liveQuote?.price))
           ? Number(liveQuote.price)
           : Number(currentPrice || getSelectedTradeFallbackPrice());
@@ -1099,35 +1147,46 @@
           openedAt: new Date().toISOString()
         };
 
-        const remoteSaved = await window.ESO_DB.createTrade(trade);
-        if (!remoteSaved) {
-          const lastError = window.ESO_DB.getLastError ? window.ESO_DB.getLastError() : null;
-          alert(lastError?.message || 'Trade could not be submitted for admin visibility right now. Please sign in again and retry.');
-          return;
-        }
-
         let trades = safeParseArray(localStorage.getItem('eso_trades'));
         trades.push(trade);
         saveTradeStore(trades);
 
         currentUser = syncCurrentUserStore({
-          balance: Number(currentUser.balance || 0) - amount,
-          availableCash: Number(currentUser.availableCash || 0) - amount
+          balance: Math.max(0, Number(currentUser.balance || 0) - amount),
+          availableCash: Math.max(0, Number(currentUser.availableCash || 0) - amount)
         });
-        await persistCurrentUserToRemote();
 
-        addTransaction('trade', amount, `Opened ${direction.toUpperCase()} position on ${symbol}`);
+        addTransaction('trade', amount, `Opened ${direction.toUpperCase()} position on ${symbol}`, {
+          asset: symbol,
+          status: 'completed'
+        });
 
-        document.getElementById('availableBalance').textContent = (currentUser.availableCash || 0).toFixed(2);
-        alert('Trade placed successfully!');
+        const [remoteTradeSaved, remoteUserSaved] = await Promise.all([
+          syncLocalTradesToRemote([trade]).catch(() => false),
+          persistCurrentUserToRemote().catch(() => null)
+        ]);
+
+        refreshAvailableTradeBalance();
         closeNewTradeModal();
         loadOpenTrades();
+        loadClosedTrades();
+        loadHistory();
+
+        if (!remoteTradeSaved || !remoteUserSaved) {
+          alert('Trade placed successfully. Live admin sync is still retrying in the background.');
+        } else {
+          alert('Trade placed successfully!');
+        }
+      } catch (error) {
+        console.error('Trade placement error:', error);
+        const lastError = window.ESO_DB && window.ESO_DB.getLastError ? window.ESO_DB.getLastError() : null;
+        alert(lastError?.message || error?.message || 'Trade could not be placed right now. Please try again.');
       } finally {
         setTradeSubmitState(false);
       }
     }
 
-    function addTransaction(type, amount, description) {
+    function addTransaction(type, amount, description, options = {}) {
       let transactions = safeParseArray(localStorage.getItem('eso_transactions'));
       transactions.unshift({
         id: Date.now().toString(),
@@ -1135,11 +1194,15 @@
         userAuthId: currentUser.auth_id || null,
         userEmail: currentUser.email || null,
         type: type,
+        asset: options.asset || null,
         amount: -amount,
         description: description,
+        status: options.status || 'completed',
         date: new Date().toISOString()
       });
-      localStorage.setItem('eso_transactions', JSON.stringify(transactions));
+      const serialized = JSON.stringify(transactions);
+      localStorage.setItem('eso_transactions', serialized);
+      localStorage.setItem('elitestockoptions_transactions', serialized);
     }
 
     function loadOpenTrades(options = {}) {
@@ -1194,9 +1257,14 @@
       if (tradeIndex === -1) return;
 
       const trade = trades[tradeIndex];
-      const liveQuote = window.ESO_QUOTES && typeof window.ESO_QUOTES.fetchQuote === 'function'
-        ? await window.ESO_QUOTES.fetchQuote(trade.symbol, { force: true, maxAgeMs: 0, timeoutMs: 8000 })
-        : null;
+      let liveQuote = null;
+      if (window.ESO_QUOTES && typeof window.ESO_QUOTES.fetchQuote === 'function') {
+        try {
+          liveQuote = await window.ESO_QUOTES.fetchQuote(trade.symbol, { force: true, maxAgeMs: 0, timeoutMs: 8000 });
+        } catch (error) {
+          console.warn('Trade close quote refresh failed, falling back to last known price', error);
+        }
+      }
 
       if (liveQuote && Number.isFinite(Number(liveQuote.price))) {
         trade.currentPrice = Number(liveQuote.price);
@@ -1230,8 +1298,9 @@
       trades[tradeIndex] = trade;
       saveTradeStore(trades);
 
+      let remoteTradeUpdated = false;
       if (window.ESO_DB && window.ESO_DB.isReady()) {
-        await window.ESO_DB.updateTrade(trade.id, {
+        remoteTradeUpdated = await window.ESO_DB.updateTrade(trade.id, {
           status: trade.status,
           closedAt: trade.closedAt,
           exitPrice: trade.exitPrice,
@@ -1241,11 +1310,19 @@
         });
       }
 
-      addTransaction('trade', trade.amount + trade.pnl, `Closed ${trade.type} position on ${trade.symbol} | P&L: $${trade.pnl.toFixed(2)}`);
+      if (!remoteTradeUpdated) {
+        await syncLocalTradesToRemote([trade]).catch(() => false);
+      }
+
+      addTransaction('trade', trade.amount + trade.pnl, `Closed ${trade.type} position on ${trade.symbol} | P&L: $${trade.pnl.toFixed(2)}`, {
+        asset: trade.symbol,
+        status: 'completed'
+      });
       
-      document.getElementById('availableBalance').textContent = (currentUser.availableCash || 0).toFixed(2);
+      refreshAvailableTradeBalance();
       loadOpenTrades();
       loadClosedTrades();
+      loadHistory();
     }
 
     function loadClosedTrades() {
@@ -1290,7 +1367,7 @@
         <tr class="hover:bg-gray-50">
           <td class="px-6 py-4">${new Date(t.date).toLocaleDateString()}</td>
           <td class="px-6 py-4 capitalize">${t.type}</td>
-          <td class="px-6 py-4">--</td>
+          <td class="px-6 py-4">${t.asset || '--'}</td>
           <td class="px-6 py-4 text-sm">${t.description}</td>
           <td class="px-6 py-4 ${t.amount >= 0 ? 'text-green-600' : 'text-red-600'}">${t.amount >= 0 ? '+' : ''}$${Math.abs(t.amount).toFixed(2)}</td>
         </tr>
