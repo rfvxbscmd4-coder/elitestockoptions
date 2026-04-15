@@ -513,6 +513,27 @@
         && String(trade.symbol || '').startsWith('TRACK_PNL:');
     }
 
+    function isUpgradeTradeRecord(trade) {
+      return !!trade
+        && String(trade.type || '').toUpperCase() === 'PLAN_UPGRADE'
+        && String(trade.symbol || '').startsWith('PLAN_UPGRADE:');
+    }
+
+    function getFallbackDashboardProfitsValue(userLike = currentUser) {
+      const closedProfitableTrades = filterCurrentUserRecords(getTradesStore(), {
+        userIdFields: ['userId'],
+        authFields: ['userAuthId', 'auth_id'],
+        emailFields: ['userEmail', 'email']
+      }).filter(trade => (
+        String(trade.status || '').toLowerCase() === 'closed'
+        && !isTrackProfitAdjustmentTrade(trade)
+        && !isUpgradeTradeRecord(trade)
+        && Number(trade.pnl || 0) > 0
+      ));
+
+      return Number(closedProfitableTrades.reduce((sum, trade) => sum + Number(trade.pnl || 0), 0).toFixed(2));
+    }
+
     function getDashboardDisplayName(userLike) {
       if (sharedSession && typeof sharedSession.getDisplayName === 'function') {
         return sharedSession.getDisplayName(userLike);
@@ -609,9 +630,15 @@
       document.getElementById('userAvatar').textContent = (displayName[0] || 'T').toUpperCase();
       applyDashboardPlanBranding(userLike.plan || 'Bronze');
 
+      const storedProfitsBalance = Number(userLike.profitsBalance || 0);
+      const fallbackProfitsBalance = getFallbackDashboardProfitsValue(userLike);
+      const effectiveProfitsBalance = storedProfitsBalance > 0
+        ? storedProfitsBalance
+        : fallbackProfitsBalance;
+
       document.getElementById('totalBalance').textContent = '$' + (userLike.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
       document.getElementById('availableCash').textContent = '$' + (userLike.availableCash || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
-      document.getElementById('profitsBalance').textContent = '$' + (userLike.profitsBalance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
+      document.getElementById('profitsBalance').textContent = '$' + effectiveProfitsBalance.toLocaleString('en-US', {minimumFractionDigits: 2});
       updateKycBanner(getEffectiveDashboardKycStatus(userLike));
     }
 

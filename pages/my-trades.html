@@ -1329,12 +1329,12 @@
 
       // Update user balance when trade closes
       // Return original trade amount + profits to both balance and available cash
-      currentUser.balance += trade.amount + trade.pnl;
-      currentUser.availableCash += trade.amount + trade.pnl;
+      currentUser.balance = Number(currentUser.balance || 0) + Number(trade.amount || 0) + Number(trade.pnl || 0);
+      currentUser.availableCash = Number(currentUser.availableCash || 0) + Number(trade.amount || 0) + Number(trade.pnl || 0);
       
       // Add profits to profits balance
       if (trade.pnl > 0) {
-        currentUser.profitsBalance += trade.pnl;
+        currentUser.profitsBalance = Number(currentUser.profitsBalance || 0) + Number(trade.pnl || 0);
       }
 
       syncCurrentUserStore({
@@ -1342,25 +1342,13 @@
         availableCash: currentUser.availableCash,
         profitsBalance: currentUser.profitsBalance
       });
-      await persistCurrentUserToRemote();
 
       trades[tradeIndex] = trade;
       saveTradeStore(trades);
 
-      let remoteTradeUpdated = false;
-      if (window.ESO_DB && window.ESO_DB.isReady()) {
-        remoteTradeUpdated = await window.ESO_DB.updateTrade(trade.id, {
-          status: trade.status,
-          closedAt: trade.closedAt,
-          exitPrice: trade.exitPrice,
-          pnl: trade.pnl,
-          pnlPercent: Number(trade.pnlPercent || 0),
-          currentPrice: trade.currentPrice
-        });
-      }
-
-      if (!remoteTradeUpdated) {
-        await syncLocalTradesToRemote([trade]).catch(() => false);
+      const remoteSyncComplete = await syncTradeAdminState({ tradesToSync: [trade] }).catch(() => false);
+      if (!remoteSyncComplete) {
+        queueTradeAdminSyncRetry();
       }
 
       addTransaction('trade', trade.amount + trade.pnl, `Closed ${trade.type} position on ${trade.symbol} | P&L: $${trade.pnl.toFixed(2)}`, {
