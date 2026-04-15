@@ -214,6 +214,49 @@
       return (Array.isArray(records) ? records : []).filter(record => String(record?.userId || '') === String(currentUser?.id || ''));
     }
 
+    function getTradesStore() {
+      const primary = safeParseArray(localStorage.getItem('eso_trades'));
+      const legacy = safeParseArray(localStorage.getItem('elitestockoptions_trades'));
+      const merged = [...primary, ...legacy];
+      const deduped = [];
+      const seen = new Set();
+
+      merged.forEach((trade) => {
+        if (!trade || !trade.id || seen.has(trade.id)) return;
+        seen.add(trade.id);
+        deduped.push(trade);
+      });
+
+      return deduped;
+    }
+
+    function isUpgradeTradeRecord(trade) {
+      return !!trade
+        && String(trade.type || '').toUpperCase() === 'PLAN_UPGRADE'
+        && String(trade.symbol || '').startsWith('PLAN_UPGRADE:');
+    }
+
+    function isTrackProfitAdjustmentTrade(trade) {
+      return !!trade
+        && String(trade.type || '').toUpperCase() === 'TRACK_PNL_ADJUSTMENT'
+        && String(trade.symbol || '').startsWith('TRACK_PNL:');
+    }
+
+    function calculateNetProfitLossSummary() {
+      const userTrades = filterCurrentUserRecords(getTradesStore(), {
+        userIdField: 'userId',
+        authFields: ['userAuthId', 'auth_id'],
+        emailFields: ['userEmail', 'email']
+      }).filter(trade => !isUpgradeTradeRecord(trade));
+
+      const trackedAdjustments = userTrades.filter(isTrackProfitAdjustmentTrade);
+      const closedTrades = userTrades.filter(trade => String(trade.status || '').toLowerCase() === 'closed' && !isTrackProfitAdjustmentTrade(trade));
+      const trackedPnl = trackedAdjustments.reduce((sum, trade) => sum + Number(trade.pnl || 0), 0);
+      const closedPnl = closedTrades.reduce((sum, trade) => sum + Number(trade.pnl || 0), 0);
+
+      return Number((trackedPnl + closedPnl).toFixed(2));
+    }
+
     function initTransactions() {
       loadTransactions();
       calculateSummary();
@@ -243,7 +286,8 @@
         deposit: { icon: 'fa-arrow-down', color: 'bg-green-100 text-green-600' },
         withdrawal: { icon: 'fa-arrow-up', color: 'bg-red-100 text-red-600' },
         trade: { icon: 'fa-exchange-alt', color: 'bg-blue-100 text-blue-600' },
-        bonus: { icon: 'fa-gift', color: 'bg-amber-100 text-amber-600' }
+        bonus: { icon: 'fa-gift', color: 'bg-amber-100 text-amber-600' },
+        admin_tracking_pnl: { icon: 'fa-chart-pie', color: 'bg-cyan-100 text-cyan-600', label: 'Tracked P/L' }
       };
 
       const statusColors = {
@@ -264,6 +308,7 @@
       tbody.innerHTML = userTransactions.map(t => {
         const typeInfo = typeIcons[t.type] || typeIcons.trade;
         const statusClass = statusColors[t.status] || statusColors.completed;
+        const typeLabel = typeInfo.label || String(t.type || '').replace(/_/g, ' ');
         return `
           <tr class="hover:bg-gray-50">
             <td class="px-6 py-4 text-sm">${new Date(t.date).toLocaleString()}</td>
@@ -272,7 +317,7 @@
                 <div class="w-8 h-8 ${typeInfo.color} rounded-lg flex items-center justify-center">
                   <i class="fas ${typeInfo.icon} text-sm"></i>
                 </div>
-                <span class="capitalize font-medium">${t.type}</span>
+                <span class="capitalize font-medium">${typeLabel}</span>
               </div>
             </td>
             <td class="px-6 py-4 text-sm text-gray-600">${normalizeDescription(t.description)}</td>
@@ -300,7 +345,6 @@
       let totalDeposits = 0;
       let totalWithdrawals = 0;
       let tradingVolume = 0;
-      let netPnl = 0;
 
       userTransactions.forEach(t => {
         if (t.status !== 'completed') return;
@@ -308,9 +352,10 @@
         if (t.type === 'withdrawal' || (t.type === 'deposit' && t.amount < 0)) totalWithdrawals += Math.abs(t.amount);
         if (t.type === 'trade') {
           tradingVolume += Math.abs(t.amount);
-          netPnl += t.amount;
         }
       });
+
+      const netPnl = calculateNetProfitLossSummary();
 
       document.getElementById('totalDeposits').textContent = '$' + totalDeposits.toFixed(2);
       document.getElementById('totalWithdrawals').textContent = '$' + totalWithdrawals.toFixed(2);

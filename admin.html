@@ -94,6 +94,9 @@
         <button onclick="switchTab('balanceManager')" id="nav-balanceManager" class="sidebar-link w-full flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
           <i class="fas fa-wallet w-5"></i><span>Balance Manager</span>
         </button>
+        <button onclick="switchTab('trackProfit')" id="nav-trackProfit" class="sidebar-link w-full flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
+          <i class="fas fa-chart-pie w-5"></i><span>Track Profit</span>
+        </button>
         
         <div class="px-4 mt-6 mb-2 text-xs font-semibold text-gray-400 uppercase">Verification</div>
         <button onclick="switchTab('kyc')" id="nav-kyc" class="sidebar-link w-full flex items-center space-x-3 px-4 py-3 mx-2 rounded-xl text-gray-600">
@@ -481,6 +484,121 @@
           </div>
         </div>
 
+        <!-- Track Profit Tab -->
+        <div id="tab-trackProfit" class="tab-content hidden">
+          <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            <div class="xl:col-span-1">
+              <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <div class="mb-4">
+                  <h2 class="font-bold text-gray-900">Track Profit / Loss</h2>
+                  <p class="text-sm text-gray-500 mt-1">Control the dashboard Track Profits value and the user net profit/loss summary from one admin page.</p>
+                </div>
+                <form id="trackProfitForm" class="space-y-4">
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Select User</label>
+                    <select id="trackProfitUser" required class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary" onchange="showTrackProfitPreview()">
+                      <option value="">Select user...</option>
+                    </select>
+                  </div>
+                  <div id="trackProfitCurrentDisplay" class="hidden bg-gray-50 rounded-xl p-4 space-y-4">
+                    <div>
+                      <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Current Snapshot</p>
+                      <p class="font-semibold text-gray-900" id="trackProfitCurrentUserLabel">No user selected</p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 text-center">
+                      <div class="bg-white rounded-xl border border-gray-100 p-3">
+                        <p class="text-xs text-gray-500">Tracked P/L</p>
+                        <p class="font-bold text-lg text-gray-900" id="tpTrackedValue">$0.00</p>
+                      </div>
+                      <div class="bg-white rounded-xl border border-gray-100 p-3">
+                        <p class="text-xs text-gray-500">Closed P/L</p>
+                        <p class="font-bold text-lg text-gray-900" id="tpClosedValue">$0.00</p>
+                      </div>
+                      <div class="bg-white rounded-xl border border-gray-100 p-3">
+                        <p class="text-xs text-gray-500">Open P/L</p>
+                        <p class="font-bold text-lg text-gray-900" id="tpOpenValue">$0.00</p>
+                      </div>
+                      <div class="bg-white rounded-xl border border-gray-100 p-3">
+                        <p class="text-xs text-gray-500">Net P/L</p>
+                        <p class="font-bold text-lg text-gray-900" id="tpNetValue">$0.00</p>
+                      </div>
+                    </div>
+                    <p id="trackProfitLastUpdated" class="text-xs text-gray-500">Last tracked update: Never</p>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Action</label>
+                    <select id="trackProfitAction" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary" onchange="toggleTrackProfitAmountState()">
+                      <option value="set">Set Tracked P/L</option>
+                      <option value="increase">Increase Profit</option>
+                      <option value="decrease">Decrease / Add Loss</option>
+                      <option value="reset">Reset to $0.00</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Amount (USD)</label>
+                    <input type="number" id="trackProfitAmount" required step="0.01" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary" placeholder="Enter amount">
+                    <p id="trackProfitAmountHelp" class="mt-2 text-xs text-gray-500">Use positive for profit and negative for loss when setting a value directly.</p>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Reason / Note</label>
+                    <input type="text" id="trackProfitReason" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary" placeholder="Reason for tracked P/L change...">
+                  </div>
+                  <button type="submit" class="gradient-bg w-full py-3 text-white rounded-xl font-semibold hover:opacity-90">
+                    <i class="fas fa-chart-pie mr-2"></i>Apply Track Profit Change
+                  </button>
+                </form>
+              </div>
+            </div>
+            <div class="xl:col-span-2 space-y-6">
+              <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+                  <p class="text-sm text-gray-500">Users With Tracking</p>
+                  <p class="text-2xl font-bold text-gray-900 mt-2" id="trackProfitUsersCount">0</p>
+                </div>
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+                  <p class="text-sm text-gray-500">Total Tracked P/L</p>
+                  <p class="text-2xl font-bold text-gray-900 mt-2" id="trackProfitTotalTracked">$0.00</p>
+                </div>
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+                  <p class="text-sm text-gray-500">Open Trade P/L</p>
+                  <p class="text-2xl font-bold text-gray-900 mt-2" id="trackProfitTotalOpen">$0.00</p>
+                </div>
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+                  <p class="text-sm text-gray-500">Net Profit/Loss</p>
+                  <p class="text-2xl font-bold text-gray-900 mt-2" id="trackProfitTotalNet">$0.00</p>
+                </div>
+              </div>
+
+              <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div class="p-4 border-b flex flex-col md:flex-row items-center justify-between gap-3">
+                  <div>
+                    <h2 class="font-bold text-gray-900">Tracked Profit Overview</h2>
+                    <p class="text-sm text-gray-500">Review each user’s tracked adjustment, open P/L, and net P/L.</p>
+                  </div>
+                  <input type="text" id="trackProfitSearch" placeholder="Search user or email..." class="w-full md:w-72 px-4 py-2 border border-gray-200 rounded-lg text-sm" onkeyup="loadTrackProfitTable()">
+                </div>
+                <div class="overflow-x-auto">
+                  <table class="w-full">
+                    <thead class="bg-gray-50">
+                      <tr>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">User</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Balance</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Tracked P/L</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Closed P/L</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Open P/L</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Net P/L</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Last Update</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody id="trackProfitTable"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- KYC Tab -->
         <div id="tab-kyc" class="tab-content hidden">
           <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -762,6 +880,9 @@
         <button onclick="switchTab('balanceManager'); toggleMobileMenu()" class="w-full text-left sidebar-link flex items-center space-x-3 px-4 py-3 rounded-xl text-gray-700">
           <i class="fas fa-wallet w-5"></i><span>Balance Manager</span>
         </button>
+        <button onclick="switchTab('trackProfit'); toggleMobileMenu()" class="w-full text-left sidebar-link flex items-center space-x-3 px-4 py-3 rounded-xl text-gray-700">
+          <i class="fas fa-chart-pie w-5"></i><span>Track Profit</span>
+        </button>
         <button onclick="switchTab('kyc'); toggleMobileMenu()" class="w-full text-left sidebar-link flex items-center space-x-3 px-4 py-3 rounded-xl text-gray-700">
           <i class="fas fa-id-card w-5"></i><span>KYC Verification</span>
         </button>
@@ -851,9 +972,9 @@
     let currentAdminTab = 'dashboard';
     const ADMIN_TABS = new Set([
       'dashboard', 'users', 'userDetails', 'trades', 'deposits', 'withdrawals', 'bonuses',
-      'balanceManager', 'kyc', 'wallets', 'loans', 'upgrades', 'notifications', 'messages', 'systemData'
+      'balanceManager', 'trackProfit', 'kyc', 'wallets', 'loans', 'upgrades', 'notifications', 'messages', 'systemData'
     ]);
-    const REMOTE_SYNC_TABS = new Set(['dashboard', 'users', 'userDetails', 'trades', 'deposits', 'withdrawals', 'kyc', 'loans', 'upgrades', 'systemData']);
+    const REMOTE_SYNC_TABS = new Set(['dashboard', 'users', 'userDetails', 'trades', 'deposits', 'withdrawals', 'trackProfit', 'kyc', 'loans', 'upgrades', 'systemData']);
 
     function getTabFromHash() {
       const hashTab = (window.location.hash || '').replace('#', '').trim();
@@ -1018,7 +1139,7 @@
       const titles = {
         dashboard: 'Admin Dashboard', users: 'All Users', userDetails: 'User Details', trades: 'Manage Trades',
         deposits: 'Deposit Requests', withdrawals: 'Withdrawal Requests', bonuses: 'Grant Bonuses',
-        balanceManager: 'Balance Manager', kyc: 'KYC Verification', wallets: 'Wallet Addresses',
+        balanceManager: 'Balance Manager', trackProfit: 'Track Profit / Loss', kyc: 'KYC Verification', wallets: 'Wallet Addresses',
         loans: 'Loan Applications', upgrades: 'Plan Upgrades', notifications: 'Send Notifications', messages: 'Send Messages',
         systemData: 'System Data Debug'
       };
@@ -1042,6 +1163,7 @@
         case 'withdrawals': loadWithdrawals(); break;
         case 'bonuses': loadBonusForm(); loadBonusHistory(); break;
         case 'balanceManager': loadBalanceUsers(); break;
+        case 'trackProfit': loadTrackProfitManager(); break;
         case 'kyc': loadKyc(); break;
         case 'wallets': loadWallets(); break;
         case 'loans': loadLoans(); break;
@@ -1277,12 +1399,149 @@
       return nextTrade;
     }
 
-    function getTrackProfitAdjustmentAmount(userId) {
-      const trade = getTradesStore().find(item => (
-        isTrackProfitAdjustmentTrade(item)
-        && String(item.userId || '') === String(userId || '')
+    function formatProfitLossAmount(value) {
+      const numericValue = Number(value || 0);
+      const absoluteAmount = Math.abs(numericValue).toFixed(2);
+      if (numericValue > 0) return `+$${absoluteAmount}`;
+      if (numericValue < 0) return `-$${absoluteAmount}`;
+      return '$0.00';
+    }
+
+    function getProfitLossToneClass(value, neutralClass = 'text-gray-900') {
+      const numericValue = Number(value || 0);
+      if (numericValue > 0) return 'text-green-600';
+      if (numericValue < 0) return 'text-red-600';
+      return neutralClass;
+    }
+
+    function matchesAdminUserTradeRecord(trade, userRef) {
+      if (!trade) return false;
+
+      const reference = parseAdminUserRef(userRef);
+      const recordIds = [
+        String(trade.userId || '').trim(),
+        String(trade.userAuthId || '').trim(),
+        String(trade.auth_id || '').trim()
+      ].filter(Boolean);
+
+      if (reference.id && recordIds.includes(reference.id)) return true;
+      if (reference.auth_id && recordIds.includes(reference.auth_id)) return true;
+
+      const recordEmails = [
+        normalizeAdminUserEmail(trade.userEmail),
+        normalizeAdminUserEmail(trade.email)
+      ].filter(Boolean);
+
+      return !!reference.email && recordEmails.includes(reference.email);
+    }
+
+    function getUserTrackProfitMetrics(userRef) {
+      const relevantTrades = getTradesStore().filter(trade => (
+        matchesAdminUserTradeRecord(trade, userRef)
+        && !isUpgradeTradeRecord(trade)
       ));
-      return Number(trade?.pnl || 0);
+      const trackedTrades = relevantTrades.filter(isTrackProfitAdjustmentTrade);
+      const openTrades = relevantTrades.filter(trade => String(trade.status || '').toLowerCase() === 'open' && !isTrackProfitAdjustmentTrade(trade));
+      const closedTrades = relevantTrades.filter(trade => String(trade.status || '').toLowerCase() === 'closed' && !isTrackProfitAdjustmentTrade(trade));
+      const trackedPnl = trackedTrades.reduce((sum, trade) => sum + Number(trade?.pnl || 0), 0);
+      const closedPnl = closedTrades.reduce((sum, trade) => sum + Number(trade?.pnl || 0), 0);
+      const openPnl = openTrades.reduce((sum, trade) => sum + Number(trade?.pnl || 0), 0);
+      const latestTrackedTrade = trackedTrades
+        .slice()
+        .sort((a, b) => new Date(b.closedAt || b.openedAt || 0) - new Date(a.closedAt || a.openedAt || 0))[0] || null;
+
+      return {
+        trackedPnl: Number(trackedPnl.toFixed(2)),
+        closedPnl: Number(closedPnl.toFixed(2)),
+        openPnl: Number(openPnl.toFixed(2)),
+        netPnl: Number((trackedPnl + closedPnl).toFixed(2)),
+        totalPnl: Number((trackedPnl + closedPnl + openPnl).toFixed(2)),
+        openTradeCount: openTrades.length,
+        closedTradeCount: closedTrades.length,
+        lastTrackedAt: latestTrackedTrade?.closedAt || latestTrackedTrade?.openedAt || null,
+        lastTrackedNote: latestTrackedTrade?.adminNote || ''
+      };
+    }
+
+    async function applyTrackProfitChange(userRef, options = {}) {
+      const mode = String(options.mode || 'set').toLowerCase();
+      const reason = String(options.reason || '').trim();
+      const rawAmount = Number(options.amount || 0);
+      const localUser = findAdminUserByRef(getUsers(), userRef);
+      const user = await resolveCanonicalAdminUser(userRef, localUser);
+
+      if (!user || !(user.id || user.auth_id || user.email)) {
+        throw new Error('Could not find that user record. Refresh the admin page and try again.');
+      }
+
+      const metrics = getUserTrackProfitMetrics(user);
+      let nextTrackedPnl = metrics.trackedPnl;
+
+      switch (mode) {
+        case 'set':
+          if (!Number.isFinite(rawAmount)) {
+            throw new Error('Enter a valid tracked profit or loss amount.');
+          }
+          nextTrackedPnl = rawAmount;
+          break;
+        case 'increase':
+          if (!Number.isFinite(rawAmount) || rawAmount < 0) {
+            throw new Error('Enter a valid positive profit amount to add.');
+          }
+          nextTrackedPnl = metrics.trackedPnl + rawAmount;
+          break;
+        case 'decrease':
+          if (!Number.isFinite(rawAmount) || rawAmount < 0) {
+            throw new Error('Enter a valid positive amount to decrease.');
+          }
+          nextTrackedPnl = metrics.trackedPnl - rawAmount;
+          break;
+        case 'reset':
+          nextTrackedPnl = 0;
+          break;
+        default:
+          throw new Error('Unsupported tracked P/L action.');
+      }
+
+      nextTrackedPnl = Number(nextTrackedPnl.toFixed(2));
+      await upsertTrackProfitAdjustmentTrade(user, nextTrackedPnl, reason);
+
+      const changeAmount = Number((nextTrackedPnl - metrics.trackedPnl).toFixed(2));
+      if (Math.abs(changeAmount) >= 0.01) {
+        const absoluteChangeText = '$' + Math.abs(changeAmount).toFixed(2);
+        const description = mode === 'reset'
+          ? `Tracked profit/loss reset by admin${reason ? `: ${reason}` : ''}`
+          : mode === 'set'
+            ? `Tracked profit/loss set to ${formatProfitLossAmount(nextTrackedPnl)} by admin${reason ? `: ${reason}` : ''}`
+            : `Tracked profit/loss ${mode === 'increase' ? 'increased' : 'decreased'} by ${absoluteChangeText} by admin${reason ? `: ${reason}` : ''}`;
+
+        addTransaction(
+          user.id || user.auth_id || user.email,
+          'admin_tracking_pnl',
+          changeAmount,
+          description,
+          'completed',
+          'track_pnl_adjustment',
+          `track_pnl_${String(user.id || user.auth_id || user.email)}_${Date.now()}`
+        );
+      }
+
+      return {
+        user,
+        previousTrackedPnl: metrics.trackedPnl,
+        nextTrackedPnl,
+        changeAmount,
+        metrics: {
+          ...metrics,
+          trackedPnl: nextTrackedPnl,
+          netPnl: Number((metrics.closedPnl + nextTrackedPnl).toFixed(2)),
+          totalPnl: Number((metrics.closedPnl + nextTrackedPnl + metrics.openPnl).toFixed(2))
+        }
+      };
+    }
+
+    function getTrackProfitAdjustmentAmount(userRef) {
+      return getUserTrackProfitMetrics(userRef).trackedPnl;
     }
 
     function normalizeUpgradeTradeRecord(trade) {
@@ -1544,6 +1803,7 @@
 
       tbody.innerHTML = users.map(u => {
         const kycStatus = getEffectiveKycStatus(u);
+        const adminUserRef = buildAdminUserRef(u);
         return `
         <tr class="hover:bg-gray-50">
           <td class="px-4 py-3 font-medium text-gray-900">${u.fullName || u.name || 'N/A'}</td>
@@ -1563,6 +1823,7 @@
           <td class="px-4 py-3">
             <button onclick="editUserBalance('${u.id}')" class="text-green-600 hover:text-green-800 mr-2" title="Edit Balance"><i class="fas fa-wallet"></i></button>
             <button onclick="sendUserBonus('${u.id}')" class="text-amber-600 hover:text-amber-800 mr-2" title="Send Bonus"><i class="fas fa-gift"></i></button>
+            <button onclick="openTrackProfitManager('${adminUserRef}')" class="text-cyan-600 hover:text-cyan-800 mr-2" title="Track Profit"><i class="fas fa-chart-pie"></i></button>
             <button onclick="deleteUser('${u.id}')" class="text-red-600 hover:text-red-800" title="Delete"><i class="fas fa-trash"></i></button>
           </td>
         </tr>
@@ -2199,6 +2460,161 @@
         users.map(u => `<option value="${u.id}">${u.fullName || u.name || u.email} - $${(u.balance || 0).toFixed(2)}</option>`).join('');
     }
 
+    function getTrackProfitManagedUsers() {
+      return getUsers()
+        .filter(user => user && !user.isAdmin)
+        .sort((a, b) => String(a.fullName || a.name || a.email || '').localeCompare(String(b.fullName || b.name || b.email || '')));
+    }
+
+    function loadTrackProfitUsers(selectedUserRef = '') {
+      const users = getTrackProfitManagedUsers();
+      const select = document.getElementById('trackProfitUser');
+      if (!select) return;
+
+      const resolvedSelectionUser = findAdminUserByRef(users, selectedUserRef || select.value || '');
+      select.innerHTML = '<option value="">Select user...</option>'
+        + users.map(user => `<option value="${buildAdminUserRef(user)}">${user.fullName || user.name || user.email} (${user.email || 'No email'})</option>`).join('');
+      select.value = resolvedSelectionUser ? buildAdminUserRef(resolvedSelectionUser) : '';
+    }
+
+    function toggleTrackProfitAmountState() {
+      const action = document.getElementById('trackProfitAction')?.value || 'set';
+      const amountInput = document.getElementById('trackProfitAmount');
+      const helpText = document.getElementById('trackProfitAmountHelp');
+      if (!amountInput || !helpText) return;
+
+      const requiresAmount = action !== 'reset';
+      amountInput.disabled = !requiresAmount;
+      amountInput.required = requiresAmount;
+      if (!requiresAmount) {
+        amountInput.value = '';
+      }
+
+      if (action === 'set') {
+        helpText.textContent = 'Use positive for profit and negative for loss when setting a value directly.';
+      } else if (action === 'increase') {
+        helpText.textContent = 'Enter a positive amount to increase the tracked profit/loss.';
+      } else if (action === 'decrease') {
+        helpText.textContent = 'Enter a positive amount to decrease the tracked profit/loss or add more loss.';
+      } else {
+        helpText.textContent = 'Reset clears the tracked profit/loss value back to $0.00.';
+      }
+    }
+
+    function showTrackProfitPreview() {
+      const userRef = document.getElementById('trackProfitUser')?.value || '';
+      const previewCard = document.getElementById('trackProfitCurrentDisplay');
+      if (!previewCard) return;
+
+      if (!userRef) {
+        previewCard.classList.add('hidden');
+        return;
+      }
+
+      const user = findAdminUserByRef(getTrackProfitManagedUsers(), userRef);
+      const metrics = getUserTrackProfitMetrics(userRef);
+
+      document.getElementById('trackProfitCurrentUserLabel').textContent = user
+        ? `${user.fullName || user.name || user.email} (${user.email || 'No email'})`
+        : 'Selected user';
+
+      [
+        ['tpTrackedValue', metrics.trackedPnl],
+        ['tpClosedValue', metrics.closedPnl],
+        ['tpOpenValue', metrics.openPnl],
+        ['tpNetValue', metrics.netPnl]
+      ].forEach(([elementId, value]) => {
+        const element = document.getElementById(elementId);
+        if (!element) return;
+        element.textContent = formatProfitLossAmount(value);
+        element.className = `font-bold text-lg ${getProfitLossToneClass(value)}`;
+      });
+
+      document.getElementById('trackProfitLastUpdated').textContent = metrics.lastTrackedAt
+        ? `Last tracked update: ${new Date(metrics.lastTrackedAt).toLocaleString()}${metrics.lastTrackedNote ? ` — ${metrics.lastTrackedNote}` : ''}`
+        : 'Last tracked update: Never';
+      previewCard.classList.remove('hidden');
+    }
+
+    function loadTrackProfitSummaryCards() {
+      const rows = getTrackProfitManagedUsers().map(user => ({ user, metrics: getUserTrackProfitMetrics(user) }));
+      const trackedUsersCount = rows.filter(row => Math.abs(Number(row.metrics.trackedPnl || 0)) >= 0.01).length;
+      const totalTracked = rows.reduce((sum, row) => sum + Number(row.metrics.trackedPnl || 0), 0);
+      const totalOpen = rows.reduce((sum, row) => sum + Number(row.metrics.openPnl || 0), 0);
+      const totalNet = rows.reduce((sum, row) => sum + Number(row.metrics.netPnl || 0), 0);
+
+      document.getElementById('trackProfitUsersCount').textContent = trackedUsersCount;
+
+      [
+        ['trackProfitTotalTracked', totalTracked],
+        ['trackProfitTotalOpen', totalOpen],
+        ['trackProfitTotalNet', totalNet]
+      ].forEach(([elementId, value]) => {
+        const element = document.getElementById(elementId);
+        if (!element) return;
+        element.textContent = formatProfitLossAmount(value);
+        element.className = `text-2xl font-bold mt-2 ${getProfitLossToneClass(value)}`;
+      });
+    }
+
+    function loadTrackProfitTable() {
+      const search = String(document.getElementById('trackProfitSearch')?.value || '').trim().toLowerCase();
+      const rows = getTrackProfitManagedUsers()
+        .map(user => ({ user, userRef: buildAdminUserRef(user), metrics: getUserTrackProfitMetrics(user) }))
+        .filter(({ user, metrics }) => {
+          if (!search) return true;
+          const haystack = [
+            user.fullName || user.name || '',
+            user.email || '',
+            user.plan || '',
+            formatProfitLossAmount(metrics.trackedPnl),
+            formatProfitLossAmount(metrics.netPnl)
+          ].join(' ').toLowerCase();
+          return haystack.includes(search);
+        })
+        .sort((a, b) => {
+          const aMagnitude = Math.max(Math.abs(Number(a.metrics.netPnl || 0)), Math.abs(Number(a.metrics.trackedPnl || 0)));
+          const bMagnitude = Math.max(Math.abs(Number(b.metrics.netPnl || 0)), Math.abs(Number(b.metrics.trackedPnl || 0)));
+          return bMagnitude - aMagnitude;
+        });
+
+      const tbody = document.getElementById('trackProfitTable');
+      if (!tbody) return;
+
+      if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-8 text-center text-gray-500">No tracked profit records found</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = rows.map(({ user, userRef, metrics }) => `
+        <tr class="hover:bg-gray-50">
+          <td class="px-4 py-3">
+            <div class="font-medium text-gray-900">${user.fullName || user.name || 'N/A'}</div>
+            <div class="text-xs text-gray-500">${user.email || 'No email'}</div>
+          </td>
+          <td class="px-4 py-3 font-medium text-gray-900">$${Number(user.balance || 0).toFixed(2)}</td>
+          <td class="px-4 py-3 font-medium ${getProfitLossToneClass(metrics.trackedPnl)}">${formatProfitLossAmount(metrics.trackedPnl)}</td>
+          <td class="px-4 py-3 font-medium ${getProfitLossToneClass(metrics.closedPnl)}">${formatProfitLossAmount(metrics.closedPnl)}</td>
+          <td class="px-4 py-3 font-medium ${getProfitLossToneClass(metrics.openPnl)}">${formatProfitLossAmount(metrics.openPnl)}</td>
+          <td class="px-4 py-3 font-medium ${getProfitLossToneClass(metrics.netPnl)}">${formatProfitLossAmount(metrics.netPnl)}</td>
+          <td class="px-4 py-3 text-sm text-gray-500">${metrics.lastTrackedAt ? new Date(metrics.lastTrackedAt).toLocaleString() : 'Never'}</td>
+          <td class="px-4 py-3">
+            <button onclick="openTrackProfitManager('${userRef}')" class="px-3 py-2 bg-cyan-50 text-cyan-700 rounded-lg hover:bg-cyan-100 text-sm font-medium">
+              <i class="fas fa-pen mr-1"></i>Adjust
+            </button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function loadTrackProfitManager(selectedUserRef = '') {
+      loadTrackProfitUsers(selectedUserRef);
+      toggleTrackProfitAmountState();
+      loadTrackProfitSummaryCards();
+      loadTrackProfitTable();
+      showTrackProfitPreview();
+    }
+
     function showCurrentBalance() {
       const userId = document.getElementById('balanceUser').value;
       if (!userId) {
@@ -2263,7 +2679,7 @@
           break;
         case 'set_track_pnl':
           shouldPersistUser = false;
-          await upsertTrackProfitAdjustmentTrade(user, amount, reason);
+          await applyTrackProfitChange(user, { mode: 'set', amount, reason });
           toastMessage = 'Dashboard tracked profit/loss updated successfully!';
           break;
       }
@@ -2275,23 +2691,50 @@
         }
       }
 
-      if (isTrackPnlAction) {
-        addTransaction(
-          userId,
-          'admin_tracking_pnl',
-          amount,
-          `Tracked profit/loss set by admin: ${reason || 'No reason'}`,
-          'completed',
-          'track_pnl',
-          `track_pnl_${userId}`
-        );
-      } else {
+      if (!isTrackPnlAction) {
         addTransaction(userId, 'admin_adjustment', changeAmount, `Balance ${action} by admin: ${reason || 'No reason'}`);
       }
       
       showToast(toastMessage);
       document.getElementById('balanceForm').reset();
       document.getElementById('currentBalanceDisplay').classList.add('hidden');
+      loadTrackProfitManager();
+    });
+
+    document.getElementById('trackProfitForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+
+      const userRef = document.getElementById('trackProfitUser').value;
+      const action = document.getElementById('trackProfitAction').value;
+      const amountInput = document.getElementById('trackProfitAmount');
+      const rawAmount = amountInput ? amountInput.value : '';
+      const amount = rawAmount === '' ? 0 : parseFloat(rawAmount);
+      const reason = document.getElementById('trackProfitReason').value;
+
+      if (!userRef) {
+        showToast('Select a user before updating tracked profit/loss.', 'error');
+        return;
+      }
+
+      if (action !== 'reset' && Number.isNaN(amount)) {
+        showToast('Enter a valid tracked profit or loss amount.', 'error');
+        return;
+      }
+
+      try {
+        const result = await applyTrackProfitChange(userRef, { mode: action, amount, reason });
+        const selectedRef = buildAdminUserRef(result.user);
+
+        document.getElementById('trackProfitAction').value = 'set';
+        document.getElementById('trackProfitAmount').value = '';
+        document.getElementById('trackProfitReason').value = '';
+        loadTrackProfitManager(selectedRef);
+        showCurrentBalance();
+
+        showToast(`Tracked profit/loss updated for ${result.user.fullName || result.user.name || result.user.email}.`);
+      } catch (error) {
+        showToast(error?.message || 'Tracked profit/loss could not be updated right now.', 'error');
+      }
     });
 
     function getKycReviewPriority(user) {
@@ -3265,10 +3708,14 @@
     }
 
     function addTransaction(userId, type, amount, description, status = 'completed', referenceType = null, referenceId = null, date = null) {
+      const reference = parseAdminUserRef(userId);
+      const user = findAdminUserByRef(getUsers(), reference);
       let transactions = JSON.parse(localStorage.getItem('eso_transactions') || '[]');
       transactions.unshift({
         id: Date.now().toString(),
-        userId: userId,
+        userId: user?.id || reference.id || String(userId || ''),
+        userAuthId: user?.auth_id || reference.auth_id || null,
+        userEmail: user?.email || reference.email || null,
         type: type,
         amount: amount,
         description: description,
@@ -3281,17 +3728,23 @@
     }
 
     function upsertTransactionStatusByReference({ userId, type, amount, description, status, referenceType, referenceId, date }) {
+      const reference = parseAdminUserRef(userId);
+      const user = findAdminUserByRef(getUsers(), reference);
       let transactions = JSON.parse(localStorage.getItem('eso_transactions') || '[]');
       const existing = transactions.find(t => t.referenceType === referenceType && t.referenceId === referenceId && t.userId === userId);
 
       if (existing) {
+        existing.userAuthId = existing.userAuthId || user?.auth_id || reference.auth_id || null;
+        existing.userEmail = existing.userEmail || user?.email || reference.email || null;
         existing.status = status;
         existing.description = description;
         existing.date = date || existing.date;
       } else {
         transactions.unshift({
           id: Date.now().toString(),
-          userId,
+          userId: user?.id || reference.id || String(userId || ''),
+          userAuthId: user?.auth_id || reference.auth_id || null,
+          userEmail: user?.email || reference.email || null,
           type,
           amount,
           description,
@@ -3309,6 +3762,15 @@
       switchTab('balanceManager');
       document.getElementById('balanceUser').value = userId;
       showCurrentBalance();
+    }
+
+    function openTrackProfitManager(userRef = '') {
+      const selectedUser = userRef ? findAdminUserByRef(getTrackProfitManagedUsers(), userRef) : null;
+      const selectedRef = selectedUser ? buildAdminUserRef(selectedUser) : '';
+      switchTab('trackProfit');
+      window.requestAnimationFrame(() => {
+        loadTrackProfitManager(selectedRef);
+      });
     }
 
     function sendUserBonus(userId) {
